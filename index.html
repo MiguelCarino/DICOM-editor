@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+  <title>Simple DICOM Tag Editor</title>
+
+  <!-- dcmjs -->
+  <script src="https://cdn.jsdelivr.net/npm/dcmjs@0.29.8/build/dcmjs.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#f7f8fa; --card:#ffffff; --line:#e5e7eb; --text:#111827; --muted:#6b7280; --accent:#2563eb;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0; font-family:var(--sans); background:var(--bg); color:var(--text)}
+    .wrap{max-width:1100px; margin:0 auto; padding:24px}
+    .bar{position:sticky; top:0; z-index:5; display:flex; gap:10px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--line); background:rgba(255,255,255,.85); -webkit-backdrop-filter:saturate(180%) blur(8px); backdrop-filter:saturate(180%) blur(8px)}
+    .bar .hint{color:var(--muted); font-size:13px}
+    .spacer{flex:1}
+    .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px}
+    .drop{border:2px dashed var(--line); border-radius:12px; padding:22px; text-align:center; color:var(--muted); background:#fbfbfd; transition:.15s}
+    .dragging .drop{border-color:var(--accent); background:#eef2ff}
+    .btn{appearance:none; border:1px solid var(--line); background:#f3f4f6; padding:10px 14px; border-radius:10px; font-weight:600; cursor:pointer}
+    .btn:hover{background:#e5e7eb}
+    .btn.primary{background:var(--accent); color:#fff; border-color:#1d4ed8}
+    .btn.primary:hover{filter:brightness(0.97)}
+    .pill{display:inline-block; border:1px solid var(--line); background:#f9fafb; padding:6px 10px; border-radius:999px; font-size:12px; margin-right:8px; color:#374151}
+    table{width:100%; border-collapse:collapse; border:1px solid var(--line); border-radius:12px; overflow:hidden}
+    thead th{background:#fbfbfd; font-size:12px; text-align:left; padding:10px; border-bottom:1px solid var(--line); color:#6b7280}
+    tbody td{padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top}
+    tbody tr:hover{background:#fafafa}
+    .tag{font-family:var(--mono); color:#6b7280}
+    .vr{font-family:var(--mono); font-size:12px; color:#4b5563}
+    .value{width:100%; font-size:14px; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:#ffffff}
+    .value:disabled{background:#f7f7f7; color:#9ca3af}
+    .footer{display:flex; align-items:center; gap:12px; margin-top:12px}
+    .hint{font-size:12px; color:var(--muted)}
+    .hidden{display:none}
+    canvas#preview{max-width:100%; border:1px solid var(--line); border-radius:10px}
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <strong>Simple DICOM Tag Editor</strong>
+    <div class="spacer"></div>
+    <span class="hint">Drop a .dcm anywhere or <button id="browseBtn" class="btn">Choose File…</button></span>
+    <input id="fileInput" type="file" accept=".dcm,.dicom,application/dicom" hidden />
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="drop" id="dropZone">
+        <div style="font-weight:600; color:#111827">Drop a DICOM (.dcm) file</div>
+        <div class="hint" style="margin-top:6px">You can also drop files anywhere on the page</div>
+      </div>
+
+      <div id="editor" class="hidden" style="margin-top:14px">
+        <div style="margin-bottom:10px">
+          <span class="pill" id="fileNamePill">—</span>
+          <span class="pill" id="tsuidPill">Transfer Syntax: —</span>
+          <span class="pill" id="pixelPill">Pixel Data: —</span>
+        </div>
+
+        <div style="max-height:50vh; overflow:auto; border-radius:12px">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:130px">Tag</th>
+                <th style="width:220px">Keyword</th>
+                <th style="width:70px">VR</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody id="tagBody"></tbody>
+          </table>
+        </div>
+
+        <div class="footer">
+          <div class="hint">Read-only: sequences, Pixel Data, and binary VRs.</div>
+          <div class="spacer"></div>
+          <button id="downloadBtn" class="btn primary hidden">Download Edited DICOM</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview -->
+    <div id="previewCard" class="card hidden" style="margin-top:14px">
+      <strong>Preview</strong>
+      <div class="hint" style="margin:6px 0 10px">Shows first frame of uncompressed MONOCHROME images.</div>
+      <canvas id="preview"></canvas>
+    </div>
+  </div>
+
+  <script>
+    if (!window.dcmjs) {
+      console.error('dcmjs failed to load');
+      alert('Could not load dcmjs library. Check your network/CSP and reload.');
+    }
+
+    // Elements
+    const body = document.body;
+    const dropZone = document.getElementById('dropZone');
+    const browseBtn = document.getElementById('browseBtn');
+    const fileInput = document.getElementById('fileInput');
+    const editor = document.getElementById('editor');
+    const tagBody = document.getElementById('tagBody');
+    const fileNamePill = document.getElementById('fileNamePill');
+    const tsuidPill = document.getElementById('tsuidPill');
+    const pixelPill = document.getElementById('pixelPill');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const previewCard = document.getElementById('previewCard');
+    const previewCanvas = document.getElementById('preview');
+
+    // dcmjs handles
+    const { DicomMessage, DicomMetaDictionary, DicomDict } = dcmjs.data;
+
+    // State
+    let dict = null; // denaturalized dataset
+    let meta = null; // file meta
+    const pendingEdits = new Map(); // tag -> { vr, valueString }
+
+    // Helpers
+    function isBinaryVR(vr) {
+      return ['OB','OW','OF','UN','OD','OL'].includes(vr);
+    }
+    function isReadOnly(tag, vr) {
+      const t = String(tag).toLowerCase();
+      if (t === 'x7fe00010' || t === '7fe00010') return true; // Pixel Data
+      if (vr === 'SQ') return true; // sequences
+      if (isBinaryVR(vr)) return true; // binary
+      return false;
+    }
+    function fmtTag(t) {
+      const s = t.startsWith('x') ? t.slice(1) : t;
+      return '(' + s.slice(0,4).toUpperCase() + ',' + s.slice(4,8).toUpperCase() + ')';
+    }
+    function elToString(el) {
+      if (!el) return '';
+      if (el.InlineBinary) return '<binary>';
+      const v = el.Value;
+      if (v == null) return '';
+      if (Array.isArray(v)) return v.map(x => (x==null? '': String(x))).join('\\');
+      return String(v);
+    }
+    function parseByVR(vr, str) {
+      if (str == null) return [];
+      const parts = String(str).split('\\').map(s => s.trim());
+      switch (vr) {
+        case 'US': case 'UL': case 'SS': case 'SL':
+        case 'FL': case 'FD':
+          return parts.map(Number);
+        case 'OB': case 'OW': case 'OF': case 'UN': case 'OD': case 'OL':
+          throw new Error('Binary VRs not editable');
+        default:
+          return parts;
+      }
+    }
+    function keywordFor(tag) {
+      try {
+        if (typeof DicomMetaDictionary.nameOf === 'function') {
+          return DicomMetaDictionary.nameOf(tag) || '';
+        }
+        if (typeof DicomMetaDictionary.nameOfTag === 'function') {
+          return DicomMetaDictionary.nameOfTag(tag) || '';
+        }
+        const d = DicomMetaDictionary.dictionary || {};
+        if (d && d[tag] && d[tag].name) return d[tag].name;
+      } catch (e) {}
+      return '';
+    }
+    function revealDownload() {
+      downloadBtn.classList.remove('hidden');
+    }
+    function showDownloadIfEdited() {
+      // Show if file loaded; hide only when no edits and no file
+      const hasFile = !!dict;
+      const hasEdits = pendingEdits.size > 0;
+      downloadBtn.classList.toggle('hidden', !(hasFile && (hasEdits || true))); // allow download after load
+    }
+
+    function renderTable() {
+      const rows = [];
+      const entries = Object.entries(dict || {}).filter(([tag]) => tag.startsWith('x') || /^[0-9a-f]{8}$/i.test(tag));
+      entries.sort(([a],[b]) => a.localeCompare(b));
+      for (const [tag, el] of entries) {
+        const vr = el.vr || '';
+        const keyw = keywordFor(tag);
+        const valueStr = pendingEdits.has(tag) ? pendingEdits.get(tag).valueString : elToString(el);
+        const ro = isReadOnly(tag, vr);
+
+        const tr = document.createElement('tr');
+
+        const tdTag = document.createElement('td');
+        tdTag.innerHTML = '<span class="tag">' + fmtTag(tag) + '</span>';
+
+        const tdKw = document.createElement('td');
+        tdKw.textContent = keyw;
+
+        const tdVR = document.createElement('td');
+        tdVR.innerHTML = '<span class="vr">' + vr + '</span>';
+
+        const tdVal = document.createElement('td');
+        const inp = document.createElement('input');
+        inp.className = 'value';
+        inp.value = valueStr;
+        inp.disabled = ro;
+        inp.placeholder = ro ? '(read-only)' : '';
+        inp.addEventListener('input', function () {
+          pendingEdits.set(tag, { vr: vr, valueString: inp.value });
+          showDownloadIfEdited();
+        });
+        tdVal.appendChild(inp);
+
+        tr.appendChild(tdTag);
+        tr.appendChild(tdKw);
+        tr.appendChild(tdVR);
+        tr.appendChild(tdVal);
+        rows.push(tr);
+      }
+      tagBody.replaceChildren(...rows);
+      showDownloadIfEdited();
+    }
+
+    function base64ToArrayBuffer(b64) {
+      b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+      const pad = b64.length % 4;
+      if (pad) b64 += '='.repeat(4 - pad);
+      const bin = atob(b64);
+      const len = bin.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+      return bytes.buffer;
+    }
+
+    // Strict normalizer: ensure every binary VR and Pixel Data is ArrayBuffer
+    function normalizeBinaryElementsRecursive(node) {
+      if (!node || typeof node !== 'object') return;
+      const binaryVRs = new Set(['OB','OW','OF','UN','OD','OL']);
+
+      for (const [tag, el] of Object.entries(node)) {
+        if (!el || typeof el !== 'object') continue;
+
+        // Recurse into sequences
+        if (el.vr === 'SQ' && Array.isArray(el.Value)) {
+          for (const item of el.Value) normalizeBinaryElementsRecursive(item);
+          continue;
+        }
+
+        // Convert InlineBinary (base64) → Value[ArrayBuffer]
+        if (typeof el.InlineBinary === 'string') {
+          const buf = base64ToArrayBuffer(el.InlineBinary);
+          el.Value = [buf];
+          delete el.InlineBinary;
+        }
+
+        const isPixelDataTag = (tag.toLowerCase() === 'x7fe00010' || tag === '7fe00010');
+        const needsBinary = isPixelDataTag || binaryVRs.has(el.vr);
+
+        if (needsBinary) {
+          let arr = el.Value;
+          if (arr == null) arr = [];
+          if (!Array.isArray(arr)) arr = [arr];
+
+          arr = arr.map(v => {
+            if (v instanceof ArrayBuffer) return v;
+            if (ArrayBuffer.isView(v)) {
+              const { buffer, byteOffset, byteLength } = v;
+              return buffer.slice(byteOffset, byteOffset + byteLength);
+            }
+            if (typeof Blob !== 'undefined' && v instanceof Blob) {
+              console.warn('Dropping Blob in binary VR at', tag);
+              return null;
+            }
+            return null; // drop unknown types for safety
+          }).filter(Boolean);
+
+          el.Value = arr;
+        }
+      }
+    }
+
+    function ensureMetaFromDataset(denat) {
+      let m = (meta && typeof meta === 'object') ? shallowClone(meta) : {};
+
+      const sopClass = denat['x00080016']?.Value?.[0];
+      const sopInstance = denat['x00080018']?.Value?.[0];
+
+      // OB must be ArrayBuffer for dcmjs BufferStream
+      const u8 = new Uint8Array([0x00, 0x01]);
+      if (!m.FileMetaInformationVersion) {
+        m.FileMetaInformationVersion = { vr: 'OB', Value: [u8.buffer] };
+      } else if (m.FileMetaInformationVersion.Value && m.FileMetaInformationVersion.Value[0] instanceof Uint8Array) {
+        m.FileMetaInformationVersion.Value[0] = m.FileMetaInformationVersion.Value[0].buffer;
+      }
+
+      if (sopClass) {
+        m.MediaStorageSOPClassUID = { vr: 'UI', Value: [sopClass] };
+      }
+      if (sopInstance) {
+        m.MediaStorageSOPInstanceUID = { vr: 'UI', Value: [sopInstance] };
+      }
+
+      // Preserve original Transfer Syntax if present
+      if (meta?.TransferSyntaxUID?.Value?.[0]) {
+        m.TransferSyntaxUID = { vr: 'UI', Value: [meta.TransferSyntaxUID.Value[0]] };
+      } else if (!m.TransferSyntaxUID) {
+        m.TransferSyntaxUID = { vr: 'UI', Value: ['1.2.840.10008.1.2.1'] }; // Explicit VR Little Endian
+      }
+
+      if (!m.ImplementationClassUID) {
+        m.ImplementationClassUID = { vr: 'UI', Value: ['1.2.826.0.1.3680043.10.743'] };
+      }
+      return m;
+    }
+
+    // Shallow clone that preserves ArrayBuffers
+    function shallowClone(obj) {
+      return Object.assign({}, obj);
+    }
+
+    function getTagStr(el) {
+      return el?.Value?.[0];
+    }
+    function getTagNum(el, def=undefined) {
+      const v = el?.Value?.[0];
+      const n = Number(v);
+      return Number.isFinite(n) ? n : def;
+    }
+    function windowTransform(sample, wc, ww) {
+      if (wc == null || ww == null || ww <= 1) return sample;
+      const c = wc, w = ww;
+      const lo = c - 0.5 - (w-1)/2;
+      const hi = c - 0.5 + (w-1)/2;
+      if (sample <= lo) return 0;
+      if (sample >  hi) return 255;
+      return Math.round(((sample - lo) / (hi - lo)) * 255);
+    }
+
+    function drawPreviewFromDenat(denat) {
+      const rows = getTagNum(denat['x00280010']); // Rows
+      const cols = getTagNum(denat['x00280011']); // Columns
+      const spp  = getTagNum(denat['x00280002'], 1); // SamplesPerPixel
+      const pi   = getTagStr(denat['x00280004']); // PhotometricInterpretation
+      const bitsAllocated = getTagNum(denat['x00280100'], 16);
+      const bitsStored    = getTagNum(denat['x00280101'], bitsAllocated);
+      const highBit       = getTagNum(denat['x00280102'], bitsStored - 1);
+      const pixelRepr     = getTagNum(denat['x00280103'], 0); // 0=unsigned,1=signed
+      const wc = getTagNum(denat['x00281050']);
+      const ww = getTagNum(denat['x00281051']);
+
+      // Simple MONOCHROME only
+      if (!rows || !cols || spp !== 1 || !/^MONOCHROME[12]$/i.test(pi || '')) {
+        previewCard.classList.add('hidden');
+        return;
+      }
+
+      const px = denat['x7fe00010'] || denat['7fe00010'];
+      if (!px || !px.Value || !px.Value[0]) { previewCard.classList.add('hidden'); return; }
+      const buf = px.Value[0];
+      if (!(buf instanceof ArrayBuffer)) { previewCard.classList.add('hidden'); return; }
+
+      let data16 = null, data8 = null;
+      if (bitsAllocated === 16) {
+        data16 = new (pixelRepr ? Int16Array : Uint16Array)(buf);
+      } else if (bitsAllocated === 8) {
+        data8 = new Uint8Array(buf);
+      } else {
+        previewCard.classList.add('hidden');
+        return;
+      }
+
+      const canvas = previewCanvas;
+      const ctx = canvas.getContext('2d');
+      canvas.width = cols; canvas.height = rows;
+      const img = ctx.createImageData(cols, rows);
+      const out = img.data;
+
+      if (data16) {
+        const mask = bitsStored < 16 ? ((1 << bitsStored) - 1) : 0xFFFF;
+        const shift = (highBit - bitsStored + 1);
+        const signed = !!pixelRepr;
+        for (let i = 0; i < rows*cols; i++) {
+          let v = data16[i];
+          if (!signed) v = (v >>> 0);
+          if (shift > 0) v = (v >>> shift);
+          if (bitsStored < 16) v = (v & mask);
+
+          if (signed) {
+            const signBit = 1 << (bitsStored - 1);
+            if (v & signBit) v = v - (signBit << 1);
+          }
+
+          let g = v;
+          if (ww && wc) g = windowTransform(v, wc, ww);
+          else {
+            const max = (1 << bitsStored) - 1;
+            g = Math.round((v / max) * 255);
+          }
+          const p = i * 4;
+          out[p] = out[p+1] = out[p+2] = g; out[p+3] = 255;
+        }
+      } else if (data8) {
+        for (let i = 0; i < rows*cols; i++) {
+          let g = data8[i];
+          if (ww && wc) g = windowTransform(g, wc, ww);
+          const p = i * 4;
+          out[p] = out[p+1] = out[p+2] = g; out[p+3] = 255;
+        }
+      }
+
+      ctx.putImageData(img, 0, 0);
+      previewCard.classList.remove('hidden');
+    }
+
+    async function handleFile(file) {
+      try {
+        const buf = await file.arrayBuffer();
+        const msg = DicomMessage.readFile(buf);
+        dict = msg.dict;
+        meta = msg.meta || {};
+        editor.classList.remove('hidden');
+
+        fileNamePill.textContent = file.name || '—';
+        const ts = meta?.TransferSyntaxUID?.Value?.[0] || '—';
+        tsuidPill.textContent = 'Transfer Syntax: ' + ts;
+        const hasPx = !!(dict['x7fe00010'] || dict['7fe00010']);
+        pixelPill.textContent = 'Pixel Data: ' + (hasPx ? 'Present' : 'Absent');
+
+        pendingEdits.clear();
+        renderTable();
+        revealDownload(); // allow quick re-save
+        drawPreviewFromDenat(dict);
+      } catch (err) {
+        console.error(err);
+        alert('Failed to load DICOM: ' + (err && err.message ? err.message : err));
+      }
+    }
+
+    function downloadEdited() {
+      try {
+        if (!dict) return;
+
+        // Clone without breaking ArrayBuffers
+        const denat = (typeof structuredClone === 'function')
+          ? structuredClone(dict)
+          : shallowClone(dict); // shallow is fine; we overwrite only edited tags
+
+        // Apply edits (never touch pixel data / sequences / binary VRs)
+        pendingEdits.forEach(function ({ vr, valueString }, tag) {
+          if (isReadOnly(tag, vr)) return;
+          denat[tag] = { vr: vr, Value: parseByVR(vr, valueString) };
+        });
+
+        // Prepare meta, preserving original TSUID
+        const metaOut = ensureMetaFromDataset(denat);
+
+        // Normalize binaries to ArrayBuffer
+        normalizeBinaryElementsRecursive(denat);
+        normalizeBinaryElementsRecursive(metaOut);
+
+        // Force top-level binary VRs to ArrayBuffer as belt & suspenders
+        (function forceTopLevelArrayBuffers(obj){
+          const bin = { OB:1, OW:1, OF:1, UN:1, OD:1, OL:1 };
+          for (const [t, el] of Object.entries(obj || {})) {
+            if (!el || !bin[el.vr]) continue;
+            if (el.Value && el.Value.length) {
+              el.Value = el.Value.map(v => {
+                if (v instanceof ArrayBuffer) return v;
+                if (ArrayBuffer.isView(v)) {
+                  const { buffer, byteOffset, byteLength } = v;
+                  return buffer.slice(byteOffset, byteOffset + byteLength);
+                }
+                return null;
+              }).filter(Boolean);
+            }
+          }
+        })(denat);
+
+        const dd = new DicomDict(metaOut);
+        dd.dict = denat;
+        const outBytes = dd.write(); // ArrayBuffer (0.29.x) or Uint8Array in older variants
+        const payload = outBytes && outBytes.buffer ? outBytes.buffer : outBytes;
+        const blob = new Blob([payload], { type: 'application/dicom' });
+
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        const base = (fileNamePill.textContent || 'edited').replace(/\.[^.]+$/, '');
+        const ts = new Date().toISOString().replace(/[:.]/g, '-'); 
+        a.download = `${base}.edited.${ts}.dcm`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+      } catch (err) {
+        console.error(err);
+        alert('Failed to write DICOM: ' + (err && err.message ? err.message : err));
+      }
+    }
+
+    // Drag & drop
+    window.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      body.classList.add('dragging');
+    });
+    window.addEventListener('dragleave', function () {
+      body.classList.remove('dragging');
+    });
+    window.addEventListener('drop', function (e) {
+      e.preventDefault();
+      body.classList.remove('dragging');
+      const f = e.dataTransfer?.files?.[0];
+      if (f) handleFile(f);
+    });
+
+    // File picker
+    dropZone.addEventListener('click', function () { fileInput.click(); });
+    browseBtn.addEventListener('click', function () { fileInput.click(); });
+    fileInput.addEventListener('change', function (e) {
+      const f = e.target.files?.[0];
+      if (f) handleFile(f);
+    });
+
+    // Download
+    downloadBtn.addEventListener('click', downloadEdited);
+  </script>
+</body>
+</html>
