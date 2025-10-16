@@ -40,9 +40,11 @@
     .vr{font-family:var(--mono); font-size:12px; color:#4b5563}
     .value{width:100%; font-size:14px; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:#ffffff}
     .value:disabled{background:#f7f7f7; color:#9ca3af}
-    .footer{display:flex; align-items:center; gap:12px; margin-top:12px}
-    .hint{font-size:12px; color:var(--muted)}
+    .footer{display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap}
+    .hint{font-size:12px; color:#6b7280}
     .hidden{display:none}
+    .uidbar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px; border:1px dashed var(--line); border-radius:10px; background:#f9fafb; margin:12px 0}
+    .uidbar input[type="text"]{min-width:320px; max-width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-family:var(--mono)}
     canvas#preview{max-width:100%; border:1px solid var(--line); border-radius:10px}
   </style>
 </head>
@@ -68,6 +70,20 @@
           <span class="pill" id="pixelPill">Pixel Data: —</span>
         </div>
 
+        <!-- UID linking toolbar -->
+        <div class="uidbar" id="uidBar" title="Change the shared UID prefix to update all UI fields at once.">
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input id="linkUIDsChk" type="checkbox" checked />
+            <span>Link UID fields by prefix</span>
+          </label>
+          <label class="hint" style="display:flex; align-items:center; gap:6px;">
+            Prefix:
+            <input id="uidPrefixInput" type="text" placeholder="1.2.840.xxx" />
+          </label>
+          <button id="applyPrefixBtn" class="btn">Apply to all UIDs</button>
+          <span class="hint" id="uidInfo">—</span>
+        </div>
+
         <div style="max-height:50vh; overflow:auto; border-radius:12px">
           <table>
             <thead>
@@ -85,6 +101,8 @@
         <div class="footer">
           <div class="hint">Read-only: sequences, Pixel Data, and binary VRs.</div>
           <div class="spacer"></div>
+          <button id="anonymizeBtn" class="btn">Anonymize</button>
+          <button id="randomizeBtn" class="btn">Randomize</button>
           <button id="downloadBtn" class="btn primary hidden">Download Edited DICOM</button>
         </div>
       </div>
@@ -115,8 +133,17 @@
     const tsuidPill = document.getElementById('tsuidPill');
     const pixelPill = document.getElementById('pixelPill');
     const downloadBtn = document.getElementById('downloadBtn');
+    const anonymizeBtn = document.getElementById('anonymizeBtn');
+    const randomizeBtn = document.getElementById('randomizeBtn');
     const previewCard = document.getElementById('previewCard');
     const previewCanvas = document.getElementById('preview');
+
+    // UID bar
+    const uidBar = document.getElementById('uidBar');
+    const linkUIDsChk = document.getElementById('linkUIDsChk');
+    const uidPrefixInput = document.getElementById('uidPrefixInput');
+    const applyPrefixBtn = document.getElementById('applyPrefixBtn');
+    const uidInfo = document.getElementById('uidInfo');
 
     // dcmjs handles
     const { DicomMessage, DicomMetaDictionary, DicomDict } = dcmjs.data;
@@ -125,11 +152,12 @@
     let dict = null; // denaturalized dataset
     let meta = null; // file meta
     const pendingEdits = new Map(); // tag -> { vr, valueString }
+    let uiInputs = [];                 // [{ tag, input, vr }]
+    let sharedUIDPrefix = '';
+    let originalUIValues = new Map();
 
-    // Helpers
-    function isBinaryVR(vr) {
-      return ['OB','OW','OF','UN','OD','OL'].includes(vr);
-    }
+    // ---------- Utility helpers ----------
+    function isBinaryVR(vr){ return ['OB','OW','OF','UN','OD','OL'].includes(vr); }
     function isReadOnly(tag, vr) {
       const t = String(tag).toLowerCase();
       if (t === 'x7fe00010' || t === '7fe00010') return true; // Pixel Data
@@ -164,31 +192,28 @@
     }
     function keywordFor(tag) {
       try {
-        if (typeof DicomMetaDictionary.nameOf === 'function') {
-          return DicomMetaDictionary.nameOf(tag) || '';
-        }
-        if (typeof DicomMetaDictionary.nameOfTag === 'function') {
-          return DicomMetaDictionary.nameOfTag(tag) || '';
-        }
+        if (typeof DicomMetaDictionary.nameOf === 'function') return DicomMetaDictionary.nameOf(tag) || '';
+        if (typeof DicomMetaDictionary.nameOfTag === 'function') return DicomMetaDictionary.nameOfTag(tag) || '';
         const d = DicomMetaDictionary.dictionary || {};
+        if (d && d[tag] && d.tag?.name) return d[tag].name; // fallback
         if (d && d[tag] && d[tag].name) return d[tag].name;
       } catch (e) {}
       return '';
     }
-    function revealDownload() {
-      downloadBtn.classList.remove('hidden');
-    }
+    function shallowClone(o){ return Object.assign({}, o); }
     function showDownloadIfEdited() {
-      // Show if file loaded; hide only when no edits and no file
       const hasFile = !!dict;
       const hasEdits = pendingEdits.size > 0;
-      downloadBtn.classList.toggle('hidden', !(hasFile && (hasEdits || true))); // allow download after load
+      downloadBtn.classList.toggle('hidden', !(hasFile && (hasEdits || true)));
     }
 
+    // ---------- Rendering ----------
     function renderTable() {
       const rows = [];
       const entries = Object.entries(dict || {}).filter(([tag]) => tag.startsWith('x') || /^[0-9a-f]{8}$/i.test(tag));
       entries.sort(([a],[b]) => a.localeCompare(b));
+      uiInputs = [];
+
       for (const [tag, el] of entries) {
         const vr = el.vr || '';
         const keyw = keywordFor(tag);
@@ -216,6 +241,19 @@
           pendingEdits.set(tag, { vr: vr, valueString: inp.value });
           showDownloadIfEdited();
         });
+        // UID linking behavior
+        if (!ro && vr === 'UI') {
+          inp.addEventListener('blur', function () {
+            if (!linkUIDsChk.checked) return;
+            const newVal = String(inp.value || '');
+            if (!newVal) return;
+            const cand = newVal.includes('.') ? newVal.slice(0, newVal.lastIndexOf('.')) : newVal;
+            if (cand && cand !== sharedUIDPrefix && /^[0-9]+(\.[0-9]+)*$/.test(cand)) {
+              applyPrefixToAll(cand);
+            }
+          });
+          uiInputs.push({ tag, input: inp, vr });
+        }
         tdVal.appendChild(inp);
 
         tr.appendChild(tdTag);
@@ -224,63 +262,97 @@
         tr.appendChild(tdVal);
         rows.push(tr);
       }
+
       tagBody.replaceChildren(...rows);
+      showDownloadIfEdited();
+      computeAndShowUIDPrefix();
+    }
+
+    // ---------- UID prefix linking ----------
+    function longestCommonPrefixDotBounded(strings){
+      if (!strings.length) return '';
+      let p = strings[0];
+      for (let i=1;i<strings.length;i++){
+        const s = strings[i]; let j=0;
+        while (j < p.length && j < s.length && p[j] === s[j]) j++;
+        p = p.slice(0, j);
+        if (p === '') break;
+      }
+      const k = p.lastIndexOf('.');
+      return k > 0 ? p.slice(0, k) : p;
+    }
+    function collectCurrentUIStrings(){
+      const vals = [];
+      for (const { input } of uiInputs){
+        const v = String(input.value || '').trim();
+        if (v) vals.push(v);
+      }
+      return vals;
+    }
+    function computeAndShowUIDPrefix(){
+      const all = collectCurrentUIStrings();
+      const common = longestCommonPrefixDotBounded(all);
+      sharedUIDPrefix = common || '';
+      uidPrefixInput.value = sharedUIDPrefix;
+      uidInfo.textContent = uiInputs.length ? `Linked UI fields: ${uiInputs.length}. Prefix: ${sharedUIDPrefix || '—'}` : 'No UI fields found';
+    }
+    function applyPrefixToAll(newPrefix){
+      if (!/^[0-9]+(\.[0-9]+)*$/.test(newPrefix)) { alert('Invalid UID prefix'); return; }
+      const oldPrefix = sharedUIDPrefix || '';
+      for (const { tag, input, vr } of uiInputs){
+        const cur = String(input.value || '');
+        let nextVal;
+        if (oldPrefix && cur.startsWith(oldPrefix + '.')) {
+          nextVal = newPrefix + cur.slice(oldPrefix.length);
+        } else if (!oldPrefix) {
+          const cut = cur.lastIndexOf('.');
+          nextVal = (cut > 0) ? (newPrefix + cur.slice(cut)) : newPrefix;
+        } else {
+          const cut = cur.indexOf('.', newPrefix.length);
+          nextVal = newPrefix + (cut >= 0 ? cur.slice(cut) : '');
+        }
+        input.value = nextVal;
+        pendingEdits.set(tag, { vr, valueString: nextVal });
+      }
+      sharedUIDPrefix = newPrefix;
+      uidPrefixInput.value = newPrefix;
+      uidInfo.textContent = `Linked UI fields: ${uiInputs.length}. Prefix: ${sharedUIDPrefix}`;
       showDownloadIfEdited();
     }
 
+    // ---------- Binary normalization + preview ----------
     function base64ToArrayBuffer(b64) {
       b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
-      const pad = b64.length % 4;
-      if (pad) b64 += '='.repeat(4 - pad);
+      const pad = b64.length % 4; if (pad) b64 += '='.repeat(4 - pad);
       const bin = atob(b64);
       const len = bin.length;
       const bytes = new Uint8Array(len);
       for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
       return bytes.buffer;
     }
-
-    // Strict normalizer: ensure every binary VR and Pixel Data is ArrayBuffer
     function normalizeBinaryElementsRecursive(node) {
       if (!node || typeof node !== 'object') return;
       const binaryVRs = new Set(['OB','OW','OF','UN','OD','OL']);
-
       for (const [tag, el] of Object.entries(node)) {
         if (!el || typeof el !== 'object') continue;
-
-        // Recurse into sequences
         if (el.vr === 'SQ' && Array.isArray(el.Value)) {
           for (const item of el.Value) normalizeBinaryElementsRecursive(item);
           continue;
         }
-
-        // Convert InlineBinary (base64) → Value[ArrayBuffer]
         if (typeof el.InlineBinary === 'string') {
           const buf = base64ToArrayBuffer(el.InlineBinary);
-          el.Value = [buf];
-          delete el.InlineBinary;
+          el.Value = [buf]; delete el.InlineBinary;
         }
-
         const isPixelDataTag = (tag.toLowerCase() === 'x7fe00010' || tag === '7fe00010');
         const needsBinary = isPixelDataTag || binaryVRs.has(el.vr);
-
         if (needsBinary) {
-          let arr = el.Value;
-          if (arr == null) arr = [];
-          if (!Array.isArray(arr)) arr = [arr];
-
+          let arr = el.Value; if (arr == null) arr = []; if (!Array.isArray(arr)) arr = [arr];
           arr = arr.map(v => {
             if (v instanceof ArrayBuffer) return v;
-            if (ArrayBuffer.isView(v)) {
-              const { buffer, byteOffset, byteLength } = v;
-              return buffer.slice(byteOffset, byteOffset + byteLength);
-            }
-            if (typeof Blob !== 'undefined' && v instanceof Blob) {
-              console.warn('Dropping Blob in binary VR at', tag);
-              return null;
-            }
-            return null; // drop unknown types for safety
+            if (ArrayBuffer.isView(v)) { const { buffer, byteOffset, byteLength } = v; return buffer.slice(byteOffset, byteOffset + byteLength); }
+            if (typeof Blob !== 'undefined' && v instanceof Blob) { console.warn('Dropping Blob in binary VR at', tag); return null; }
+            return null;
           }).filter(Boolean);
-
           el.Value = arr;
         }
       }
@@ -288,46 +360,24 @@
 
     function ensureMetaFromDataset(denat) {
       let m = (meta && typeof meta === 'object') ? shallowClone(meta) : {};
-
       const sopClass = denat['x00080016']?.Value?.[0];
       const sopInstance = denat['x00080018']?.Value?.[0];
-
-      // OB must be ArrayBuffer for dcmjs BufferStream
       const u8 = new Uint8Array([0x00, 0x01]);
-      if (!m.FileMetaInformationVersion) {
-        m.FileMetaInformationVersion = { vr: 'OB', Value: [u8.buffer] };
-      } else if (m.FileMetaInformationVersion.Value && m.FileMetaInformationVersion.Value[0] instanceof Uint8Array) {
+      if (!m.FileMetaInformationVersion) m.FileMetaInformationVersion = { vr:'OB', Value:[u8.buffer] };
+      else if (m.FileMetaInformationVersion.Value && m.FileMetaInformationVersion.Value[0] instanceof Uint8Array)
         m.FileMetaInformationVersion.Value[0] = m.FileMetaInformationVersion.Value[0].buffer;
-      }
 
-      if (sopClass) {
-        m.MediaStorageSOPClassUID = { vr: 'UI', Value: [sopClass] };
-      }
-      if (sopInstance) {
-        m.MediaStorageSOPInstanceUID = { vr: 'UI', Value: [sopInstance] };
-      }
+      if (sopClass) m.MediaStorageSOPClassUID = { vr:'UI', Value:[sopClass] };
+      if (sopInstance) m.MediaStorageSOPInstanceUID = { vr:'UI', Value:[sopInstance] };
 
-      // Preserve original Transfer Syntax if present
-      if (meta?.TransferSyntaxUID?.Value?.[0]) {
-        m.TransferSyntaxUID = { vr: 'UI', Value: [meta.TransferSyntaxUID.Value[0]] };
-      } else if (!m.TransferSyntaxUID) {
-        m.TransferSyntaxUID = { vr: 'UI', Value: ['1.2.840.10008.1.2.1'] }; // Explicit VR Little Endian
-      }
+      if (meta?.TransferSyntaxUID?.Value?.[0]) m.TransferSyntaxUID = { vr:'UI', Value:[meta.TransferSyntaxUID.Value[0]] };
+      else if (!m.TransferSyntaxUID) m.TransferSyntaxUID = { vr:'UI', Value:['1.2.840.10008.1.2.1'] }; // Explicit VR Little Endian
 
-      if (!m.ImplementationClassUID) {
-        m.ImplementationClassUID = { vr: 'UI', Value: ['1.2.826.0.1.3680043.10.743'] };
-      }
+      if (!m.ImplementationClassUID) m.ImplementationClassUID = { vr:'UI', Value:['1.2.826.0.1.3680043.10.743'] };
       return m;
     }
 
-    // Shallow clone that preserves ArrayBuffers
-    function shallowClone(obj) {
-      return Object.assign({}, obj);
-    }
-
-    function getTagStr(el) {
-      return el?.Value?.[0];
-    }
+    function getTagStr(el) { return el?.Value?.[0]; }
     function getTagNum(el, def=undefined) {
       const v = el?.Value?.[0];
       const n = Number(v);
@@ -342,7 +392,6 @@
       if (sample >  hi) return 255;
       return Math.round(((sample - lo) / (hi - lo)) * 255);
     }
-
     function drawPreviewFromDenat(denat) {
       const rows = getTagNum(denat['x00280010']); // Rows
       const cols = getTagNum(denat['x00280011']); // Columns
@@ -355,7 +404,6 @@
       const wc = getTagNum(denat['x00281050']);
       const ww = getTagNum(denat['x00281051']);
 
-      // Simple MONOCHROME only
       if (!rows || !cols || spp !== 1 || !/^MONOCHROME[12]$/i.test(pi || '')) {
         previewCard.classList.add('hidden');
         return;
@@ -419,6 +467,7 @@
       previewCard.classList.remove('hidden');
     }
 
+    // ---------- File handling ----------
     async function handleFile(file) {
       try {
         const buf = await file.arrayBuffer();
@@ -434,58 +483,237 @@
         pixelPill.textContent = 'Pixel Data: ' + (hasPx ? 'Present' : 'Absent');
 
         pendingEdits.clear();
+        originalUIValues.clear?.();
         renderTable();
-        revealDownload(); // allow quick re-save
+
+        originalUIValues = new Map();
+        for (const { tag, input } of uiInputs){
+          originalUIValues.set(tag, String(input.value || ''));
+        }
+
+        downloadBtn.classList.remove('hidden');
         drawPreviewFromDenat(dict);
       } catch (err) {
         console.error(err);
-        alert('Failed to load DICOM: ' + (err && err.message ? err.message : err));
+        alert('Failed to load DICOM: ' + (err?.message || err));
       }
     }
 
+    // ---------- UID generation & traversal ----------
+    function randomUUIDBytes(){
+      const a = new Uint8Array(16);
+      if (crypto?.getRandomValues) crypto.getRandomValues(a);
+      else for (let i=0;i<16;i++) a[i] = Math.floor(Math.random()*256);
+      a[6] = (a[6] & 0x0f) | 0x40; // v4
+      a[8] = (a[8] & 0x3f) | 0x80; // variant
+      return a;
+    }
+    function decimalFromBytes(bytes){
+      let n = 0n;
+      for (const b of bytes) n = (n << 8n) + BigInt(b);
+      return n.toString(10);
+    }
+    function newUID(){
+      // Globally unique: 2.25.<decimal-of-uuid>
+      return `2.25.${decimalFromBytes(randomUUIDBytes())}`;
+    }
+    function walkElements(node, fn){
+      if (!node || typeof node !== 'object') return;
+      for (const [tag, el] of Object.entries(node)) {
+        if (!el || typeof el !== 'object') continue;
+        fn(tag, el, node);
+        if (el.vr === 'SQ' && Array.isArray(el.Value)) {
+          for (const item of el.Value) walkElements(item, fn);
+        }
+      }
+    }
+
+    // ---------- Anonymize & Randomize (extended) ----------
+
+    // Core PHI tags
+    const PHI_TAGS = [
+      // Patient
+      'x00100010','x00100020','x00100030','x00100040','x00101010','x00101020','x00101030','x00101040',
+      'x00102160','x00102180','x001021A0','x001021B0','x00104000','x00101060','x00101080','x00101090',
+      // Study / Institution / People
+      'x00080050','x00080080','x00080081','x00080082','x00080090','x00080092','x00080094',
+      'x00081010','x00081030','x0008103E','x00081040','x00081048','x00081049','x00081050','x00081060','x00081070',
+      // Equipment identifiers (often identifying)
+      'x00081020','x00081090','x00181000','x00181020','x00181030','x00181050','x00181070','x00181080','x00181090',
+      // IDs
+      'x00200010', // StudyID
+    ];
+
+    // Safe, non-structural fields to edit
+    const SAFE_EDIT_TAGS = {
+      // Descriptions
+      'x00081030': { vr: 'LO', anon: 'Anonymized Study', rand: () => randomFrom(['Head MRI','Chest CT','Knee MRI','Abdomen US','Screening']) },
+      'x0008103E': { vr: 'LO', anon: 'Anonymized Series', rand: () => randomFrom(['Axial T1','Axial T2','Cor T2','Sag PD','Helical']) },
+      'x00181030': { vr: 'LO', anon: 'Anonymized Protocol', rand: () => randomFrom(['Routine','Contrast','Screening','Follow-up']) },
+      // Institution / Department
+      'x00080080': { vr: 'LO', anon: 'ANON INSTITUTION', rand: () => randomFrom(['HOSPITAL A','CLINIC B','IMAGING CENTER C']) },
+      'x00081010': { vr: 'SH', anon: 'ANON DEPT',        rand: () => randomFrom(['RAD','CT','MR','US']) },
+      // Equipment
+      'x00080070': { vr: 'LO', anon: 'ANON MANUFACTURER', rand: () => randomFrom(['SIEMENS','GE','PHILIPS','CANON','FUJIFILM','CARESTREAM']) },
+      'x00081090': { vr: 'LO', anon: 'MODEL',            rand: () => randomFrom(['Aera','Optima','Ingenia','Aquilion','Supria','DRX']) },
+      'x00181020': { vr: 'LO', anon: 'SW',               rand: () => `v${Math.floor(Math.random()*3)+1}.${Math.floor(Math.random()*10)}.${Math.floor(Math.random()*10)}` },
+      'x00081050': { vr: 'PN', anon: 'ANON^PHYS',        rand: () => `${randomLast()}^${randomFirst()}` },
+      'x00081070': { vr: 'PN', anon: 'ANON^OP',          rand: () => `${randomLast()}^${randomFirst()}` },
+      'x00081020': { vr: 'LO', anon: 'ANON STATION',     rand: () => `STN${randomDigits(3)}` }, // StationName
+      // Organizational
+      'x00080050': { vr: 'SH', anon: '',                 rand: () => randomDigits(9) },  // AccessionNumber
+      'x00200010': { vr: 'SH', anon: '0',                rand: () => randomDigits(6) },  // StudyID
+      'x00200011': { vr: 'IS', anon: '1',                rand: () => String(1+Math.floor(Math.random()*4)) },   // SeriesNumber
+      'x00200013': { vr: 'IS', anon: '1',                rand: () => String(1+Math.floor(Math.random()*200)) }, // InstanceNumber
+      // Modality / anatomy / positioning
+      'x00080060': { vr: 'CS', anon: 'OT',               rand: () => randomFrom(['CT','MR','US','CR','DX','MG','XA','NM','PT','OT','SC']) }, // Modality
+      'x00180015': { vr: 'CS', anon: '',                 rand: () => randomFrom(['HEAD','CHEST','ABD','KNEE','CSPINE','LSPINE','PELVIS']) }, // BodyPartExamined
+      'x00200062': { vr: 'CS', anon: '',                 rand: () => randomFrom(['L','R','B','U','D','M']) }, // Laterality
+      'x00185100': { vr: 'CS', anon: '',                 rand: () => randomFrom(['HFS','FFS','HFP','FFP','LFP','RFP']) }, // PatientPosition
+    };
+
+    const DATE_TAGS = ['x00080020','x00080021','x00080022','x00080023']; // Study/Series/Acq/Content Date
+    const TIME_TAGS = ['x00080030','x00080031','x00080032','x00080033']; // Study/Series/Acq/Content Time
+
+    function randomFrom(a){ return a[Math.floor(Math.random()*a.length)]; }
+    function randomDigits(n){ let s=''; for (let i=0;i<n;i++) s += Math.floor(Math.random()*10); return s; }
+    function randomFirst(){ return randomFrom(['JOHN','MARIA','ALICE','ROBERT','SOFIA','EMMA','LIAM','NOAH','LUCAS','OLIVIA','AVA','ETHAN']); }
+    function randomLast(){  return randomFrom(['DOE','SMITH','ROJAS','PEREZ','GARCIA','LEE','KIM','ITO','MARTIN','WANG','BROWN','DAVIS']); }
+    function randomDateYYYYMMDD(minYear=1940, maxYear=2010){
+      const y = Math.floor(Math.random()*(maxYear-minYear+1)) + minYear;
+      const m = Math.floor(Math.random()*12) + 1;
+      const d = Math.floor(Math.random()*28) + 1;
+      return `${y.toString().padStart(4,'0')}${m.toString().padStart(2,'0')}${d.toString().padStart(2,'0')}`;
+    }
+    function randAS(){ // Age string: NNND/W/M/Y
+      const unit = randomFrom(['D','W','M','Y']);
+      const num  = unit==='Y' ? Math.floor(Math.random()*90)+1 : Math.floor(Math.random()*52)+1;
+      return `${num.toString().padStart(3,'0')}${unit}`;
+    }
+    function nowDA(){ const t=new Date(); return `${t.getFullYear().toString().padStart(4,'0')}${(t.getMonth()+1).toString().padStart(2,'0')}${t.getDate().toString().padStart(2,'0')}`; }
+    function nowTM(){ const t=new Date(); return `${t.getHours().toString().padStart(2,'0')}${t.getMinutes().toString().padStart(2,'0')}${t.getSeconds().toString().padStart(2,'0')}`; }
+
+    function setOrCreate(dataset, tag, vr, val){
+      dataset[tag] = { vr, Value: Array.isArray(val) ? val : [val] };
+    }
+    function removePrivateTagsRecursive(node){
+      if (!node || typeof node !== 'object') return;
+      for (const key of Object.keys(node)){
+        if (!/^x[0-9a-f]{8}$/i.test(key)) continue;
+        const g = parseInt(key.slice(1,5), 16);
+        if (g % 2 === 1) { delete node[key]; continue; }
+        const el = node[key];
+        if (el?.vr === 'SQ' && Array.isArray(el.Value)){
+          for (const item of el.Value) removePrivateTagsRecursive(item);
+        }
+      }
+    }
+    function remapAllUIDs(dataset){
+      const map = new Map(); // old -> new
+      walkElements(dataset, (tag, el) => {
+        if (el.vr !== 'UI' || !el.Value) return;
+        el.Value = el.Value.map(v => {
+          const s = String(v || '').trim();
+          if (!s) return s;
+          if (!map.has(s)) map.set(s, newUID());
+          return map.get(s);
+        });
+      });
+      return map;
+    }
+
+    function anonymizeInPlace(dataset){
+      // Remove all private tags recursively
+      removePrivateTagsRecursive(dataset);
+
+      // Core PHI neutralization
+      for (const t of PHI_TAGS){
+        if (!dataset[t]) continue;
+        const vr = dataset[t].vr || 'LO';
+        let val = 'ANON';
+        if (vr === 'DA' || vr === 'TM') val = '';      // blank dates/times
+        if (t === 'x00100040') val = 'O';              // Sex → Other
+        setOrCreate(dataset, t, vr, val);
+      }
+
+      // Patient essentials
+      setOrCreate(dataset, 'x00100010', 'PN', 'ANON^PATIENT');
+      setOrCreate(dataset, 'x00100020', 'LO', 'ANON');
+      setOrCreate(dataset, 'x00101010', 'AS', '000Y');
+      setOrCreate(dataset, 'x00100040', 'CS', 'O');
+
+      // Normalize dates/times (now)
+      for (const t of DATE_TAGS){ if (dataset[t]) setOrCreate(dataset, 'DA' === dataset[t].vr ? t : t, 'DA', nowDA()); }
+      for (const t of TIME_TAGS){ if (dataset[t]) setOrCreate(dataset, 'TM' === dataset[t].vr ? t : t, 'TM', nowTM()); }
+
+      // Neutral values for safe-edit fields
+      for (const [tag, spec] of Object.entries(SAFE_EDIT_TAGS)){
+        setOrCreate(dataset, tag, spec.vr, spec.anon);
+      }
+
+      // Consistent UID remap across the whole dataset
+      remapAllUIDs(dataset);
+    }
+
+    function randomizeInPlace(dataset){
+      // Patient
+      setOrCreate(dataset, 'x00100010', 'PN', `${randomLast()}^${randomFirst()}`);
+      setOrCreate(dataset, 'x00100020', 'LO', randomDigits(8));
+      setOrCreate(dataset, 'x00100030', 'DA', randomDateYYYYMMDD());
+      setOrCreate(dataset, 'x00101010', 'AS', randAS());
+      setOrCreate(dataset, 'x00100040', 'CS', randomFrom(['M','F','O']));
+
+      // Dates/times → now
+      for (const t of DATE_TAGS) setOrCreate(dataset, t, 'DA', nowDA());
+      for (const t of TIME_TAGS) setOrCreate(dataset, t, 'TM', nowTM());
+
+      // StudyID / Accession
+      setOrCreate(dataset, 'x00200010', 'SH', randomDigits(6));
+      setOrCreate(dataset, 'x00080050', 'SH', randomDigits(9));
+
+      // Randomized descriptive/equipment fields
+      for (const [tag, spec] of Object.entries(SAFE_EDIT_TAGS)){
+        const val = typeof spec.rand === 'function' ? spec.rand() : spec.anon;
+        setOrCreate(dataset, tag, spec.vr, val);
+      }
+
+      // Coherent UID remap
+      remapAllUIDs(dataset);
+    }
+
+    // Push dataset → inputs → pendingEdits
+    function syncDatasetToInputs(){
+      pendingEdits.clear();
+      renderTable();
+      for (const [tag, el] of Object.entries(dict)){
+        if (!el || el.vr === 'SQ' || isBinaryVR(el.vr)) continue;
+        pendingEdits.set(tag, { vr: el.vr, valueString: elToString(el) });
+      }
+      showDownloadIfEdited();
+      drawPreviewFromDenat(dict);
+    }
+
+    // ---------- Write ----------
     function downloadEdited() {
       try {
         if (!dict) return;
 
-        // Clone without breaking ArrayBuffers
         const denat = (typeof structuredClone === 'function')
           ? structuredClone(dict)
-          : shallowClone(dict); // shallow is fine; we overwrite only edited tags
+          : shallowClone(dict); // shallow ok; we overwrite edited tags
 
-        // Apply edits (never touch pixel data / sequences / binary VRs)
         pendingEdits.forEach(function ({ vr, valueString }, tag) {
           if (isReadOnly(tag, vr)) return;
           denat[tag] = { vr: vr, Value: parseByVR(vr, valueString) };
         });
 
-        // Prepare meta, preserving original TSUID
         const metaOut = ensureMetaFromDataset(denat);
-
-        // Normalize binaries to ArrayBuffer
         normalizeBinaryElementsRecursive(denat);
         normalizeBinaryElementsRecursive(metaOut);
 
-        // Force top-level binary VRs to ArrayBuffer as belt & suspenders
-        (function forceTopLevelArrayBuffers(obj){
-          const bin = { OB:1, OW:1, OF:1, UN:1, OD:1, OL:1 };
-          for (const [t, el] of Object.entries(obj || {})) {
-            if (!el || !bin[el.vr]) continue;
-            if (el.Value && el.Value.length) {
-              el.Value = el.Value.map(v => {
-                if (v instanceof ArrayBuffer) return v;
-                if (ArrayBuffer.isView(v)) {
-                  const { buffer, byteOffset, byteLength } = v;
-                  return buffer.slice(byteOffset, byteOffset + byteLength);
-                }
-                return null;
-              }).filter(Boolean);
-            }
-          }
-        })(denat);
-
         const dd = new DicomDict(metaOut);
         dd.dict = denat;
-        const outBytes = dd.write(); // ArrayBuffer (0.29.x) or Uint8Array in older variants
+        const outBytes = dd.write(); // ArrayBuffer or Uint8Array
         const payload = outBytes && outBytes.buffer ? outBytes.buffer : outBytes;
         const blob = new Blob([payload], { type: 'application/dicom' });
 
@@ -499,11 +727,11 @@
         setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
       } catch (err) {
         console.error(err);
-        alert('Failed to write DICOM: ' + (err && err.message ? err.message : err));
+        alert('Failed to write DICOM: ' + (err?.message || err));
       }
     }
 
-    // Drag & drop
+    // ---------- Events ----------
     window.addEventListener('dragover', function (e) {
       e.preventDefault();
       body.classList.add('dragging');
@@ -518,7 +746,6 @@
       if (f) handleFile(f);
     });
 
-    // File picker
     dropZone.addEventListener('click', function () { fileInput.click(); });
     browseBtn.addEventListener('click', function () { fileInput.click(); });
     fileInput.addEventListener('change', function (e) {
@@ -526,8 +753,21 @@
       if (f) handleFile(f);
     });
 
-    // Download
     downloadBtn.addEventListener('click', downloadEdited);
+
+    applyPrefixBtn.addEventListener('click', function(){
+      if (!linkUIDsChk.checked) return;
+      const newPref = (uidPrefixInput.value || '').trim();
+      if (newPref && newPref !== sharedUIDPrefix) applyPrefixToAll(newPref);
+    });
+    linkUIDsChk.addEventListener('change', function(){
+      uidPrefixInput.disabled = !linkUIDsChk.checked;
+      applyPrefixBtn.disabled = !linkUIDsChk.checked;
+      uidBar.style.opacity = linkUIDsChk.checked ? '1' : '.6';
+    });
+
+    anonymizeBtn.addEventListener('click', () => { if (!dict) return; anonymizeInPlace(dict); syncDatasetToInputs(); });
+    randomizeBtn.addEventListener('click',  () => { if (!dict) return; randomizeInPlace(dict); syncDatasetToInputs(); });
   </script>
 </body>
 </html>
