@@ -46,39 +46,58 @@
     .uidbar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px; border:1px dashed var(--line); border-radius:10px; background:#f9fafb; margin:12px 0}
     .uidbar input[type="text"]{min-width:320px; max-width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-family:var(--mono)}
     canvas#preview{max-width:100%; border:1px solid var(--line); border-radius:10px}
+    /* Log panel */
+    #logArea{
+      max-height:160px;
+      overflow:auto;
+      font-family:var(--mono);
+      font-size:11px;
+      background:#020617;
+      color:#e5e7eb;
+      padding:8px;
+      border-radius:8px;
+      white-space:pre-wrap;
+    }
+    /* Batch download buttons */
+    #batchButtons{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+    }
   </style>
 </head>
 <body>
   <div class="bar">
     <strong>Simple DICOM Tag Editor</strong>
     <div class="spacer"></div>
-    <span class="hint">Drop a .dcm anywhere or <button id="browseBtn" class="btn">Choose File…</button></span>
-    <input id="fileInput" type="file" accept=".dcm,.dicom,application/dicom" hidden />
+    <span class="hint">Drop .dcm files anywhere or <button id="browseBtn" class="btn">Choose Files…</button></span>
+    <input id="fileInput" type="file" multiple accept=".dcm,.dicom,application/dicom" hidden />
   </div>
 
   <div class="wrap">
     <div class="card">
       <div class="drop" id="dropZone">
-        <div style="font-weight:600; color:#111827">Drop a DICOM (.dcm) file</div>
-        <div class="hint" style="margin-top:6px">You can also drop files anywhere on the page</div>
+        <div style="font-weight:600; color:#111827">Drop one or more DICOM (.dcm) files</div>
+        <div class="hint" style="margin-top:6px">They will be processed as a batch</div>
       </div>
 
       <div id="editor" class="hidden" style="margin-top:14px">
         <div style="margin-bottom:10px">
           <span class="pill" id="fileNamePill">—</span>
+          <span class="pill" id="fileCountPill">0 files</span>
           <span class="pill" id="tsuidPill">Transfer Syntax: —</span>
           <span class="pill" id="pixelPill">Pixel Data: —</span>
         </div>
 
         <!-- UID linking toolbar -->
-        <div class="uidbar" id="uidBar" title="Change the shared UID prefix to update all UI fields at once.">
+        <div class="uidbar" id="uidBar" title="Change the shared UID prefix to update all UI fields in all loaded files.">
           <label style="display:flex; align-items:center; gap:8px;">
             <input id="linkUIDsChk" type="checkbox" checked />
-            <span>Link UID fields by prefix</span>
+            <span>Link UID fields by prefix (across all files)</span>
           </label>
           <label class="hint" style="display:flex; align-items:center; gap:6px;">
             Prefix:
-            <input id="uidPrefixInput" type="text" placeholder="1.2.840.xxx" />
+            <input id="uidPrefixInput" type="text" placeholder="detected…" />
           </label>
           <button id="applyPrefixBtn" class="btn">Apply to all UIDs</button>
           <span class="hint" id="uidInfo">—</span>
@@ -91,7 +110,7 @@
                 <th style="width:130px">Tag</th>
                 <th style="width:220px">Keyword</th>
                 <th style="width:70px">VR</th>
-                <th>Value</th>
+                <th>Value (showing first file)</th>
               </tr>
             </thead>
             <tbody id="tagBody"></tbody>
@@ -99,20 +118,39 @@
         </div>
 
         <div class="footer">
-          <div class="hint">Read-only: sequences, Pixel Data, and binary VRs.</div>
+          <div class="hint">
+            Read-only: sequences, Pixel Data, and binary VRs.
+            Batch tools (Anonymize, Randomize, UID prefix) affect <strong>all</strong> loaded files.
+          </div>
           <div class="spacer"></div>
-          <button id="anonymizeBtn" class="btn">Anonymize</button>
-          <button id="randomizeBtn" class="btn">Randomize</button>
-          <button id="downloadBtn" class="btn primary hidden">Download Edited DICOM</button>
+          <button id="anonymizeBtn" class="btn">Anonymize (all files)</button>
+          <button id="randomizeBtn" class="btn">Randomize (all files)</button>
+        </div>
+
+        <div class="footer" style="margin-top:8px">
+          <div class="hint">
+            Download:
+          </div>
+          <button id="downloadAllBtn" class="btn primary hidden">Download ALL</button>
+          <div id="batchButtons" class="hidden"></div>
         </div>
       </div>
     </div>
 
     <!-- Preview -->
     <div id="previewCard" class="card hidden" style="margin-top:14px">
-      <strong>Preview</strong>
+      <strong>Preview (first file)</strong>
       <div class="hint" style="margin:6px 0 10px">Shows first frame of uncompressed MONOCHROME images.</div>
       <canvas id="preview"></canvas>
+    </div>
+
+    <!-- Log panel -->
+    <div id="logCard" class="card hidden" style="margin-top:14px">
+      <strong>Log</strong>
+      <div class="hint" style="margin:6px 0 10px">
+        Errors and per-file issues will appear here. Browsers may also block multiple downloads even if no error is logged.
+      </div>
+      <pre id="logArea"></pre>
     </div>
   </div>
 
@@ -130,13 +168,35 @@
     const editor = document.getElementById('editor');
     const tagBody = document.getElementById('tagBody');
     const fileNamePill = document.getElementById('fileNamePill');
+    const fileCountPill = document.getElementById('fileCountPill');
     const tsuidPill = document.getElementById('tsuidPill');
     const pixelPill = document.getElementById('pixelPill');
-    const downloadBtn = document.getElementById('downloadBtn');
     const anonymizeBtn = document.getElementById('anonymizeBtn');
     const randomizeBtn = document.getElementById('randomizeBtn');
     const previewCard = document.getElementById('previewCard');
     const previewCanvas = document.getElementById('preview');
+
+    // Download controls
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    const batchButtonsContainer = document.getElementById('batchButtons');
+
+    // Log
+    const logCard = document.getElementById('logCard');
+    const logArea = document.getElementById('logArea');
+
+    function log(msg, type = 'info') {
+      const ts = new Date().toISOString();
+      const prefix = type === 'error' ? '[ERROR]' : type === 'warn' ? '[WARN]' : '[INFO]';
+      const line = `${ts} ${prefix} ${msg}\n`;
+      if (type === 'error') console.error(line);
+      else if (type === 'warn') console.warn(line);
+      else console.log(line);
+      if (logArea) {
+        logArea.textContent += line;
+        logCard.classList.remove('hidden');
+        logArea.scrollTop = logArea.scrollHeight;
+      }
+    }
 
     // UID bar
     const uidBar = document.getElementById('uidBar');
@@ -149,12 +209,12 @@
     const { DicomMessage, DicomMetaDictionary, DicomDict } = dcmjs.data;
 
     // State
-    let dict = null; // denaturalized dataset
-    let meta = null; // file meta
-    const pendingEdits = new Map(); // tag -> { vr, valueString }
-    let uiInputs = [];                 // [{ tag, input, vr }]
+    let files = [];           // [{ name, dict, meta }]
+    let dict = null;          // active (= first) dict
+    let meta = null;          // active (= first) meta
+    const pendingEdits = new Map(); // overrides from UI
+    let uiInputs = [];        // inputs for active file
     let sharedUIDPrefix = '';
-    let originalUIValues = new Map();
 
     // ---------- Utility helpers ----------
     function isBinaryVR(vr){ return ['OB','OW','OF','UN','OD','OL'].includes(vr); }
@@ -195,20 +255,50 @@
         if (typeof DicomMetaDictionary.nameOf === 'function') return DicomMetaDictionary.nameOf(tag) || '';
         if (typeof DicomMetaDictionary.nameOfTag === 'function') return DicomMetaDictionary.nameOfTag(tag) || '';
         const d = DicomMetaDictionary.dictionary || {};
-        if (d && d[tag] && d.tag?.name) return d[tag].name; // fallback
         if (d && d[tag] && d[tag].name) return d[tag].name;
       } catch (e) {}
       return '';
     }
     function shallowClone(o){ return Object.assign({}, o); }
-    function showDownloadIfEdited() {
-      const hasFile = !!dict;
-      const hasEdits = pendingEdits.size > 0;
-      downloadBtn.classList.toggle('hidden', !(hasFile && (hasEdits || true)));
+
+    function showDownloadControls() {
+      const hasFile = files.length > 0;
+      downloadAllBtn.classList.toggle('hidden', !hasFile);
+      batchButtonsContainer.classList.toggle('hidden', !hasFile);
+    }
+
+    function rebuildBatchButtons() {
+      batchButtonsContainer.innerHTML = '';
+      if (!files.length) return;
+      const batchSize = 10;
+      const numBatches = Math.ceil(files.length / batchSize);
+      for (let b = 0; b < numBatches; b++) {
+        const start = b * batchSize;
+        const end = Math.min((b + 1) * batchSize, files.length);
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.textContent = `Download ${start + 1}–${end}`;
+        btn.addEventListener('click', () => downloadRange(start, end));
+        batchButtonsContainer.appendChild(btn);
+      }
+    }
+
+    // ---------- Dataset traversal ----------
+    function walkElements(node, fn){
+      if (!node || typeof node !== 'object') return;
+      for (const [tag, el] of Object.entries(node)) {
+        if (!el || typeof el !== 'object') continue;
+        fn(tag, el, node);
+        if (el.vr === 'SQ' && Array.isArray(el.Value)) {
+          for (const item of el.Value) walkElements(item, fn);
+        }
+      }
     }
 
     // ---------- Rendering ----------
     function renderTable() {
+      if (!dict) { tagBody.innerHTML = ''; return; }
+
       const rows = [];
       const entries = Object.entries(dict || {}).filter(([tag]) => tag.startsWith('x') || /^[0-9a-f]{8}$/i.test(tag));
       entries.sort(([a],[b]) => a.localeCompare(b));
@@ -239,9 +329,9 @@
         inp.placeholder = ro ? '(read-only)' : '';
         inp.addEventListener('input', function () {
           pendingEdits.set(tag, { vr: vr, valueString: inp.value });
-          showDownloadIfEdited();
+          showDownloadControls();
         });
-        // UID linking behavior
+        // UID linking behavior (editing one can update all files)
         if (!ro && vr === 'UI') {
           inp.addEventListener('blur', function () {
             if (!linkUIDsChk.checked) return;
@@ -249,6 +339,7 @@
             if (!newVal) return;
             const cand = newVal.includes('.') ? newVal.slice(0, newVal.lastIndexOf('.')) : newVal;
             if (cand && cand !== sharedUIDPrefix && /^[0-9]+(\.[0-9]+)*$/.test(cand)) {
+              log(`UID prefix edited in active file; applying new prefix ${cand} across all files.`, 'info');
               applyPrefixToAll(cand);
             }
           });
@@ -264,11 +355,11 @@
       }
 
       tagBody.replaceChildren(...rows);
-      showDownloadIfEdited();
+      showDownloadControls();
       computeAndShowUIDPrefix();
     }
 
-    // ---------- UID prefix linking ----------
+    // ---------- UID prefix linking across ALL FILES ----------
     function longestCommonPrefixDotBounded(strings){
       if (!strings.length) return '';
       let p = strings[0];
@@ -281,43 +372,72 @@
       const k = p.lastIndexOf('.');
       return k > 0 ? p.slice(0, k) : p;
     }
-    function collectCurrentUIStrings(){
+
+    function collectUIDsAcrossFiles(){
       const vals = [];
-      for (const { input } of uiInputs){
-        const v = String(input.value || '').trim();
-        if (v) vals.push(v);
+      for (const f of files){
+        walkElements(f.dict, (tag, el) => {
+          if (el.vr !== 'UI' || !el.Value) return;
+          for (const v of el.Value){
+            const s = String(v || '').trim();
+            if (s) vals.push(s);
+          }
+        });
       }
       return vals;
     }
+
     function computeAndShowUIDPrefix(){
-      const all = collectCurrentUIStrings();
+      const all = collectUIDsAcrossFiles();
       const common = longestCommonPrefixDotBounded(all);
       sharedUIDPrefix = common || '';
       uidPrefixInput.value = sharedUIDPrefix;
-      uidInfo.textContent = uiInputs.length ? `Linked UI fields: ${uiInputs.length}. Prefix: ${sharedUIDPrefix || '—'}` : 'No UI fields found';
+      uidInfo.textContent = all.length
+        ? `UID values across all files: ${all.length}. Prefix: ${sharedUIDPrefix || '—'}`
+        : 'No UID fields found.';
     }
+
     function applyPrefixToAll(newPrefix){
       if (!/^[0-9]+(\.[0-9]+)*$/.test(newPrefix)) { alert('Invalid UID prefix'); return; }
+      if (!files.length) return;
       const oldPrefix = sharedUIDPrefix || '';
-      for (const { tag, input, vr } of uiInputs){
-        const cur = String(input.value || '');
-        let nextVal;
-        if (oldPrefix && cur.startsWith(oldPrefix + '.')) {
-          nextVal = newPrefix + cur.slice(oldPrefix.length);
-        } else if (!oldPrefix) {
-          const cut = cur.lastIndexOf('.');
-          nextVal = (cut > 0) ? (newPrefix + cur.slice(cut)) : newPrefix;
-        } else {
-          const cut = cur.indexOf('.', newPrefix.length);
-          nextVal = newPrefix + (cut >= 0 ? cur.slice(cut) : '');
+      log(`Applying UID prefix change to ${files.length} file(s). Old prefix: "${oldPrefix || '(none)'}", new prefix: "${newPrefix}".`, 'info');
+
+      for (const f of files){
+        try {
+          walkElements(f.dict, (tag, el) => {
+            if (el.vr !== 'UI' || !el.Value) return;
+            el.Value = el.Value.map(v => {
+              const cur = String(v || '');
+              if (!cur) return cur;
+
+              if (oldPrefix && cur.startsWith(oldPrefix + '.')) {
+                return newPrefix + cur.slice(oldPrefix.length);
+              }
+              const cut = cur.lastIndexOf('.');
+              return cut > 0 ? (newPrefix + cur.slice(cut)) : newPrefix;
+            });
+          });
+        } catch (e) {
+          log(`Failed applying UID prefix to file "${f.name}": ${e && e.message ? e.message : e}`, 'error');
         }
-        input.value = nextVal;
-        pendingEdits.set(tag, { vr, valueString: nextVal });
+      }
+
+      pendingEdits.clear();
+      if (dict){
+        for (const [tag, el] of Object.entries(dict)){
+          if (!el || el.vr === 'SQ' || isBinaryVR(el.vr)) continue;
+          pendingEdits.set(tag, { vr: el.vr, valueString: elToString(el) });
+        }
       }
       sharedUIDPrefix = newPrefix;
       uidPrefixInput.value = newPrefix;
-      uidInfo.textContent = `Linked UI fields: ${uiInputs.length}. Prefix: ${sharedUIDPrefix}`;
-      showDownloadIfEdited();
+      const allUIDs = collectUIDsAcrossFiles();
+      uidInfo.textContent = allUIDs.length
+        ? `UID values across all files: ${sharedUIDPrefix}`
+        : 'No UID fields found.';
+      renderTable();
+      showDownloadControls();
     }
 
     // ---------- Binary normalization + preview ----------
@@ -340,8 +460,12 @@
           continue;
         }
         if (typeof el.InlineBinary === 'string') {
-          const buf = base64ToArrayBuffer(el.InlineBinary);
-          el.Value = [buf]; delete el.InlineBinary;
+          try {
+            const buf = base64ToArrayBuffer(el.InlineBinary);
+            el.Value = [buf]; delete el.InlineBinary;
+          } catch (e) {
+            log(`Failed to convert InlineBinary at tag ${tag}: ${e && e.message ? e.message : e}`, 'warn');
+          }
         }
         const isPixelDataTag = (tag.toLowerCase() === 'x7fe00010' || tag === '7fe00010');
         const needsBinary = isPixelDataTag || binaryVRs.has(el.vr);
@@ -350,7 +474,7 @@
           arr = arr.map(v => {
             if (v instanceof ArrayBuffer) return v;
             if (ArrayBuffer.isView(v)) { const { buffer, byteOffset, byteLength } = v; return buffer.slice(byteOffset, byteOffset + byteLength); }
-            if (typeof Blob !== 'undefined' && v instanceof Blob) { console.warn('Dropping Blob in binary VR at', tag); return null; }
+            if (typeof Blob !== 'undefined' && v instanceof Blob) { log(`Dropping Blob in binary VR at ${tag}`, 'warn'); return null; }
             return null;
           }).filter(Boolean);
           el.Value = arr;
@@ -358,8 +482,8 @@
       }
     }
 
-    function ensureMetaFromDataset(denat) {
-      let m = (meta && typeof meta === 'object') ? shallowClone(meta) : {};
+    function ensureMetaFromDataset(denat, fileMeta) {
+      let m = (fileMeta && typeof fileMeta === 'object') ? shallowClone(fileMeta) : {};
       const sopClass = denat['x00080016']?.Value?.[0];
       const sopInstance = denat['x00080018']?.Value?.[0];
       const u8 = new Uint8Array([0x00, 0x01]);
@@ -370,8 +494,8 @@
       if (sopClass) m.MediaStorageSOPClassUID = { vr:'UI', Value:[sopClass] };
       if (sopInstance) m.MediaStorageSOPInstanceUID = { vr:'UI', Value:[sopInstance] };
 
-      if (meta?.TransferSyntaxUID?.Value?.[0]) m.TransferSyntaxUID = { vr:'UI', Value:[meta.TransferSyntaxUID.Value[0]] };
-      else if (!m.TransferSyntaxUID) m.TransferSyntaxUID = { vr:'UI', Value:['1.2.840.10008.1.2.1'] }; // Explicit VR Little Endian
+      if (fileMeta?.TransferSyntaxUID?.Value?.[0]) m.TransferSyntaxUID = { vr:'UI', Value:[fileMeta.TransferSyntaxUID.Value[0]] };
+      else if (!m.TransferSyntaxUID) m.TransferSyntaxUID = { vr:'UI', Value:['1.2.840.10008.1.2.1'] };
 
       if (!m.ImplementationClassUID) m.ImplementationClassUID = { vr:'UI', Value:['1.2.826.0.1.3680043.10.743'] };
       return m;
@@ -393,14 +517,14 @@
       return Math.round(((sample - lo) / (hi - lo)) * 255);
     }
     function drawPreviewFromDenat(denat) {
-      const rows = getTagNum(denat['x00280010']); // Rows
-      const cols = getTagNum(denat['x00280011']); // Columns
-      const spp  = getTagNum(denat['x00280002'], 1); // SamplesPerPixel
-      const pi   = getTagStr(denat['x00280004']); // PhotometricInterpretation
+      const rows = getTagNum(denat['x00280010']);
+      const cols = getTagNum(denat['x00280011']);
+      const spp  = getTagNum(denat['x00280002'], 1);
+      const pi   = getTagStr(denat['x00280004']);
       const bitsAllocated = getTagNum(denat['x00280100'], 16);
       const bitsStored    = getTagNum(denat['x00280101'], bitsAllocated);
       const highBit       = getTagNum(denat['x00280102'], bitsStored - 1);
-      const pixelRepr     = getTagNum(denat['x00280103'], 0); // 0=unsigned,1=signed
+      const pixelRepr     = getTagNum(denat['x00280103'], 0);
       const wc = getTagNum(denat['x00281050']);
       const ww = getTagNum(denat['x00281051']);
 
@@ -467,45 +591,13 @@
       previewCard.classList.remove('hidden');
     }
 
-    // ---------- File handling ----------
-    async function handleFile(file) {
-      try {
-        const buf = await file.arrayBuffer();
-        const msg = DicomMessage.readFile(buf);
-        dict = msg.dict;
-        meta = msg.meta || {};
-        editor.classList.remove('hidden');
-
-        fileNamePill.textContent = file.name || '—';
-        const ts = meta?.TransferSyntaxUID?.Value?.[0] || '—';
-        tsuidPill.textContent = 'Transfer Syntax: ' + ts;
-        const hasPx = !!(dict['x7fe00010'] || dict['7fe00010']);
-        pixelPill.textContent = 'Pixel Data: ' + (hasPx ? 'Present' : 'Absent');
-
-        pendingEdits.clear();
-        originalUIValues.clear?.();
-        renderTable();
-
-        originalUIValues = new Map();
-        for (const { tag, input } of uiInputs){
-          originalUIValues.set(tag, String(input.value || ''));
-        }
-
-        downloadBtn.classList.remove('hidden');
-        drawPreviewFromDenat(dict);
-      } catch (err) {
-        console.error(err);
-        alert('Failed to load DICOM: ' + (err?.message || err));
-      }
-    }
-
-    // ---------- UID generation & traversal ----------
+    // ---------- UID generation ----------
     function randomUUIDBytes(){
       const a = new Uint8Array(16);
       if (crypto?.getRandomValues) crypto.getRandomValues(a);
       else for (let i=0;i<16;i++) a[i] = Math.floor(Math.random()*256);
-      a[6] = (a[6] & 0x0f) | 0x40; // v4
-      a[8] = (a[8] & 0x3f) | 0x80; // variant
+      a[6] = (a[6] & 0x0f) | 0x40;
+      a[8] = (a[8] & 0x3f) | 0x80;
       return a;
     }
     function decimalFromBytes(bytes){
@@ -514,66 +606,43 @@
       return n.toString(10);
     }
     function newUID(){
-      // Globally unique: 2.25.<decimal-of-uuid>
       return `2.25.${decimalFromBytes(randomUUIDBytes())}`;
-    }
-    function walkElements(node, fn){
-      if (!node || typeof node !== 'object') return;
-      for (const [tag, el] of Object.entries(node)) {
-        if (!el || typeof el !== 'object') continue;
-        fn(tag, el, node);
-        if (el.vr === 'SQ' && Array.isArray(el.Value)) {
-          for (const item of el.Value) walkElements(item, fn);
-        }
-      }
     }
 
     // ---------- Anonymize & Randomize (extended) ----------
-
-    // Core PHI tags
     const PHI_TAGS = [
-      // Patient
       'x00100010','x00100020','x00100030','x00100040','x00101010','x00101020','x00101030','x00101040',
       'x00102160','x00102180','x001021A0','x001021B0','x00104000','x00101060','x00101080','x00101090',
-      // Study / Institution / People
       'x00080050','x00080080','x00080081','x00080082','x00080090','x00080092','x00080094',
       'x00081010','x00081030','x0008103E','x00081040','x00081048','x00081049','x00081050','x00081060','x00081070',
-      // Equipment identifiers (often identifying)
       'x00081020','x00081090','x00181000','x00181020','x00181030','x00181050','x00181070','x00181080','x00181090',
-      // IDs
-      'x00200010', // StudyID
+      'x00200010',
     ];
 
-    // Safe, non-structural fields to edit
     const SAFE_EDIT_TAGS = {
-      // Descriptions
       'x00081030': { vr: 'LO', anon: 'Anonymized Study', rand: () => randomFrom(['Head MRI','Chest CT','Knee MRI','Abdomen US','Screening']) },
       'x0008103E': { vr: 'LO', anon: 'Anonymized Series', rand: () => randomFrom(['Axial T1','Axial T2','Cor T2','Sag PD','Helical']) },
       'x00181030': { vr: 'LO', anon: 'Anonymized Protocol', rand: () => randomFrom(['Routine','Contrast','Screening','Follow-up']) },
-      // Institution / Department
       'x00080080': { vr: 'LO', anon: 'ANON INSTITUTION', rand: () => randomFrom(['HOSPITAL A','CLINIC B','IMAGING CENTER C']) },
       'x00081010': { vr: 'SH', anon: 'ANON DEPT',        rand: () => randomFrom(['RAD','CT','MR','US']) },
-      // Equipment
       'x00080070': { vr: 'LO', anon: 'ANON MANUFACTURER', rand: () => randomFrom(['SIEMENS','GE','PHILIPS','CANON','FUJIFILM','CARESTREAM']) },
       'x00081090': { vr: 'LO', anon: 'MODEL',            rand: () => randomFrom(['Aera','Optima','Ingenia','Aquilion','Supria','DRX']) },
       'x00181020': { vr: 'LO', anon: 'SW',               rand: () => `v${Math.floor(Math.random()*3)+1}.${Math.floor(Math.random()*10)}.${Math.floor(Math.random()*10)}` },
       'x00081050': { vr: 'PN', anon: 'ANON^PHYS',        rand: () => `${randomLast()}^${randomFirst()}` },
       'x00081070': { vr: 'PN', anon: 'ANON^OP',          rand: () => `${randomLast()}^${randomFirst()}` },
-      'x00081020': { vr: 'LO', anon: 'ANON STATION',     rand: () => `STN${randomDigits(3)}` }, // StationName
-      // Organizational
-      'x00080050': { vr: 'SH', anon: '',                 rand: () => randomDigits(9) },  // AccessionNumber
-      'x00200010': { vr: 'SH', anon: '0',                rand: () => randomDigits(6) },  // StudyID
-      'x00200011': { vr: 'IS', anon: '1',                rand: () => String(1+Math.floor(Math.random()*4)) },   // SeriesNumber
-      'x00200013': { vr: 'IS', anon: '1',                rand: () => String(1+Math.floor(Math.random()*200)) }, // InstanceNumber
-      // Modality / anatomy / positioning
-      'x00080060': { vr: 'CS', anon: 'OT',               rand: () => randomFrom(['CT','MR','US','CR','DX','MG','XA','NM','PT','OT','SC']) }, // Modality
-      'x00180015': { vr: 'CS', anon: '',                 rand: () => randomFrom(['HEAD','CHEST','ABD','KNEE','CSPINE','LSPINE','PELVIS']) }, // BodyPartExamined
-      'x00200062': { vr: 'CS', anon: '',                 rand: () => randomFrom(['L','R','B','U','D','M']) }, // Laterality
-      'x00185100': { vr: 'CS', anon: '',                 rand: () => randomFrom(['HFS','FFS','HFP','FFP','LFP','RFP']) }, // PatientPosition
+      'x00081020': { vr: 'LO', anon: 'ANON STATION',     rand: () => `STN${randomDigits(3)}` },
+      'x00080050': { vr: 'SH', anon: '',                 rand: () => randomDigits(9) },
+      'x00200010': { vr: 'SH', anon: '0',                rand: () => randomDigits(6) },
+      'x00200011': { vr: 'IS', anon: '1',                rand: () => String(1+Math.floor(Math.random()*4)) },
+      'x00200013': { vr: 'IS', anon: '1',                rand: () => String(1+Math.floor(Math.random()*200)) },
+      'x00080060': { vr: 'CS', anon: 'OT',               rand: () => randomFrom(['CT','MR','US','CR','DX','MG','XA','NM','PT','OT','SC']) },
+      'x00180015': { vr: 'CS', anon: '',                 rand: () => randomFrom(['HEAD','CHEST','ABD','KNEE','CSPINE','LSPINE','PELVIS']) },
+      'x00200062': { vr: 'CS', anon: '',                 rand: () => randomFrom(['L','R','B','U','D','M']) },
+      'x00185100': { vr: 'CS', anon: '',                 rand: () => randomFrom(['HFS','FFS','HFP','FFP','LFP','RFP']) },
     };
 
-    const DATE_TAGS = ['x00080020','x00080021','x00080022','x00080023']; // Study/Series/Acq/Content Date
-    const TIME_TAGS = ['x00080030','x00080031','x00080032','x00080033']; // Study/Series/Acq/Content Time
+    const DATE_TAGS = ['x00080020','x00080021','x00080022','x00080023'];
+    const TIME_TAGS = ['x00080030','x00080031','x00080032','x00080033'];
 
     function randomFrom(a){ return a[Math.floor(Math.random()*a.length)]; }
     function randomDigits(n){ let s=''; for (let i=0;i<n;i++) s += Math.floor(Math.random()*10); return s; }
@@ -585,7 +654,7 @@
       const d = Math.floor(Math.random()*28) + 1;
       return `${y.toString().padStart(4,'0')}${m.toString().padStart(2,'0')}${d.toString().padStart(2,'0')}`;
     }
-    function randAS(){ // Age string: NNND/W/M/Y
+    function randAS(){
       const unit = randomFrom(['D','W','M','Y']);
       const num  = unit==='Y' ? Math.floor(Math.random()*90)+1 : Math.floor(Math.random()*52)+1;
       return `${num.toString().padStart(3,'0')}${unit}`;
@@ -608,126 +677,211 @@
         }
       }
     }
-    function remapAllUIDs(dataset){
-      const map = new Map(); // old -> new
-      walkElements(dataset, (tag, el) => {
-        if (el.vr !== 'UI' || !el.Value) return;
-        el.Value = el.Value.map(v => {
-          const s = String(v || '').trim();
-          if (!s) return s;
-          if (!map.has(s)) map.set(s, newUID());
-          return map.get(s);
-        });
-      });
-      return map;
-    }
 
     function anonymizeInPlace(dataset){
-      // Remove all private tags recursively
       removePrivateTagsRecursive(dataset);
 
-      // Core PHI neutralization
       for (const t of PHI_TAGS){
         if (!dataset[t]) continue;
         const vr = dataset[t].vr || 'LO';
         let val = 'ANON';
-        if (vr === 'DA' || vr === 'TM') val = '';      // blank dates/times
-        if (t === 'x00100040') val = 'O';              // Sex → Other
+        if (vr === 'DA' || vr === 'TM') val = '';
+        if (t === 'x00100040') val = 'O';
         setOrCreate(dataset, t, vr, val);
       }
 
-      // Patient essentials
       setOrCreate(dataset, 'x00100010', 'PN', 'ANON^PATIENT');
       setOrCreate(dataset, 'x00100020', 'LO', 'ANON');
       setOrCreate(dataset, 'x00101010', 'AS', '000Y');
       setOrCreate(dataset, 'x00100040', 'CS', 'O');
 
-      // Normalize dates/times (now)
-      for (const t of DATE_TAGS){ if (dataset[t]) setOrCreate(dataset, 'DA' === dataset[t].vr ? t : t, 'DA', nowDA()); }
-      for (const t of TIME_TAGS){ if (dataset[t]) setOrCreate(dataset, 'TM' === dataset[t].vr ? t : t, 'TM', nowTM()); }
+      for (const t of DATE_TAGS){ if (dataset[t]) setOrCreate(dataset, t, 'DA', nowDA()); }
+      for (const t of TIME_TAGS){ if (dataset[t]) setOrCreate(dataset, t, 'TM', nowTM()); }
 
-      // Neutral values for safe-edit fields
       for (const [tag, spec] of Object.entries(SAFE_EDIT_TAGS)){
         setOrCreate(dataset, tag, spec.vr, spec.anon);
       }
-
-      // Consistent UID remap across the whole dataset
-      remapAllUIDs(dataset);
     }
 
     function randomizeInPlace(dataset){
-      // Patient
       setOrCreate(dataset, 'x00100010', 'PN', `${randomLast()}^${randomFirst()}`);
       setOrCreate(dataset, 'x00100020', 'LO', randomDigits(8));
       setOrCreate(dataset, 'x00100030', 'DA', randomDateYYYYMMDD());
       setOrCreate(dataset, 'x00101010', 'AS', randAS());
       setOrCreate(dataset, 'x00100040', 'CS', randomFrom(['M','F','O']));
 
-      // Dates/times → now
       for (const t of DATE_TAGS) setOrCreate(dataset, t, 'DA', nowDA());
       for (const t of TIME_TAGS) setOrCreate(dataset, t, 'TM', nowTM());
 
-      // StudyID / Accession
       setOrCreate(dataset, 'x00200010', 'SH', randomDigits(6));
       setOrCreate(dataset, 'x00080050', 'SH', randomDigits(9));
 
-      // Randomized descriptive/equipment fields
       for (const [tag, spec] of Object.entries(SAFE_EDIT_TAGS)){
         const val = typeof spec.rand === 'function' ? spec.rand() : spec.anon;
         setOrCreate(dataset, tag, spec.vr, val);
       }
-
-      // Coherent UID remap
-      remapAllUIDs(dataset);
     }
 
-    // Push dataset → inputs → pendingEdits
+    function remapAllUIDsAcrossFiles(){
+      const map = new Map();
+      log(`Remapping all UIDs across ${files.length} file(s).`, 'info');
+      for (const f of files){
+        walkElements(f.dict, (tag, el) => {
+          if (el.vr !== 'UI' || !el.Value) return;
+          el.Value = el.Value.map(v => {
+            const s = String(v || '').trim();
+            if (!s) return s;
+            if (!map.has(s)) map.set(s, newUID());
+            return map.get(s);
+          });
+        });
+      }
+    }
+
+    // Push active dataset → inputs → pendingEdits
     function syncDatasetToInputs(){
       pendingEdits.clear();
-      renderTable();
-      for (const [tag, el] of Object.entries(dict)){
-        if (!el || el.vr === 'SQ' || isBinaryVR(el.vr)) continue;
-        pendingEdits.set(tag, { vr: el.vr, valueString: elToString(el) });
+      if (dict){
+        for (const [tag, el] of Object.entries(dict)){
+          if (!el || el.vr === 'SQ' || isBinaryVR(el.vr)) continue;
+          pendingEdits.set(tag, { vr: el.vr, valueString: elToString(el) });
+        }
       }
-      showDownloadIfEdited();
-      drawPreviewFromDenat(dict);
+      renderTable();
+      showDownloadControls();
+      if (dict) drawPreviewFromDenat(dict);
     }
 
-    // ---------- Write ----------
-    function downloadEdited() {
+    // ---------- File handling ----------
+    async function handleFiles(fileList) {
       try {
-        if (!dict) return;
+        files = [];
+        dict = null;
+        meta = null;
+        pendingEdits.clear();
+        tagBody.innerHTML = '';
+        previewCard.classList.add('hidden');
+        logArea.textContent = '';
+        logCard.classList.add('hidden');
+        rebuildBatchButtons();
+        showDownloadControls();
 
-        const denat = (typeof structuredClone === 'function')
-          ? structuredClone(dict)
-          : shallowClone(dict); // shallow ok; we overwrite edited tags
+        const arr = Array.from(fileList || []);
+        if (!arr.length) return;
 
-        pendingEdits.forEach(function ({ vr, valueString }, tag) {
-          if (isReadOnly(tag, vr)) return;
-          denat[tag] = { vr: vr, Value: parseByVR(vr, valueString) };
-        });
+        log(`Starting to load ${arr.length} file(s).`, 'info');
 
-        const metaOut = ensureMetaFromDataset(denat);
-        normalizeBinaryElementsRecursive(denat);
-        normalizeBinaryElementsRecursive(metaOut);
+        for (const file of arr){
+          try {
+            const buf = await file.arrayBuffer();
+            const msg = DicomMessage.readFile(buf);
+            files.push({
+              name: file.name,
+              dict: msg.dict,
+              meta: msg.meta || {}
+            });
+            log(`Loaded file "${file.name}" successfully.`, 'info');
+          } catch (e) {
+            log(`Failed to read file "${file.name}": ${e && e.message ? e.message : e}`, 'error');
+          }
+        }
 
-        const dd = new DicomDict(metaOut);
-        dd.dict = denat;
-        const outBytes = dd.write(); // ArrayBuffer or Uint8Array
-        const payload = outBytes && outBytes.buffer ? outBytes.buffer : outBytes;
-        const blob = new Blob([payload], { type: 'application/dicom' });
+        if (!files.length) {
+          alert('No valid DICOM files could be loaded. See log for details.');
+          return;
+        }
 
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        const base = (fileNamePill.textContent || 'edited').replace(/\.[^.]+$/, '');
-        const ts = new Date().toISOString().replace(/[:.]/g, '-'); 
-        a.download = `${base}.edited.${ts}.dcm`;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+        // Active = first file
+        dict = files[0].dict;
+        meta = files[0].meta;
+
+        editor.classList.remove('hidden');
+
+        const firstName = files[0].name || '—';
+        if (files.length === 1) {
+          fileNamePill.textContent = firstName;
+        } else {
+          fileNamePill.textContent = `${firstName} (+${files.length - 1} more)`;
+        }
+        fileCountPill.textContent = `${files.length} file${files.length>1?'s':''}`;
+
+        const ts = meta?.TransferSyntaxUID?.Value?.[0] || '—';
+        tsuidPill.textContent = 'Transfer Syntax: ' + ts;
+        const hasPx = !!(dict['x7fe00010'] || dict['7fe00010']);
+        pixelPill.textContent = 'Pixel Data: ' + (hasPx ? 'Present' : 'Absent');
+
+        syncDatasetToInputs();
+        computeAndShowUIDPrefix();
+        rebuildBatchButtons();
+        showDownloadControls();
+        log(`Finished loading. ${files.length} file(s) ready.`, 'info');
       } catch (err) {
-        console.error(err);
-        alert('Failed to write DICOM: ' + (err?.message || err));
+        log(`Failed to load DICOM(s): ${err && err.message ? err.message : err}`, 'error');
+        alert('Failed to load DICOM(s). See log for details.');
+      }
+    }
+
+    // ---------- Download helpers (ALL + batches) ----------
+    function downloadRange(startIndex, endIndex) {
+      try {
+        if (!files.length) return;
+        startIndex = Math.max(0, startIndex | 0);
+        endIndex = Math.min(files.length, endIndex | 0);
+        if (startIndex >= endIndex) return;
+
+        let success = 0;
+        let failed = 0;
+        log(`Starting download for files ${startIndex + 1}–${endIndex} of ${files.length}.`, 'info');
+
+        for (let idx = startIndex; idx < endIndex; idx++) {
+          const f = files[idx];
+          try {
+            const denat = (typeof structuredClone === 'function')
+              ? structuredClone(f.dict)
+              : shallowClone(f.dict);
+
+            // ⬇️ Apply all manual UI edits (from the first-file view) to EVERY file
+            pendingEdits.forEach(function ({ vr, valueString }, tag) {
+              if (isReadOnly(tag, vr)) return;
+              denat[tag] = { vr: vr, Value: parseByVR(vr, valueString) };
+            });
+
+            const metaOut = ensureMetaFromDataset(denat, f.meta);
+            normalizeBinaryElementsRecursive(denat);
+            normalizeBinaryElementsRecursive(metaOut);
+
+            const dd = new DicomDict(metaOut);
+            dd.dict = denat;
+            const outBytes = dd.write();
+            const payload = outBytes && outBytes.buffer ? outBytes.buffer : outBytes;
+            const blob = new Blob([payload], { type: 'application/dicom' });
+
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            const baseName = f.name || `file${idx+1}`;
+            const base = baseName.replace(/\.[^.]+$/, '');
+            const ts = new Date().toISOString().replace(/[:.]/g, '-'); 
+            a.download = `${base}.edited.${ts}.dcm`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+
+            success++;
+            log(`Download started for file #${idx+1} ("${baseName}").`, 'info');
+          } catch (e) {
+            failed++;
+            log(`Failed to encode/download file #${idx+1} ("${f.name}"): ${e && e.message ? e.message : e}`, 'error');
+          }
+        }
+
+        log(
+          `Batch download ${startIndex + 1}–${endIndex} finished. Success: ${success}, Failed: ${failed}. ` +
+          `Note: your browser may still block some downloads even if they were generated successfully.`,
+          failed ? 'warn' : 'info'
+        );
+      } catch (err) {
+        log(`Global failure during batch download: ${err && err.message ? err.message : err}`, 'error');
+        alert('Failed to write DICOM(s). See log for details.');
       }
     }
 
@@ -742,18 +896,21 @@
     window.addEventListener('drop', function (e) {
       e.preventDefault();
       body.classList.remove('dragging');
-      const f = e.dataTransfer?.files?.[0];
-      if (f) handleFile(f);
+      const fl = e.dataTransfer?.files;
+      if (fl && fl.length) handleFiles(fl);
     });
 
     dropZone.addEventListener('click', function () { fileInput.click(); });
     browseBtn.addEventListener('click', function () { fileInput.click(); });
     fileInput.addEventListener('change', function (e) {
-      const f = e.target.files?.[0];
-      if (f) handleFile(f);
+      const fl = e.target.files;
+      if (fl && fl.length) handleFiles(fl);
     });
 
-    downloadBtn.addEventListener('click', downloadEdited);
+    downloadAllBtn.addEventListener('click', () => {
+      if (!files.length) return;
+      downloadRange(0, files.length);
+    });
 
     applyPrefixBtn.addEventListener('click', function(){
       if (!linkUIDsChk.checked) return;
@@ -766,8 +923,51 @@
       uidBar.style.opacity = linkUIDsChk.checked ? '1' : '.6';
     });
 
-    anonymizeBtn.addEventListener('click', () => { if (!dict) return; anonymizeInPlace(dict); syncDatasetToInputs(); });
-    randomizeBtn.addEventListener('click',  () => { if (!dict) return; randomizeInPlace(dict); syncDatasetToInputs(); });
+    anonymizeBtn.addEventListener('click', () => {
+      if (!files.length) return;
+      log(`Starting anonymization for ${files.length} file(s).`, 'info');
+      let failed = 0;
+      files.forEach((f, idx) => {
+        try {
+          anonymizeInPlace(f.dict);
+        } catch (e) {
+          failed++;
+          log(`Anonymize failed for file #${idx+1} ("${f.name}"): ${e && e.message ? e.message : e}`, 'error');
+        }
+      });
+      try {
+        remapAllUIDsAcrossFiles();
+      } catch (e) {
+        failed++;
+        log(`UID remap during anonymize failed: ${e && e.message ? e.message : e}`, 'error');
+      }
+      syncDatasetToInputs();
+      computeAndShowUIDPrefix();
+      log(`Anonymize complete. Failed files: ${failed}.`, failed ? 'warn' : 'info');
+    });
+
+    randomizeBtn.addEventListener('click',  () => {
+      if (!files.length) return;
+      log(`Starting randomization for ${files.length} file(s).`, 'info');
+      let failed = 0;
+      files.forEach((f, idx) => {
+        try {
+          randomizeInPlace(f.dict);
+        } catch (e) {
+          failed++;
+          log(`Randomize failed for file #${idx+1} ("${f.name}"): ${e && e.message ? e.message : e}`, 'error');
+        }
+      });
+      try {
+        remapAllUIDsAcrossFiles();
+      } catch (e) {
+        failed++;
+        log(`UID remap during randomize failed: ${e && e.message ? e.message : e}`, 'error');
+      }
+      syncDatasetToInputs();
+      computeAndShowUIDPrefix();
+      log(`Randomize complete. Failed files: ${failed}.`, failed ? 'warn' : 'info');
+    });
   </script>
 </body>
 </html>
