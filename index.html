@@ -43,9 +43,11 @@
     .footer{display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap}
     .hint{font-size:12px; color:#6b7280}
     .hidden{display:none}
+
     .uidbar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px; border:1px dashed var(--line); border-radius:10px; background:#f9fafb; margin:12px 0}
     .uidbar input[type="text"]{min-width:320px; max-width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-family:var(--mono)}
     canvas#preview{max-width:100%; border:1px solid var(--line); border-radius:10px}
+
     /* Log panel */
     #logArea{
       max-height:160px;
@@ -58,12 +60,62 @@
       border-radius:8px;
       white-space:pre-wrap;
     }
+
     /* Batch download buttons */
     #batchButtons{
       display:flex;
       flex-wrap:wrap;
       gap:8px;
     }
+
+    /* Layout: main drop + compare mini */
+    .top-row{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      align-items:stretch;
+    }
+    .top-row-main{
+      flex:2 1 260px;
+    }
+    .compare-card{
+      flex:1 1 220px;
+      border:1px dashed var(--line);
+      border-radius:12px;
+      padding:10px;
+      background:#f9fafb;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .compare-title{
+      font-size:13px;
+      font-weight:600;
+      color:#111827;
+    }
+    .mini-drop{
+      border:1px dashed var(--line);
+      border-radius:10px;
+      padding:10px;
+      text-align:center;
+      font-size:12px;
+      color:#6b7280;
+      background:#fdfdfd;
+      cursor:pointer;
+      transition:.15s;
+    }
+    .mini-drop:hover{
+      border-color:var(--accent);
+      background:#eef2ff;
+    }
+    .compare-disabled .mini-drop{
+      opacity:0.5;
+      cursor:not-allowed;
+    }
+
+    /* Compare highlighting */
+    tr.cmp-match td{ background:#ecfdf3; } /* green-ish */
+    tr.cmp-diff td{ background:#fef9c3; } /* yellow-ish */
   </style>
 </head>
 <body>
@@ -76,9 +128,41 @@
 
   <div class="wrap">
     <div class="card">
-      <div class="drop" id="dropZone">
-        <div style="font-weight:600; color:#111827">Drop one or more DICOM (.dcm) files</div>
-        <div class="hint" style="margin-top:6px">They will be processed as a batch</div>
+      <div class="top-row">
+        <!-- Main drop area -->
+        <div class="top-row-main">
+          <div class="drop" id="dropZone">
+            <div style="font-weight:600; color:#111827">Drop one or more DICOM (.dcm) files</div>
+            <div class="hint" style="margin-top:6px">They will be processed as a batch</div>
+          </div>
+        </div>
+
+        <!-- Compare mini card -->
+        <div class="compare-card" id="compareCard">
+          <div class="compare-title">Compare file (single-file mode)</div>
+          <div class="mini-drop" id="compareDropZone">
+            Drop a second DICOM here<br/>
+            or click to choose
+          </div>
+          <input id="compareFileInput" type="file" accept=".dcm,.dicom,application/dicom" hidden />
+          <div class="hint" id="compareStatus">No compare file loaded.</div>
+          <div class="hint" id="viewSelector">
+            View:
+            <label>
+              <input type="radio" name="viewFile" id="viewPrimary" value="primary" checked />
+              Primary
+            </label>
+            <label>
+              <input type="radio" name="viewFile" id="viewCompare" value="compare" disabled />
+              Compare
+            </label>
+          </div>
+          <div class="hint">
+            Highlighting:
+            <span style="background:#ecfdf3; padding:0 4px; border-radius:3px;">same</span>
+            <span style="background:#fef9c3; padding:0 4px; border-radius:3px;">different</span>
+          </div>
+        </div>
       </div>
 
       <div id="editor" class="hidden" style="margin-top:14px">
@@ -110,7 +194,7 @@
                 <th style="width:130px">Tag</th>
                 <th style="width:220px">Keyword</th>
                 <th style="width:70px">VR</th>
-                <th>Value (showing first file)</th>
+                <th>Value (according to selected view)</th>
               </tr>
             </thead>
             <tbody id="tagBody"></tbody>
@@ -121,6 +205,7 @@
           <div class="hint">
             Read-only: sequences, Pixel Data, and binary VRs.
             Batch tools (Anonymize, Randomize, UID prefix) affect <strong>all</strong> loaded files.
+            Only the <strong>primary</strong> file is editable.
           </div>
           <div class="spacer"></div>
           <button id="anonymizeBtn" class="btn">Anonymize (all files)</button>
@@ -180,6 +265,14 @@
     const downloadAllBtn = document.getElementById('downloadAllBtn');
     const batchButtonsContainer = document.getElementById('batchButtons');
 
+    // Compare UI
+    const compareCard = document.getElementById('compareCard');
+    const compareDropZone = document.getElementById('compareDropZone');
+    const compareFileInput = document.getElementById('compareFileInput');
+    const compareStatus = document.getElementById('compareStatus');
+    const viewPrimaryRadio = document.getElementById('viewPrimary');
+    const viewCompareRadio = document.getElementById('viewCompare');
+
     // Log
     const logCard = document.getElementById('logCard');
     const logArea = document.getElementById('logArea');
@@ -210,11 +303,20 @@
 
     // State
     let files = [];           // [{ name, dict, meta }]
-    let dict = null;          // active (= first) dict
-    let meta = null;          // active (= first) meta
-    const pendingEdits = new Map(); // overrides from UI
-    let uiInputs = [];        // inputs for active file
+    let dict = null;          // active primary dict (first file)
+    let meta = null;          // primary meta
+    const pendingEdits = new Map(); // overrides from UI for primary tags
+    let uiInputs = [];        // inputs for active file (view)
     let sharedUIDPrefix = '';
+
+    // Compare state
+    let compareDict = null;
+    let compareMeta = null;
+    let compareName = null;
+    let activeView = 'primary'; // 'primary' | 'compare'
+
+    // Corruption warning guard
+    let encodeErrorAlertShown = false;
 
     // ---------- Utility helpers ----------
     function isBinaryVR(vr){ return ['OB','OW','OF','UN','OD','OL'].includes(vr); }
@@ -243,7 +345,10 @@
       switch (vr) {
         case 'US': case 'UL': case 'SS': case 'SL':
         case 'FL': case 'FD':
-          return parts.map(Number);
+          return parts.map(x => {
+            const n = Number(x);
+            return Number.isFinite(n) ? n : 0;
+          });
         case 'OB': case 'OW': case 'OF': case 'UN': case 'OD': case 'OL':
           throw new Error('Binary VRs not editable');
         default:
@@ -283,7 +388,7 @@
       }
     }
 
-    // ---------- Dataset traversal ----------
+    // Dataset traversal
     function walkElements(node, fn){
       if (!node || typeof node !== 'object') return;
       for (const [tag, el] of Object.entries(node)) {
@@ -295,22 +400,80 @@
       }
     }
 
-    // ---------- Rendering ----------
+    // ---------- Compare availability ----------
+    function updateCompareAvailability() {
+      if (files.length <= 1) {
+        compareCard.classList.remove('compare-disabled');
+        viewPrimaryRadio.disabled = false;
+
+        if (compareDict) {
+          viewCompareRadio.disabled = false;
+          compareStatus.textContent = `Comparing to: ${compareName || 'loaded compare file'}`;
+        } else {
+          viewCompareRadio.disabled = true;
+          compareStatus.textContent = 'No compare file loaded.';
+          // If we were in compare view but lost the compare dict, bounce back to primary
+          if (activeView === 'compare') {
+            activeView = 'primary';
+            viewPrimaryRadio.checked = true;
+            viewCompareRadio.checked = false;
+          }
+        }
+      } else {
+        compareCard.classList.add('compare-disabled');
+        compareStatus.textContent = `Comparison disabled while ${files.length} files are loaded.`;
+        compareDict = null;
+        compareMeta = null;
+        compareName = null;
+        activeView = 'primary';
+        viewPrimaryRadio.disabled = false;
+        viewPrimaryRadio.checked = true;
+        viewCompareRadio.disabled = true;
+        viewCompareRadio.checked = false;
+      }
+    }
+
+    // ---------- Rendering (with compare & view toggle) ----------
     function renderTable() {
-      if (!dict) { tagBody.innerHTML = ''; return; }
+      if (!dict && !compareDict) { tagBody.innerHTML = ''; return; }
+
+      const isPrimaryView = (activeView === 'primary' || !compareDict);
+      const mainDict = isPrimaryView ? dict : compareDict;
+      const otherDict = isPrimaryView ? compareDict : dict;
+
+      if (!mainDict) { tagBody.innerHTML = ''; return; }
 
       const rows = [];
-      const entries = Object.entries(dict || {}).filter(([tag]) => tag.startsWith('x') || /^[0-9a-f]{8}$/i.test(tag));
+      const entries = Object.entries(mainDict || {}).filter(([tag]) => tag.startsWith('x') || /^[0-9a-f]{8}$/i.test(tag));
       entries.sort(([a],[b]) => a.localeCompare(b));
       uiInputs = [];
 
       for (const [tag, el] of entries) {
         const vr = el.vr || '';
         const keyw = keywordFor(tag);
-        const valueStr = pendingEdits.has(tag) ? pendingEdits.get(tag).valueString : elToString(el);
-        const ro = isReadOnly(tag, vr);
+        let valueStr;
+        if (isPrimaryView && pendingEdits.has(tag)) {
+          valueStr = pendingEdits.get(tag).valueString;
+        } else {
+          valueStr = elToString(el);
+        }
+
+        // Compare info
+        let trClass = '';
+        if (otherDict && files.length <= 1) {
+          const cmpEl = otherDict[tag];
+          if (cmpEl) {
+            const cmpVal = elToString(cmpEl);
+            if (cmpVal === valueStr) {
+              trClass = 'cmp-match';
+            } else {
+              trClass = 'cmp-diff';
+            }
+          }
+        }
 
         const tr = document.createElement('tr');
+        if (trClass) tr.classList.add(trClass);
 
         const tdTag = document.createElement('td');
         tdTag.innerHTML = '<span class="tag">' + fmtTag(tag) + '</span>';
@@ -325,26 +488,32 @@
         const inp = document.createElement('input');
         inp.className = 'value';
         inp.value = valueStr;
+
+        const ro = isReadOnly(tag, vr) || !isPrimaryView; // compare view always read-only
         inp.disabled = ro;
         inp.placeholder = ro ? '(read-only)' : '';
-        inp.addEventListener('input', function () {
-          pendingEdits.set(tag, { vr: vr, valueString: inp.value });
-          showDownloadControls();
-        });
-        // UID linking behavior (editing one can update all files)
-        if (!ro && vr === 'UI') {
-          inp.addEventListener('blur', function () {
-            if (!linkUIDsChk.checked) return;
-            const newVal = String(inp.value || '');
-            if (!newVal) return;
-            const cand = newVal.includes('.') ? newVal.slice(0, newVal.lastIndexOf('.')) : newVal;
-            if (cand && cand !== sharedUIDPrefix && /^[0-9]+(\.[0-9]+)*$/.test(cand)) {
-              log(`UID prefix edited in active file; applying new prefix ${cand} across all files.`, 'info');
-              applyPrefixToAll(cand);
-            }
+
+        if (!ro) {
+          inp.addEventListener('input', function () {
+            pendingEdits.set(tag, { vr: vr, valueString: inp.value });
+            showDownloadControls();
           });
+          // UID linking behavior (editing one can update all files)
+          if (vr === 'UI') {
+            inp.addEventListener('blur', function () {
+              if (!linkUIDsChk.checked) return;
+              const newVal = String(inp.value || '');
+              if (!newVal) return;
+              const cand = newVal.includes('.') ? newVal.slice(0, newVal.lastIndexOf('.')) : newVal;
+              if (cand && cand !== sharedUIDPrefix && /^[0-9]+(\.[0-9]+)*$/.test(cand)) {
+                log(`UID prefix edited in active file; applying new prefix ${cand} across all files.`, 'info');
+                applyPrefixToAll(cand);
+              }
+            });
+          }
           uiInputs.push({ tag, input: inp, vr });
         }
+
         tdVal.appendChild(inp);
 
         tr.appendChild(tdTag);
@@ -357,6 +526,7 @@
       tagBody.replaceChildren(...rows);
       showDownloadControls();
       computeAndShowUIDPrefix();
+      updateCompareAvailability();
     }
 
     // ---------- UID prefix linking across ALL FILES ----------
@@ -423,6 +593,7 @@
         }
       }
 
+      // Refresh pendingEdits from primary dict
       pendingEdits.clear();
       if (dict){
         for (const [tag, el] of Object.entries(dict)){
@@ -436,6 +607,9 @@
       uidInfo.textContent = allUIDs.length
         ? `UID values across all files: ${sharedUIDPrefix}`
         : 'No UID fields found.';
+      activeView = 'primary';
+      viewPrimaryRadio.checked = true;
+      viewCompareRadio.checked = false;
       renderTable();
       showDownloadControls();
     }
@@ -609,7 +783,7 @@
       return `2.25.${decimalFromBytes(randomUUIDBytes())}`;
     }
 
-    // ---------- Anonymize & Randomize (extended) ----------
+    // ---------- Anonymize & Randomize ----------
     const PHI_TAGS = [
       'x00100010','x00100020','x00100030','x00100040','x00101010','x00101020','x00101030','x00101040',
       'x00102160','x00102180','x001021A0','x001021B0','x00104000','x00101060','x00101080','x00101090',
@@ -738,6 +912,36 @@
       }
     }
 
+    // Numeric diagnostics: try to detect suspicious numeric values
+    function scanNumericIssues(dataset, label='dataset'){
+      const numericVRs = new Set(['DS','IS','FL','FD','SS','US','SL','UL']);
+      let found = 0;
+      walkElements(dataset, (tag, el) => {
+        if (!numericVRs.has(el.vr)) return;
+        if (!el.Value) return;
+        el.Value.forEach((v, idx) => {
+          let ok = false;
+          if (typeof v === 'number') ok = Number.isFinite(v);
+          else if (typeof v === 'string') {
+            const n = Number(v);
+            ok = Number.isFinite(n);
+          }
+          if (!ok) {
+            found++;
+            log(
+              `Suspicious numeric value in ${label} at ${fmtTag(tag)} [${keywordFor(tag)}], VR=${el.vr}, index=${idx}, value=${JSON.stringify(v)}`,
+              'warn'
+            );
+          }
+        });
+      });
+      if (!found) {
+        log(`No obvious numeric issues detected in ${label}. The error may be due to Pixel Data, Sequences, or a dcmjs bug.`, 'info');
+      } else {
+        log(`Found ${found} suspicious numeric value(s) in ${label}.`, 'warn');
+      }
+    }
+
     // Push active dataset → inputs → pendingEdits
     function syncDatasetToInputs(){
       pendingEdits.clear();
@@ -747,6 +951,9 @@
           pendingEdits.set(tag, { vr: el.vr, valueString: elToString(el) });
         }
       }
+      activeView = 'primary';
+      viewPrimaryRadio.checked = true;
+      viewCompareRadio.checked = false;
       renderTable();
       showDownloadControls();
       if (dict) drawPreviewFromDenat(dict);
@@ -765,6 +972,12 @@
         logCard.classList.add('hidden');
         rebuildBatchButtons();
         showDownloadControls();
+        encodeErrorAlertShown = false;
+
+        // Clear compare when loading new main set
+        compareDict = null;
+        compareMeta = null;
+        compareName = null;
 
         const arr = Array.from(fileList || []);
         if (!arr.length) return;
@@ -814,10 +1027,38 @@
         computeAndShowUIDPrefix();
         rebuildBatchButtons();
         showDownloadControls();
+        updateCompareAvailability();
         log(`Finished loading. ${files.length} file(s) ready.`, 'info');
       } catch (err) {
         log(`Failed to load DICOM(s): ${err && err.message ? err.message : err}`, 'error');
         alert('Failed to load DICOM(s). See log for details.');
+      }
+    }
+
+    async function handleCompareFile(file) {
+      if (!file) return;
+      if (!files.length) {
+        alert('Load a primary file first before comparing.');
+        return;
+      }
+      if (files.length > 1) {
+        alert('Comparison is only available when a single primary file is loaded.');
+        return;
+      }
+      try {
+        const buf = await file.arrayBuffer();
+        const msg = DicomMessage.readFile(buf);
+        compareDict = msg.dict;
+        compareMeta = msg.meta || {};
+        compareName = file.name || 'Compare.dcm';
+        log(`Loaded compare file "${compareName}".`, 'info');
+        compareStatus.textContent = `Comparing to: ${compareName}`;
+        viewCompareRadio.disabled = false;
+        // stay on whatever view the user picked; default is primary until they click compare
+        renderTable(); // re-highlight
+      } catch (e) {
+        log(`Failed to load compare file "${file.name}": ${e && e.message ? e.message : e}`, 'error');
+        alert('Failed to load compare DICOM. See log for details.');
       }
     }
 
@@ -840,7 +1081,7 @@
               ? structuredClone(f.dict)
               : shallowClone(f.dict);
 
-            // ⬇️ Apply all manual UI edits (from the first-file view) to EVERY file
+            // Apply all manual UI edits (from primary view) to EVERY file
             pendingEdits.forEach(function ({ vr, valueString }, tag) {
               if (isReadOnly(tag, vr)) return;
               denat[tag] = { vr: vr, Value: parseByVR(vr, valueString) };
@@ -870,7 +1111,22 @@
             log(`Download started for file #${idx+1} ("${baseName}").`, 'info');
           } catch (e) {
             failed++;
-            log(`Failed to encode/download file #${idx+1} ("${f.name}"): ${e && e.message ? e.message : e}`, 'error');
+            const msg = e && e.message ? e.message : String(e);
+            log(`Failed to encode/download file #${idx+1} ("${f.name}"): ${msg}`, 'error');
+            if (msg.includes('toExponential')) {
+              log('Hint: this often means a numeric DICOM value (e.g. FL/FD/DS/IS) has an invalid or non-numeric string.', 'warn');
+            }
+            // Run numeric diagnostics for this dataset
+            try {
+              scanNumericIssues(denat, `file #${idx+1} ("${f.name}")`);
+            } catch (scanErr) {
+              log(`Numeric issue scan failed for file #${idx+1}: ${scanErr && scanErr.message ? scanErr.message : scanErr}`, 'error');
+            }
+
+            if (!encodeErrorAlertShown) {
+              encodeErrorAlertShown = true;
+              alert('One or more files could not be written and may be corrupted or contain invalid numeric metadata (e.g. bad FL/FD/DS/IS values). Check the Log panel for details.');
+            }
           }
         }
 
@@ -967,6 +1223,49 @@
       syncDatasetToInputs();
       computeAndShowUIDPrefix();
       log(`Randomize complete. Failed files: ${failed}.`, failed ? 'warn' : 'info');
+    });
+
+    // Compare drop / click
+    compareDropZone.addEventListener('click', () => {
+      if (files.length > 1) {
+        alert('Comparison is only available when a single primary file is loaded.');
+        return;
+      }
+      compareFileInput.click();
+    });
+
+    compareFileInput.addEventListener('change', (e) => {
+      const f = e.target.files?.[0];
+      if (f) handleCompareFile(f);
+    });
+
+    compareDropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    compareDropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (files.length > 1) {
+        alert('Comparison is only available when a single primary file is loaded.');
+        return;
+      }
+      const f = e.dataTransfer?.files?.[0];
+      if (f) handleCompareFile(f);
+    });
+
+    // View selector (primary / compare)
+    viewPrimaryRadio.addEventListener('change', () => {
+      if (viewPrimaryRadio.checked) {
+        activeView = 'primary';
+        renderTable();
+      }
+    });
+    viewCompareRadio.addEventListener('change', () => {
+      if (viewCompareRadio.checked && compareDict && files.length <= 1) {
+        activeView = 'compare';
+        renderTable();
+      }
     });
   </script>
 </body>
