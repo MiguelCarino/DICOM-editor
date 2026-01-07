@@ -2,1271 +2,1510 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-  />
-  <title>Simple DICOM Tag Editor</title>
-
-  <!-- dcmjs -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DICOM Tag Editor</title>
   <script src="https://cdn.jsdelivr.net/npm/dcmjs@0.29.8/build/dcmjs.min.js"></script>
-
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    :root{
-      --bg:#f7f8fa; --card:#ffffff; --line:#e5e7eb; --text:#111827; --muted:#6b7280; --accent:#2563eb;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      --sans: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    :root {
+      --bg: #0c0a1d;
+      --bg-gradient: linear-gradient(135deg, #0c0a1d 0%, #1a1333 50%, #0f1a2e 100%);
+      --surface: rgba(255,255,255,0.04);
+      --surface-solid: #161229;
+      --surface-hover: rgba(255,255,255,0.08);
+      --border: rgba(255,255,255,0.08);
+      --border-glow: rgba(139,92,246,0.3);
+      --text: #f0f0ff;
+      --text-dim: #a0a0c0;
+      --text-muted: #606080;
+      
+      /* Vibrant category colors */
+      --cat-patient: #22d3ee;
+      --cat-patient-bg: rgba(34,211,238,0.15);
+      --cat-study: #a78bfa;
+      --cat-study-bg: rgba(167,139,250,0.15);
+      --cat-series: #f472b6;
+      --cat-series-bg: rgba(244,114,182,0.15);
+      --cat-image: #fb923c;
+      --cat-image-bg: rgba(251,146,60,0.15);
+      --cat-equipment: #4ade80;
+      --cat-equipment-bg: rgba(74,222,128,0.15);
+      --cat-uid: #facc15;
+      --cat-uid-bg: rgba(250,204,21,0.15);
+      --cat-private: #f87171;
+      --cat-private-bg: rgba(248,113,113,0.15);
+      --cat-other: #94a3b8;
+      --cat-other-bg: rgba(148,163,184,0.15);
+      
+      --accent: #a78bfa;
+      --accent-glow: rgba(167,139,250,0.4);
+      --pink: #f472b6;
+      --cyan: #22d3ee;
+      
+      --font: 'Space Grotesk', sans-serif;
+      --mono: 'JetBrains Mono', monospace;
+      --radius: 12px;
     }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0; font-family:var(--sans); background:var(--bg); color:var(--text)}
-    .wrap{max-width:1100px; margin:0 auto; padding:24px}
-    .bar{position:sticky; top:0; z-index:5; display:flex; gap:10px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--line); background:rgba(255,255,255,.85); -webkit-backdrop-filter:saturate(180%) blur(8px); backdrop-filter:saturate(180%) blur(8px)}
-    .bar .hint{color:var(--muted); font-size:13px}
-    .spacer{flex:1}
-    .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px}
-    .drop{border:2px dashed var(--line); border-radius:12px; padding:22px; text-align:center; color:var(--muted); background:#fbfbfd; transition:.15s}
-    .dragging .drop{border-color:var(--accent); background:#eef2ff}
-    .btn{appearance:none; border:1px solid var(--line); background:#f3f4f6; padding:10px 14px; border-radius:10px; font-weight:600; cursor:pointer}
-    .btn:hover{background:#e5e7eb}
-    .btn.primary{background:var(--accent); color:#fff; border-color:#1d4ed8}
-    .btn.primary:hover{filter:brightness(0.97)}
-    .pill{display:inline-block; border:1px solid var(--line); background:#f9fafb; padding:6px 10px; border-radius:999px; font-size:12px; margin-right:8px; color:#374151}
-    table{width:100%; border-collapse:collapse; border:1px solid var(--line); border-radius:12px; overflow:hidden}
-    thead th{background:#fbfbfd; font-size:12px; text-align:left; padding:10px; border-bottom:1px solid var(--line); color:#6b7280}
-    tbody td{padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top}
-    tbody tr:hover{background:#fafafa}
-    .tag{font-family:var(--mono); color:#6b7280}
-    .vr{font-family:var(--mono); font-size:12px; color:#4b5563}
-    .value{width:100%; font-size:14px; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:#ffffff}
-    .value:disabled{background:#f7f7f7; color:#9ca3af}
-    .footer{display:flex; align-items:center; gap:12px; margin-top:12px; flex-wrap:wrap}
-    .hint{font-size:12px; color:#6b7280}
-    .hidden{display:none}
-
-    .uidbar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:10px; border:1px dashed var(--line); border-radius:10px; background:#f9fafb; margin:12px 0}
-    .uidbar input[type="text"]{min-width:320px; max-width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--line); font-family:var(--mono)}
-    canvas#preview{max-width:100%; border:1px solid var(--line); border-radius:10px}
-
-    /* Log panel */
-    #logArea{
-      max-height:160px;
-      overflow:auto;
-      font-family:var(--mono);
-      font-size:11px;
-      background:#020617;
-      color:#e5e7eb;
-      padding:8px;
-      border-radius:8px;
-      white-space:pre-wrap;
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      background-image: var(--bg-gradient);
+      color: var(--text);
+      line-height: 1.5;
     }
-
-    /* Batch download buttons */
-    #batchButtons{
-      display:flex;
-      flex-wrap:wrap;
-      gap:8px;
+    
+    /* Main Layout - No scroll except table */
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100vh;
+      overflow: hidden;
     }
-
-    /* Layout: main drop + compare mini */
-    .top-row{
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
-      align-items:stretch;
+    
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 20px;
+      background: rgba(12,10,29,0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
     }
-    .top-row-main{
-      flex:2 1 260px;
+    .logo {
+      font-weight: 700;
+      font-size: 18px;
+      background: linear-gradient(135deg, var(--cyan), var(--accent), var(--pink));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
-    .compare-card{
-      flex:1 1 220px;
-      border:1px dashed var(--line);
-      border-radius:12px;
-      padding:10px;
-      background:#f9fafb;
-      display:flex;
-      flex-direction:column;
-      gap:6px;
+    .header-spacer { flex: 1; }
+    
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font: 500 13px var(--font);
+      cursor: pointer;
+      transition: all 0.2s;
     }
-    .compare-title{
-      font-size:13px;
-      font-weight:600;
-      color:#111827;
+    .btn:hover {
+      background: var(--surface-hover);
+      border-color: var(--accent);
+      box-shadow: 0 0 20px var(--accent-glow);
     }
-    .mini-drop{
-      border:1px dashed var(--line);
-      border-radius:10px;
-      padding:10px;
-      text-align:center;
-      font-size:12px;
-      color:#6b7280;
-      background:#fdfdfd;
-      cursor:pointer;
-      transition:.15s;
+    .btn.primary {
+      background: linear-gradient(135deg, var(--accent), var(--pink));
+      border: none;
+      color: #fff;
+      font-weight: 600;
     }
-    .mini-drop:hover{
-      border-color:var(--accent);
-      background:#eef2ff;
+    .btn.primary:hover {
+      filter: brightness(1.1);
+      box-shadow: 0 0 30px var(--accent-glow);
     }
-    .compare-disabled .mini-drop{
-      opacity:0.5;
-      cursor:not-allowed;
+    
+    /* Main Content */
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 16px;
+      padding: 16px 20px;
+      overflow: hidden;
+      min-height: 0;
     }
-
+    @media (max-width: 1000px) {
+      .main { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+    }
+    
+    /* Left Panel */
+    .left-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+      overflow: hidden;
+    }
+    
+    /* Top Bar (Pills + Actions) */
+    .top-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .pill.glow {
+      border-color: var(--accent);
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+    
+    /* UID Pattern Display */
+    .uid-pattern {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: var(--cat-uid-bg);
+      border: 1px solid rgba(250,204,21,0.3);
+      border-radius: 8px;
+      font-size: 12px;
+    }
+    .uid-pattern-label {
+      color: var(--cat-uid);
+      font-weight: 600;
+    }
+    .uid-pattern-value {
+      font-family: var(--mono);
+      color: var(--text);
+      background: rgba(0,0,0,0.3);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .uid-pattern input {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(250,204,21,0.3);
+      border-radius: 4px;
+      padding: 4px 8px;
+      color: var(--text);
+      font: 12px var(--mono);
+      width: 200px;
+    }
+    .uid-pattern input:focus {
+      outline: none;
+      border-color: var(--cat-uid);
+    }
+    
+    /* Filters Row */
+    .filters-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .filter-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font: 500 11px var(--font);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-btn:hover {
+      border-color: var(--border-glow);
+      color: var(--text-dim);
+    }
+    .filter-btn.active {
+      color: var(--text);
+      border-color: var(--accent);
+      background: rgba(167,139,250,0.1);
+    }
+    .filter-btn .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .filter-btn[data-cat="all"] .dot { background: linear-gradient(135deg, var(--cyan), var(--pink)); }
+    .filter-btn[data-cat="patient"] .dot { background: var(--cat-patient); }
+    .filter-btn[data-cat="study"] .dot { background: var(--cat-study); }
+    .filter-btn[data-cat="series"] .dot { background: var(--cat-series); }
+    .filter-btn[data-cat="image"] .dot { background: var(--cat-image); }
+    .filter-btn[data-cat="equipment"] .dot { background: var(--cat-equipment); }
+    .filter-btn[data-cat="uid"] .dot { background: var(--cat-uid); }
+    .filter-btn[data-cat="private"] .dot { background: var(--cat-private); }
+    .filter-btn[data-cat="other"] .dot { background: var(--cat-other); }
+    
+    /* Search */
+    .search-box {
+      position: relative;
+      flex-shrink: 0;
+    }
+    .search-box input {
+      width: 220px;
+      padding: 8px 12px 8px 36px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font: 13px var(--font);
+    }
+    .search-box input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+    .search-box input::placeholder { color: var(--text-muted); }
+    .search-box svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: var(--text-muted);
+    }
+    
+    /* Table Container - THIS SCROLLS */
+    .table-wrap {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead { position: sticky; top: 0; z-index: 5; }
+    thead th {
+      background: var(--surface-solid);
+      padding: 12px 14px;
+      font: 600 10px var(--font);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr {
+      transition: background 0.15s;
+    }
+    tbody tr:hover {
+      background: var(--surface-hover);
+    }
+    tbody td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+      font-size: 13px;
+    }
+    
+    /* Tag cell */
+    .tag-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tag-code {
+      font: 500 11px var(--mono);
+      color: var(--text-dim);
+      background: rgba(0,0,0,0.3);
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .tag-cat {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .tag-cat[data-cat="patient"] { background: var(--cat-patient); box-shadow: 0 0 8px var(--cat-patient); }
+    .tag-cat[data-cat="study"] { background: var(--cat-study); box-shadow: 0 0 8px var(--cat-study); }
+    .tag-cat[data-cat="series"] { background: var(--cat-series); box-shadow: 0 0 8px var(--cat-series); }
+    .tag-cat[data-cat="image"] { background: var(--cat-image); box-shadow: 0 0 8px var(--cat-image); }
+    .tag-cat[data-cat="equipment"] { background: var(--cat-equipment); box-shadow: 0 0 8px var(--cat-equipment); }
+    .tag-cat[data-cat="uid"] { background: var(--cat-uid); box-shadow: 0 0 8px var(--cat-uid); }
+    .tag-cat[data-cat="private"] { background: var(--cat-private); box-shadow: 0 0 8px var(--cat-private); }
+    .tag-cat[data-cat="other"] { background: var(--cat-other); }
+    
+    /* Description cell */
+    .desc-cell {
+      color: var(--text);
+      font-weight: 500;
+    }
+    .desc-unknown {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    
+    /* VR badge */
+    .vr-badge {
+      font: 500 10px var(--mono);
+      padding: 3px 6px;
+      background: rgba(0,0,0,0.4);
+      border-radius: 4px;
+      color: var(--text-dim);
+    }
+    
+    /* Value input */
+    .val-input {
+      width: 100%;
+      padding: 8px 10px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font: 13px var(--font);
+      transition: all 0.2s;
+    }
+    .val-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+    .val-input:disabled {
+      background: rgba(0,0,0,0.2);
+      color: var(--text-muted);
+      cursor: not-allowed;
+    }
+    .val-input.binary {
+      font-style: italic;
+      color: var(--text-muted);
+    }
+    
     /* Compare highlighting */
-    tr.cmp-match td{ background:#ecfdf3; } /* green-ish */
-    tr.cmp-diff td{ background:#fef9c3; } /* yellow-ish */
+    tr.cmp-match td { background: rgba(74,222,128,0.1); }
+    tr.cmp-diff td { background: rgba(251,146,60,0.1); }
+    
+    /* Actions Row */
+    .actions-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .actions-spacer { flex: 1; }
+    
+    /* Right Sidebar */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: hidden;
+    }
+    
+    /* Card style */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    
+    /* Drop Zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .drop-zone:hover, body.dragging .drop-zone {
+      border-color: var(--accent);
+      background: rgba(167,139,250,0.05);
+      box-shadow: 0 0 30px var(--accent-glow);
+    }
+    .drop-zone h4 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      background: linear-gradient(135deg, var(--cyan), var(--pink));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .drop-zone p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    
+    /* Image Preview */
+    .preview-box {
+      position: relative;
+      aspect-ratio: 1;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      display: none;
+    }
+    .preview-box.visible { display: block; }
+    .preview-box canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .preview-box::after {
+      content: '🔍 Click to enlarge';
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 10px;
+      color: var(--text-dim);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .preview-box:hover::after { opacity: 1; }
+    
+    /* Fullscreen Overlay */
+    .fullscreen-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.95);
+      display: none;
+      place-items: center;
+      z-index: 1000;
+      cursor: pointer;
+    }
+    .fullscreen-overlay.visible {
+      display: grid;
+    }
+    .fullscreen-overlay canvas {
+      max-width: 95vw;
+      max-height: 95vh;
+      border-radius: 8px;
+    }
+    .fullscreen-hint {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.1);
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    
+    /* Compare Panel */
+    .compare-drop {
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .compare-drop:hover {
+      border-color: var(--pink);
+      background: rgba(244,114,182,0.05);
+    }
+    .compare-legend {
+      display: flex;
+      gap: 12px;
+      margin-top: 10px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 4px;
+    }
+    .legend-dot.match { background: var(--cat-equipment); }
+    .legend-dot.diff { background: var(--cat-image); }
+    .compare-status {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .view-toggle {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .view-toggle label {
+      font-size: 11px;
+      color: var(--text-dim);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .view-toggle input { accent-color: var(--accent); }
+    
+    /* Log */
+    .log-area {
+      max-height: 120px;
+      overflow-y: auto;
+      font: 10px var(--mono);
+      background: rgba(0,0,0,0.4);
+      padding: 8px;
+      border-radius: 6px;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+    }
+    
+    .social-btn {
+      width: 40px; height: 40px; align-items: center; justify-content: center;
+      background: rgba(125,125,125,0.1); border-radius: 10px; color: var(--fg-secondary);
+      border: 1px solid transparent; transition: 0.2s; margin: 6px ;
+    }
+
+    .social-btn:hover { transform: translateY(-3px); color: var(--accent); }
+    .card.disabled { opacity: 0.5; pointer-events: none; }
+    .hidden { display: none !important; }
+    
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.3); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(167,139,250,0.5); }
   </style>
 </head>
 <body>
-  <div class="bar">
-    <strong>Simple DICOM Tag Editor</strong>
-    <div class="spacer"></div>
-    <span class="hint">Drop .dcm files anywhere or <button id="browseBtn" class="btn">Choose Files…</button></span>
-    <input id="fileInput" type="file" multiple accept=".dcm,.dicom,application/dicom" hidden />
-  </div>
+  <div class="app">
+    <header class="header">
+      <div class="logo">DICOM Editor</div>
+      <div class="header-spacer"></div>
+        <div class="brand-links">
+          <a href="https://github.com/MiguelCarino/DICOM-editor" target="_blank" class="social-btn" aria-label="GitHub">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+          </a>
+          <a href="https://www.linkedin.com/in/miguelcarino94/" target="_blank" class="social-btn" aria-label="LinkedIn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>
+          </a>
+          <!--<a href="https://youtube.com" target="_blank" class="social-btn" aria-label="YouTube">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>
+          </a>-->
+        </div>
+    </header>
 
-  <div class="wrap">
-    <div class="card">
-      <div class="top-row">
-        <!-- Main drop area -->
-        <div class="top-row-main">
-          <div class="drop" id="dropZone">
-            <div style="font-weight:600; color:#111827">Drop one or more DICOM (.dcm) files</div>
-            <div class="hint" style="margin-top:6px">They will be processed as a batch</div>
+    <div class="main">
+      <div class="left-panel">
+        <div class="top-bar" id="topBar">
+          <div class="pill" id="fileNamePill">No file loaded</div>
+          <div class="pill" id="fileCountPill">0 files</div>
+          
+          <div class="uid-pattern" id="uidPattern" style="display:none">
+            <span class="uid-pattern-label">UID Pattern:</span>
+            <input type="text" id="uidPrefixInput" placeholder="prefix..." />
+            <span class="uid-pattern-value" id="uidPatternDisplay">—</span>
+            <button class="btn" id="applyPrefixBtn" style="padding:4px 10px;font-size:11px;">Apply</button>
           </div>
         </div>
 
-        <!-- Compare mini card -->
-        <div class="compare-card" id="compareCard">
-          <div class="compare-title">Compare file (single-file mode)</div>
-          <div class="mini-drop" id="compareDropZone">
-            Drop a second DICOM here<br/>
-            or click to choose
-          </div>
-          <input id="compareFileInput" type="file" accept=".dcm,.dicom,application/dicom" hidden />
-          <div class="hint" id="compareStatus">No compare file loaded.</div>
-          <div class="hint" id="viewSelector">
-            View:
-            <label>
-              <input type="radio" name="viewFile" id="viewPrimary" value="primary" checked />
-              Primary
-            </label>
-            <label>
-              <input type="radio" name="viewFile" id="viewCompare" value="compare" disabled />
-              Compare
-            </label>
-          </div>
-          <div class="hint">
-            Highlighting:
-            <span style="background:#ecfdf3; padding:0 4px; border-radius:3px;">same</span>
-            <span style="background:#fef9c3; padding:0 4px; border-radius:3px;">different</span>
+        <div class="filters-row">
+          <button class="filter-btn active" data-cat="all"><span class="dot"></span>All</button>
+          <button class="filter-btn" data-cat="patient"><span class="dot"></span>Patient</button>
+          <button class="filter-btn" data-cat="study"><span class="dot"></span>Study</button>
+          <button class="filter-btn" data-cat="series"><span class="dot"></span>Series</button>
+          <button class="filter-btn" data-cat="image"><span class="dot"></span>Image</button>
+          <button class="filter-btn" data-cat="equipment"><span class="dot"></span>Equipment</button>
+          <button class="filter-btn" data-cat="uid"><span class="dot"></span>UIDs</button>
+          <button class="filter-btn" data-cat="private"><span class="dot"></span>Private</button>
+          <button class="filter-btn" data-cat="other"><span class="dot"></span>Other</button>
+          
+          <div style="flex:1"></div>
+          
+          <div class="search-box">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input type="text" id="searchInput" placeholder="Search..." />
           </div>
         </div>
-      </div>
 
-      <div id="editor" class="hidden" style="margin-top:14px">
-        <div style="margin-bottom:10px">
-          <span class="pill" id="fileNamePill">—</span>
-          <span class="pill" id="fileCountPill">0 files</span>
-          <span class="pill" id="tsuidPill">Transfer Syntax: —</span>
-          <span class="pill" id="pixelPill">Pixel Data: —</span>
-        </div>
-
-        <!-- UID linking toolbar -->
-        <div class="uidbar" id="uidBar" title="Change the shared UID prefix to update all UI fields in all loaded files.">
-          <label style="display:flex; align-items:center; gap:8px;">
-            <input id="linkUIDsChk" type="checkbox" checked />
-            <span>Link UID fields by prefix (across all files)</span>
-          </label>
-          <label class="hint" style="display:flex; align-items:center; gap:6px;">
-            Prefix:
-            <input id="uidPrefixInput" type="text" placeholder="detected…" />
-          </label>
-          <button id="applyPrefixBtn" class="btn">Apply to all UIDs</button>
-          <span class="hint" id="uidInfo">—</span>
-        </div>
-
-        <div style="max-height:50vh; overflow:auto; border-radius:12px">
+        <div class="table-wrap" id="tableWrap">
           <table>
             <thead>
               <tr>
-                <th style="width:130px">Tag</th>
-                <th style="width:220px">Keyword</th>
-                <th style="width:70px">VR</th>
-                <th>Value (according to selected view)</th>
+                <th style="width:140px">Tag</th>
+                <th>Description</th>
+                <th style="width:50px">VR</th>
+                <th style="width:40%">Value</th>
               </tr>
             </thead>
             <tbody id="tagBody"></tbody>
           </table>
         </div>
 
-        <div class="footer">
-          <div class="hint">
-            Read-only: sequences, Pixel Data, and binary VRs.
-            Batch tools (Anonymize, Randomize, UID prefix) affect <strong>all</strong> loaded files.
-            Only the <strong>primary</strong> file is editable.
-          </div>
-          <div class="spacer"></div>
-          <button id="anonymizeBtn" class="btn">Anonymize (all files)</button>
-          <button id="randomizeBtn" class="btn">Randomize (all files)</button>
-        </div>
-
-        <div class="footer" style="margin-top:8px">
-          <div class="hint">
-            Download:
-          </div>
-          <button id="downloadAllBtn" class="btn primary hidden">Download ALL</button>
+        <div class="actions-row">
+          <button id="anonymizeBtn" class="btn">Anonymize All</button>
+          <button id="randomizeBtn" class="btn">Randomize All</button>
+          <div class="actions-spacer"></div>
+          <button id="downloadAllBtn" class="btn primary hidden">⬇ Download All</button>
           <div id="batchButtons" class="hidden"></div>
         </div>
       </div>
-    </div>
 
-    <!-- Preview -->
-    <div id="previewCard" class="card hidden" style="margin-top:14px">
-      <strong>Preview (first file)</strong>
-      <div class="hint" style="margin:6px 0 10px">Shows first frame of uncompressed MONOCHROME images.</div>
-      <canvas id="preview"></canvas>
-    </div>
+      <div class="sidebar">
+      <button id="browseBtn" class="btn">Choose Files</button>
+      <input id="fileInput" type="file" multiple accept=".dcm,.dicom" hidden />
+        <div class="card">
+          <div class="card-title">Load Files</div>
+          <div class="drop-zone" id="dropZone">
+            <h4>Drop DICOM files</h4>
+            <p>or click to browse</p>
+          </div>
+        </div>
 
-    <!-- Log panel -->
-    <div id="logCard" class="card hidden" style="margin-top:14px">
-      <strong>Log</strong>
-      <div class="hint" style="margin:6px 0 10px">
-        Errors and per-file issues will appear here. Browsers may also block multiple downloads even if no error is logged.
+        <div class="card" id="previewCard" style="display:none">
+          <div class="card-title">Preview</div>
+          <div class="preview-box visible" id="previewBox">
+            <canvas id="preview"></canvas>
+          </div>
+        </div>
+
+        <div class="card" id="compareCard">
+          <div class="card-title">Compare</div>
+          <div class="compare-drop" id="compareDropZone">Drop second file to compare</div>
+          <input id="compareFileInput" type="file" accept=".dcm,.dicom" hidden />
+          <div class="compare-status" id="compareStatus">Single-file mode only</div>
+          <div class="view-toggle">
+            <label><input type="radio" name="viewFile" id="viewPrimary" checked> Primary</label>
+            <label><input type="radio" name="viewFile" id="viewCompare" disabled> Compare</label>
+          </div>
+          <div class="compare-legend">
+            <span><span class="legend-dot match"></span>Same</span>
+            <span><span class="legend-dot diff"></span>Different</span>
+          </div>
+        </div>
+
+        <div class="card" id="logCard" style="display:none">
+          <div class="card-title">Log</div>
+          <pre class="log-area" id="logArea"></pre>
+        </div>
       </div>
-      <pre id="logArea"></pre>
     </div>
   </div>
 
-  <script>
-    if (!window.dcmjs) {
-      console.error('dcmjs failed to load');
-      alert('Could not load dcmjs library. Check your network/CSP and reload.');
-    }
+  <div class="fullscreen-overlay" id="fullscreenOverlay">
+    <canvas id="fullscreenCanvas"></canvas>
+    <div class="fullscreen-hint">Click anywhere to close</div>
+  </div>
 
-    // Elements
-    const body = document.body;
-    const dropZone = document.getElementById('dropZone');
-    const browseBtn = document.getElementById('browseBtn');
-    const fileInput = document.getElementById('fileInput');
-    const editor = document.getElementById('editor');
-    const tagBody = document.getElementById('tagBody');
-    const fileNamePill = document.getElementById('fileNamePill');
-    const fileCountPill = document.getElementById('fileCountPill');
-    const tsuidPill = document.getElementById('tsuidPill');
-    const pixelPill = document.getElementById('pixelPill');
-    const anonymizeBtn = document.getElementById('anonymizeBtn');
-    const randomizeBtn = document.getElementById('randomizeBtn');
-    const previewCard = document.getElementById('previewCard');
-    const previewCanvas = document.getElementById('preview');
+<script>
+// ============ EXTENDED TAG DICTIONARY ============
+const TAG_DICT = {
+  // File Meta
+  'x00020000': { desc: 'File Meta Information Group Length', cat: 'other' },
+  'x00020001': { desc: 'File Meta Information Version', cat: 'other' },
+  'x00020002': { desc: 'Media Storage SOP Class UID', cat: 'uid' },
+  'x00020003': { desc: 'Media Storage SOP Instance UID', cat: 'uid' },
+  'x00020010': { desc: 'Transfer Syntax UID', cat: 'uid' },
+  'x00020012': { desc: 'Implementation Class UID', cat: 'uid' },
+  'x00020013': { desc: 'Implementation Version Name', cat: 'other' },
 
-    // Download controls
-    const downloadAllBtn = document.getElementById('downloadAllBtn');
-    const batchButtonsContainer = document.getElementById('batchButtons');
+  // General
+  'x00080005': { desc: 'Specific Character Set', cat: 'other' },
+  'x00080008': { desc: 'Image Type', cat: 'image' },
+  'x00080012': { desc: 'Instance Creation Date', cat: 'image' },
+  'x00080013': { desc: 'Instance Creation Time', cat: 'image' },
+  'x00080016': { desc: 'SOP Class UID', cat: 'uid' },
+  'x00080018': { desc: 'SOP Instance UID', cat: 'uid' },
+  'x00080020': { desc: 'Study Date', cat: 'study' },
+  'x00080021': { desc: 'Series Date', cat: 'series' },
+  'x00080022': { desc: 'Acquisition Date', cat: 'image' },
+  'x00080023': { desc: 'Content Date', cat: 'image' },
+  'x00080030': { desc: 'Study Time', cat: 'study' },
+  'x00080031': { desc: 'Series Time', cat: 'series' },
+  'x00080032': { desc: 'Acquisition Time', cat: 'image' },
+  'x00080033': { desc: 'Content Time', cat: 'image' },
+  'x00080050': { desc: 'Accession Number', cat: 'study' },
+  'x00080060': { desc: 'Modality', cat: 'series' },
+  'x00080070': { desc: 'Manufacturer', cat: 'equipment' },
+  'x00080080': { desc: 'Institution Name', cat: 'equipment' },
+  'x00080081': { desc: 'Institution Address', cat: 'equipment' },
+  'x00080090': { desc: 'Referring Physician Name', cat: 'study' },
+  'x00081010': { desc: 'Station Name', cat: 'equipment' },
+  'x00081030': { desc: 'Study Description', cat: 'study' },
+  'x0008103e': { desc: 'Series Description', cat: 'series' },
+  'x00081040': { desc: 'Institutional Department Name', cat: 'equipment' },
+  'x00081050': { desc: 'Performing Physician Name', cat: 'study' },
+  'x00081070': { desc: 'Operators Name', cat: 'study' },
+  'x00081090': { desc: 'Manufacturer Model Name', cat: 'equipment' },
+  
+  // Patient
+  'x00100010': { desc: 'Patient Name', cat: 'patient' },
+  'x00100020': { desc: 'Patient ID', cat: 'patient' },
+  'x00100021': { desc: 'Issuer of Patient ID', cat: 'patient' },
+  'x00100030': { desc: 'Patient Birth Date', cat: 'patient' },
+  'x00100032': { desc: 'Patient Birth Time', cat: 'patient' },
+  'x00100040': { desc: 'Patient Sex', cat: 'patient' },
+  'x00101010': { desc: 'Patient Age', cat: 'patient' },
+  'x00101020': { desc: 'Patient Size', cat: 'patient' },
+  'x00101030': { desc: 'Patient Weight', cat: 'patient' },
+  'x00102160': { desc: 'Ethnic Group', cat: 'patient' },
+  'x00104000': { desc: 'Patient Comments', cat: 'patient' },
+  
+  // Acquisition / Equipment
+  'x00180010': { desc: 'Contrast/Bolus Agent', cat: 'series' },
+  'x00180015': { desc: 'Body Part Examined', cat: 'series' },
+  'x00180020': { desc: 'Scanning Sequence', cat: 'series' },
+  'x00180021': { desc: 'Sequence Variant', cat: 'series' },
+  'x00180022': { desc: 'Scan Options', cat: 'series' },
+  'x00180023': { desc: 'MR Acquisition Type', cat: 'series' },
+  'x00180050': { desc: 'Slice Thickness', cat: 'image' },
+  'x00180060': { desc: 'KVP', cat: 'image' },
+  'x00180080': { desc: 'Repetition Time', cat: 'image' },
+  'x00180081': { desc: 'Echo Time', cat: 'image' },
+  'x00180082': { desc: 'Inversion Time', cat: 'image' },
+  'x00180085': { desc: 'Imaged Nucleus', cat: 'image' },
+  'x00180087': { desc: 'Magnetic Field Strength', cat: 'image' },
+  'x00180088': { desc: 'Spacing Between Slices', cat: 'image' },
+  'x00180091': { desc: 'Echo Train Length', cat: 'image' },
+  'x00181000': { desc: 'Device Serial Number', cat: 'equipment' },
+  'x00181020': { desc: 'Software Versions', cat: 'equipment' },
+  'x00181030': { desc: 'Protocol Name', cat: 'equipment' },
+  'x00181100': { desc: 'Reconstruction Diameter', cat: 'image' },
+  'x00181110': { desc: 'Distance Source to Detector', cat: 'image' },
+  'x00181120': { desc: 'Gantry/Detector Tilt', cat: 'image' },
+  'x00181130': { desc: 'Table Height', cat: 'image' },
+  'x00181140': { desc: 'Rotation Direction', cat: 'image' },
+  'x00181150': { desc: 'Exposure Time', cat: 'image' },
+  'x00181151': { desc: 'X-Ray Tube Current', cat: 'image' },
+  'x00181152': { desc: 'Exposure', cat: 'image' },
+  'x00181160': { desc: 'Filter Type', cat: 'image' },
+  'x00181210': { desc: 'Convolution Kernel', cat: 'image' },
+  'x00185100': { desc: 'Patient Position', cat: 'series' },
+  
+  // Relationship
+  'x0020000d': { desc: 'Study Instance UID', cat: 'uid' },
+  'x0020000e': { desc: 'Series Instance UID', cat: 'uid' },
+  'x00200010': { desc: 'Study ID', cat: 'study' },
+  'x00200011': { desc: 'Series Number', cat: 'series' },
+  'x00200012': { desc: 'Acquisition Number', cat: 'image' },
+  'x00200013': { desc: 'Instance Number', cat: 'image' },
+  'x00200032': { desc: 'Image Position (Patient)', cat: 'image' },
+  'x00200037': { desc: 'Image Orientation (Patient)', cat: 'image' },
+  'x00200052': { desc: 'Frame of Reference UID', cat: 'uid' },
+  'x00201040': { desc: 'Position Reference Indicator', cat: 'image' },
+  'x00201041': { desc: 'Slice Location', cat: 'image' },
+  
+  // Image Plane / Pixel
+  'x00280002': { desc: 'Samples per Pixel', cat: 'image' },
+  'x00280004': { desc: 'Photometric Interpretation', cat: 'image' },
+  'x00280006': { desc: 'Planar Configuration', cat: 'image' },
+  'x00280010': { desc: 'Rows', cat: 'image' },
+  'x00280011': { desc: 'Columns', cat: 'image' },
+  'x00280030': { desc: 'Pixel Spacing', cat: 'image' },
+  'x00280100': { desc: 'Bits Allocated', cat: 'image' },
+  'x00280101': { desc: 'Bits Stored', cat: 'image' },
+  'x00280102': { desc: 'High Bit', cat: 'image' },
+  'x00280103': { desc: 'Pixel Representation', cat: 'image' },
+  'x00281050': { desc: 'Window Center', cat: 'image' },
+  'x00281051': { desc: 'Window Width', cat: 'image' },
+  'x00281052': { desc: 'Rescale Intercept', cat: 'image' },
+  'x00281053': { desc: 'Rescale Slope', cat: 'image' },
+  'x00281054': { desc: 'Rescale Type', cat: 'image' },
+  
+  // Pixel Data
+  'x7fe00010': { desc: 'Pixel Data', cat: 'image' }
+};
 
-    // Compare UI
-    const compareCard = document.getElementById('compareCard');
-    const compareDropZone = document.getElementById('compareDropZone');
-    const compareFileInput = document.getElementById('compareFileInput');
-    const compareStatus = document.getElementById('compareStatus');
-    const viewPrimaryRadio = document.getElementById('viewPrimary');
-    const viewCompareRadio = document.getElementById('viewCompare');
+// ============ ELEMENTS ============
+const body = document.body;
+const dropZone = document.getElementById('dropZone');
+const browseBtn = document.getElementById('browseBtn');
+const fileInput = document.getElementById('fileInput');
+const tagBody = document.getElementById('tagBody');
+const fileNamePill = document.getElementById('fileNamePill');
+const fileCountPill = document.getElementById('fileCountPill');
+const anonymizeBtn = document.getElementById('anonymizeBtn');
+const randomizeBtn = document.getElementById('randomizeBtn');
+const previewCard = document.getElementById('previewCard');
+const previewBox = document.getElementById('previewBox');
+const previewCanvas = document.getElementById('preview');
+const fullscreenOverlay = document.getElementById('fullscreenOverlay');
+const fullscreenCanvas = document.getElementById('fullscreenCanvas');
+const downloadAllBtn = document.getElementById('downloadAllBtn');
+const batchButtonsContainer = document.getElementById('batchButtons');
+const compareCard = document.getElementById('compareCard');
+const compareDropZone = document.getElementById('compareDropZone');
+const compareFileInput = document.getElementById('compareFileInput');
+const compareStatus = document.getElementById('compareStatus');
+const viewPrimaryRadio = document.getElementById('viewPrimary');
+const viewCompareRadio = document.getElementById('viewCompare');
+const logCard = document.getElementById('logCard');
+const logArea = document.getElementById('logArea');
+const uidPattern = document.getElementById('uidPattern');
+const uidPrefixInput = document.getElementById('uidPrefixInput');
+const uidPatternDisplay = document.getElementById('uidPatternDisplay');
+const applyPrefixBtn = document.getElementById('applyPrefixBtn');
+const searchInput = document.getElementById('searchInput');
+const filterBtns = document.querySelectorAll('.filter-btn');
 
-    // Log
-    const logCard = document.getElementById('logCard');
-    const logArea = document.getElementById('logArea');
+const { DicomMessage, DicomMetaDictionary, DicomDict } = dcmjs.data;
 
-    function log(msg, type = 'info') {
-      const ts = new Date().toISOString();
-      const prefix = type === 'error' ? '[ERROR]' : type === 'warn' ? '[WARN]' : '[INFO]';
-      const line = `${ts} ${prefix} ${msg}\n`;
-      if (type === 'error') console.error(line);
-      else if (type === 'warn') console.warn(line);
-      else console.log(line);
-      if (logArea) {
-        logArea.textContent += line;
-        logCard.classList.remove('hidden');
-        logArea.scrollTop = logArea.scrollHeight;
+// State
+let files = [];
+let dict = null;
+let meta = null;
+const pendingEdits = new Map();
+let sharedUIDPrefix = '';
+let detectedPattern = '';
+let compareDict = null;
+let compareName = null;
+let activeView = 'primary';
+let activeCat = 'all';
+let searchQuery = '';
+let previewImageData = null;
+
+// ============ UTILITIES ============
+function isBinaryVR(vr) { return ['OB','OW','OF','UN','OD','OL'].includes(vr); }
+function isReadOnly(tag, vr) {
+  const t = String(tag).toLowerCase();
+  if (t === 'x7fe00010' || t === '7fe00010') return true;
+  if (vr === 'SQ') return true;
+  return isBinaryVR(vr);
+}
+function fmtTag(t) {
+  const s = t.startsWith('x') ? t.slice(1) : t;
+  return '(' + s.slice(0,4).toUpperCase() + ',' + s.slice(4,8).toUpperCase() + ')';
+}
+function elToString(el) {
+  if (!el) return '';
+  if (el.InlineBinary) return '<binary>';
+  const v = el.Value;
+  if (v == null) return '';
+  if (Array.isArray(v)) return v.map(x => x == null ? '' : String(x)).join('\\');
+  return String(v);
+}
+function parseByVR(vr, str) {
+  if (str == null) return [];
+  const parts = String(str).split('\\').map(s => s.trim());
+  switch (vr) {
+    case 'US': case 'UL': case 'SS': case 'SL': case 'FL': case 'FD':
+      return parts.map(x => { const n = Number(x); return Number.isFinite(n) ? n : 0; });
+    default: return parts;
+  }
+}
+
+// Improved Description Lookup
+function descFor(tag) {
+  // Normalize tag: 'x00100010'
+  const t = tag.startsWith('x') ? tag.slice(1) : tag;
+  const k = 'x' + t.toLowerCase();
+  
+  // 1. Manual Dictionary
+  if (TAG_DICT[k]) return TAG_DICT[k].desc;
+  
+  // 2. dcmjs Dictionary Fallback
+  // Try to find the tag in the library's internal dictionary
+  // dcmjs keys are typically '00100010' (no 'x', lowercase)
+  const entry = DicomMetaDictionary.dictionary[t.toLowerCase()];
+  
+  if (entry && entry.name) {
+    // Convert 'PatientName' -> 'Patient Name'
+    return entry.name.replace(/([A-Z])/g, ' $1').trim();
+  }
+  
+  return null;
+}
+
+function catFor(tag, vr) {
+  const t = tag.startsWith('x') ? tag.slice(1) : tag;
+  const k = 'x' + t.toLowerCase();
+  
+  // 1. Manual Category
+  if (TAG_DICT[k]) return TAG_DICT[k].cat;
+
+  // 2. VR check
+  if (vr === 'UI') return 'uid';
+
+  // 3. Heuristic based on Group Number
+  const group = parseInt(t.slice(0,4), 16);
+  if (group % 2 === 1) return 'private'; // Odd groups are private
+  
+  // Standard Groups
+  if (group === 0x0008) return 'study'; // or equipment/series/image mixed
+  if (group === 0x0010) return 'patient';
+  if (group === 0x0018) return 'series'; // or image/equipment
+  if (group === 0x0020) return 'image'; // Relationship
+  if (group === 0x0028) return 'image'; // Presentation
+  if (group === 0x7FE0) return 'image'; // Pixel Data
+  
+  return 'other';
+}
+
+function log(msg, type = 'info') {
+  const ts = new Date().toISOString().slice(11,19);
+  logArea.textContent += `[${ts}] ${msg}\n`;
+  logCard.style.display = 'block';
+  logArea.scrollTop = logArea.scrollHeight;
+}
+
+// ============ UID PATTERN DETECTION ============
+function detectUIDPattern() {
+  const uids = [];
+  for (const f of files) {
+    walkEls(f.dict, (t, el) => {
+      if (el.vr === 'UI' && el.Value) {
+        el.Value.forEach(v => { if (v) uids.push(String(v)); });
       }
-    }
+    });
+  }
+  if (!uids.length) {
+    uidPattern.style.display = 'none';
+    return;
+  }
+  
+  // Find common prefix
+  let p = uids[0] || '';
+  for (let i = 1; i < uids.length; i++) {
+    let j = 0;
+    while (j < p.length && j < uids[i].length && p[j] === uids[i][j]) j++;
+    p = p.slice(0, j);
+    if (!p) break;
+  }
+  const k = p.lastIndexOf('.');
+  sharedUIDPrefix = k > 0 ? p.slice(0, k) : p;
+  
+  // Detect pattern (show what varies)
+  if (sharedUIDPrefix && uids.length > 0) {
+    const suffixes = uids.map(u => u.slice(sharedUIDPrefix.length)).filter(s => s);
+    const uniqueSuffixes = [...new Set(suffixes)];
+    detectedPattern = `${sharedUIDPrefix}.*`;
+    uidPatternDisplay.textContent = detectedPattern;
+    uidPrefixInput.value = sharedUIDPrefix;
+    uidPattern.style.display = 'flex';
+  } else {
+    uidPattern.style.display = 'none';
+  }
+}
 
-    // UID bar
-    const uidBar = document.getElementById('uidBar');
-    const linkUIDsChk = document.getElementById('linkUIDsChk');
-    const uidPrefixInput = document.getElementById('uidPrefixInput');
-    const applyPrefixBtn = document.getElementById('applyPrefixBtn');
-    const uidInfo = document.getElementById('uidInfo');
-
-    // dcmjs handles
-    const { DicomMessage, DicomMetaDictionary, DicomDict } = dcmjs.data;
-
-    // State
-    let files = [];           // [{ name, dict, meta }]
-    let dict = null;          // active primary dict (first file)
-    let meta = null;          // primary meta
-    const pendingEdits = new Map(); // overrides from UI for primary tags
-    let uiInputs = [];        // inputs for active file (view)
-    let sharedUIDPrefix = '';
-
-    // Compare state
-    let compareDict = null;
-    let compareMeta = null;
-    let compareName = null;
-    let activeView = 'primary'; // 'primary' | 'compare'
-
-    // Corruption warning guard
-    let encodeErrorAlertShown = false;
-
-    // ---------- Utility helpers ----------
-    function isBinaryVR(vr){ return ['OB','OW','OF','UN','OD','OL'].includes(vr); }
-    function isReadOnly(tag, vr) {
-      const t = String(tag).toLowerCase();
-      if (t === 'x7fe00010' || t === '7fe00010') return true; // Pixel Data
-      if (vr === 'SQ') return true; // sequences
-      if (isBinaryVR(vr)) return true; // binary
-      return false;
-    }
-    function fmtTag(t) {
-      const s = t.startsWith('x') ? t.slice(1) : t;
-      return '(' + s.slice(0,4).toUpperCase() + ',' + s.slice(4,8).toUpperCase() + ')';
-    }
-    function elToString(el) {
-      if (!el) return '';
-      if (el.InlineBinary) return '<binary>';
-      const v = el.Value;
-      if (v == null) return '';
-      if (Array.isArray(v)) return v.map(x => (x==null? '': String(x))).join('\\');
-      return String(v);
-    }
-    function parseByVR(vr, str) {
-      if (str == null) return [];
-      const parts = String(str).split('\\').map(s => s.trim());
-      switch (vr) {
-        case 'US': case 'UL': case 'SS': case 'SL':
-        case 'FL': case 'FD':
-          return parts.map(x => {
-            const n = Number(x);
-            return Number.isFinite(n) ? n : 0;
-          });
-        case 'OB': case 'OW': case 'OF': case 'UN': case 'OD': case 'OL':
-          throw new Error('Binary VRs not editable');
-        default:
-          return parts;
+function applyPrefixToAll(newP) {
+  if (!/^[0-9]+(\.[0-9]+)*$/.test(newP)) { alert('Invalid UID prefix'); return; }
+  const oldP = sharedUIDPrefix;
+  for (const f of files) {
+    walkEls(f.dict, (t, el) => {
+      if (el.vr !== 'UI' || !el.Value) return;
+      el.Value = el.Value.map(v => {
+        const s = String(v || '');
+        if (!s) return s;
+        if (oldP && s.startsWith(oldP + '.')) return newP + s.slice(oldP.length);
+        const c = s.lastIndexOf('.');
+        return c > 0 ? newP + s.slice(c) : newP;
+      });
+    });
+  }
+  pendingEdits.clear();
+  if (dict) {
+    Object.entries(dict).forEach(([t, el]) => {
+      if (el && el.vr !== 'SQ' && !isBinaryVR(el.vr)) {
+        pendingEdits.set(t, { vr: el.vr, valueString: elToString(el) });
       }
+    });
+  }
+  sharedUIDPrefix = newP;
+  uidPrefixInput.value = newP;
+  uidPatternDisplay.textContent = `${newP}.*`;
+  renderTable();
+  log(`Applied UID prefix: ${newP}`);
+}
+
+// ============ RENDERING ============
+function renderTable() {
+  if (!dict && !compareDict) { tagBody.innerHTML = ''; return; }
+  const isPrimary = activeView === 'primary' || !compareDict;
+  const mainDict = isPrimary ? dict : compareDict;
+  const otherDict = isPrimary ? compareDict : dict;
+  if (!mainDict) { tagBody.innerHTML = ''; return; }
+
+  const entries = Object.entries(mainDict).filter(([t]) => t.startsWith('x') || /^[0-9a-f]{8}$/i.test(t));
+  entries.sort(([a],[b]) => a.localeCompare(b));
+  const q = searchQuery.toLowerCase();
+  const rows = [];
+
+  for (const [tag, el] of entries) {
+    const vr = el.vr || '';
+    const desc = descFor(tag);
+    const cat = catFor(tag, vr);
+    if (activeCat !== 'all' && cat !== activeCat) continue;
+    
+    let valStr = isPrimary && pendingEdits.has(tag) ? pendingEdits.get(tag).valueString : elToString(el);
+    
+    if (q) {
+      const searchable = `${tag} ${fmtTag(tag)} ${desc || ''} ${valStr}`.toLowerCase();
+      if (!searchable.includes(q)) continue;
     }
-    function keywordFor(tag) {
-      try {
-        if (typeof DicomMetaDictionary.nameOf === 'function') return DicomMetaDictionary.nameOf(tag) || '';
-        if (typeof DicomMetaDictionary.nameOfTag === 'function') return DicomMetaDictionary.nameOfTag(tag) || '';
-        const d = DicomMetaDictionary.dictionary || {};
-        if (d && d[tag] && d[tag].name) return d[tag].name;
-      } catch (e) {}
-      return '';
+    
+    let trClass = '';
+    if (otherDict && files.length <= 1) {
+      const cmpEl = otherDict[tag];
+      if (cmpEl) trClass = elToString(cmpEl) === valStr ? 'cmp-match' : 'cmp-diff';
     }
-    function shallowClone(o){ return Object.assign({}, o); }
-
-    function showDownloadControls() {
-      const hasFile = files.length > 0;
-      downloadAllBtn.classList.toggle('hidden', !hasFile);
-      batchButtonsContainer.classList.toggle('hidden', !hasFile);
+    
+    const tr = document.createElement('tr');
+    if (trClass) tr.classList.add(trClass);
+    tr.innerHTML = `
+      <td>
+        <div class="tag-cell">
+          <span class="tag-cat" data-cat="${cat}"></span>
+          <span class="tag-code">${fmtTag(tag)}</span>
+        </div>
+      </td>
+      <td><span class="${desc ? 'desc-cell' : 'desc-cell desc-unknown'}">${desc || 'Unknown tag'}</span></td>
+      <td><span class="vr-badge">${vr}</span></td>
+      <td></td>
+    `;
+    
+    const inp = document.createElement('input');
+    inp.className = 'val-input' + (el.InlineBinary || isBinaryVR(vr) ? ' binary' : '');
+    inp.value = valStr;
+    const ro = isReadOnly(tag, vr) || !isPrimary;
+    inp.disabled = ro;
+    if (!ro) {
+      inp.addEventListener('input', () => {
+        pendingEdits.set(tag, { vr, valueString: inp.value });
+        showDownload();
+      });
     }
+    tr.lastElementChild.appendChild(inp);
+    rows.push(tr);
+  }
+  
+  tagBody.replaceChildren(...rows);
+  showDownload();
+  detectUIDPattern();
+  updateCompare();
+}
 
-    function rebuildBatchButtons() {
-      batchButtonsContainer.innerHTML = '';
-      if (!files.length) return;
-      const batchSize = 10;
-      const numBatches = Math.ceil(files.length / batchSize);
-      for (let b = 0; b < numBatches; b++) {
-        const start = b * batchSize;
-        const end = Math.min((b + 1) * batchSize, files.length);
-        const btn = document.createElement('button');
-        btn.className = 'btn';
-        btn.textContent = `Download ${start + 1}–${end}`;
-        btn.addEventListener('click', () => downloadRange(start, end));
-        batchButtonsContainer.appendChild(btn);
-      }
-    }
+function showDownload() {
+  const has = files.length > 0;
+  downloadAllBtn.classList.toggle('hidden', !has);
+  batchButtonsContainer.classList.toggle('hidden', !has || files.length <= 10);
+  if (files.length > 10) rebuildBatch();
+}
 
-    // Dataset traversal
-    function walkElements(node, fn){
-      if (!node || typeof node !== 'object') return;
-      for (const [tag, el] of Object.entries(node)) {
-        if (!el || typeof el !== 'object') continue;
-        fn(tag, el, node);
-        if (el.vr === 'SQ' && Array.isArray(el.Value)) {
-          for (const item of el.Value) walkElements(item, fn);
-        }
-      }
-    }
+function rebuildBatch() {
+  batchButtonsContainer.innerHTML = '';
+  const sz = 10;
+  for (let i = 0; i < files.length; i += sz) {
+    const end = Math.min(i + sz, files.length);
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.textContent = `${i+1}–${end}`;
+    btn.onclick = () => downloadRange(i, end);
+    batchButtonsContainer.appendChild(btn);
+  }
+}
 
-    // ---------- Compare availability ----------
-    function updateCompareAvailability() {
-      if (files.length <= 1) {
-        compareCard.classList.remove('compare-disabled');
-        viewPrimaryRadio.disabled = false;
-
-        if (compareDict) {
-          viewCompareRadio.disabled = false;
-          compareStatus.textContent = `Comparing to: ${compareName || 'loaded compare file'}`;
-        } else {
-          viewCompareRadio.disabled = true;
-          compareStatus.textContent = 'No compare file loaded.';
-          // If we were in compare view but lost the compare dict, bounce back to primary
-          if (activeView === 'compare') {
-            activeView = 'primary';
-            viewPrimaryRadio.checked = true;
-            viewCompareRadio.checked = false;
-          }
-        }
-      } else {
-        compareCard.classList.add('compare-disabled');
-        compareStatus.textContent = `Comparison disabled while ${files.length} files are loaded.`;
-        compareDict = null;
-        compareMeta = null;
-        compareName = null;
-        activeView = 'primary';
-        viewPrimaryRadio.disabled = false;
-        viewPrimaryRadio.checked = true;
-        viewCompareRadio.disabled = true;
-        viewCompareRadio.checked = false;
-      }
-    }
-
-    // ---------- Rendering (with compare & view toggle) ----------
-    function renderTable() {
-      if (!dict && !compareDict) { tagBody.innerHTML = ''; return; }
-
-      const isPrimaryView = (activeView === 'primary' || !compareDict);
-      const mainDict = isPrimaryView ? dict : compareDict;
-      const otherDict = isPrimaryView ? compareDict : dict;
-
-      if (!mainDict) { tagBody.innerHTML = ''; return; }
-
-      const rows = [];
-      const entries = Object.entries(mainDict || {}).filter(([tag]) => tag.startsWith('x') || /^[0-9a-f]{8}$/i.test(tag));
-      entries.sort(([a],[b]) => a.localeCompare(b));
-      uiInputs = [];
-
-      for (const [tag, el] of entries) {
-        const vr = el.vr || '';
-        const keyw = keywordFor(tag);
-        let valueStr;
-        if (isPrimaryView && pendingEdits.has(tag)) {
-          valueStr = pendingEdits.get(tag).valueString;
-        } else {
-          valueStr = elToString(el);
-        }
-
-        // Compare info
-        let trClass = '';
-        if (otherDict && files.length <= 1) {
-          const cmpEl = otherDict[tag];
-          if (cmpEl) {
-            const cmpVal = elToString(cmpEl);
-            if (cmpVal === valueStr) {
-              trClass = 'cmp-match';
-            } else {
-              trClass = 'cmp-diff';
-            }
-          }
-        }
-
-        const tr = document.createElement('tr');
-        if (trClass) tr.classList.add(trClass);
-
-        const tdTag = document.createElement('td');
-        tdTag.innerHTML = '<span class="tag">' + fmtTag(tag) + '</span>';
-
-        const tdKw = document.createElement('td');
-        tdKw.textContent = keyw;
-
-        const tdVR = document.createElement('td');
-        tdVR.innerHTML = '<span class="vr">' + vr + '</span>';
-
-        const tdVal = document.createElement('td');
-        const inp = document.createElement('input');
-        inp.className = 'value';
-        inp.value = valueStr;
-
-        const ro = isReadOnly(tag, vr) || !isPrimaryView; // compare view always read-only
-        inp.disabled = ro;
-        inp.placeholder = ro ? '(read-only)' : '';
-
-        if (!ro) {
-          inp.addEventListener('input', function () {
-            pendingEdits.set(tag, { vr: vr, valueString: inp.value });
-            showDownloadControls();
-          });
-          // UID linking behavior (editing one can update all files)
-          if (vr === 'UI') {
-            inp.addEventListener('blur', function () {
-              if (!linkUIDsChk.checked) return;
-              const newVal = String(inp.value || '');
-              if (!newVal) return;
-              const cand = newVal.includes('.') ? newVal.slice(0, newVal.lastIndexOf('.')) : newVal;
-              if (cand && cand !== sharedUIDPrefix && /^[0-9]+(\.[0-9]+)*$/.test(cand)) {
-                log(`UID prefix edited in active file; applying new prefix ${cand} across all files.`, 'info');
-                applyPrefixToAll(cand);
-              }
-            });
-          }
-          uiInputs.push({ tag, input: inp, vr });
-        }
-
-        tdVal.appendChild(inp);
-
-        tr.appendChild(tdTag);
-        tr.appendChild(tdKw);
-        tr.appendChild(tdVR);
-        tr.appendChild(tdVal);
-        rows.push(tr);
-      }
-
-      tagBody.replaceChildren(...rows);
-      showDownloadControls();
-      computeAndShowUIDPrefix();
-      updateCompareAvailability();
-    }
-
-    // ---------- UID prefix linking across ALL FILES ----------
-    function longestCommonPrefixDotBounded(strings){
-      if (!strings.length) return '';
-      let p = strings[0];
-      for (let i=1;i<strings.length;i++){
-        const s = strings[i]; let j=0;
-        while (j < p.length && j < s.length && p[j] === s[j]) j++;
-        p = p.slice(0, j);
-        if (p === '') break;
-      }
-      const k = p.lastIndexOf('.');
-      return k > 0 ? p.slice(0, k) : p;
-    }
-
-    function collectUIDsAcrossFiles(){
-      const vals = [];
-      for (const f of files){
-        walkElements(f.dict, (tag, el) => {
-          if (el.vr !== 'UI' || !el.Value) return;
-          for (const v of el.Value){
-            const s = String(v || '').trim();
-            if (s) vals.push(s);
-          }
-        });
-      }
-      return vals;
-    }
-
-    function computeAndShowUIDPrefix(){
-      const all = collectUIDsAcrossFiles();
-      const common = longestCommonPrefixDotBounded(all);
-      sharedUIDPrefix = common || '';
-      uidPrefixInput.value = sharedUIDPrefix;
-      uidInfo.textContent = all.length
-        ? `UID values across all files: ${all.length}. Prefix: ${sharedUIDPrefix || '—'}`
-        : 'No UID fields found.';
-    }
-
-    function applyPrefixToAll(newPrefix){
-      if (!/^[0-9]+(\.[0-9]+)*$/.test(newPrefix)) { alert('Invalid UID prefix'); return; }
-      if (!files.length) return;
-      const oldPrefix = sharedUIDPrefix || '';
-      log(`Applying UID prefix change to ${files.length} file(s). Old prefix: "${oldPrefix || '(none)'}", new prefix: "${newPrefix}".`, 'info');
-
-      for (const f of files){
-        try {
-          walkElements(f.dict, (tag, el) => {
-            if (el.vr !== 'UI' || !el.Value) return;
-            el.Value = el.Value.map(v => {
-              const cur = String(v || '');
-              if (!cur) return cur;
-
-              if (oldPrefix && cur.startsWith(oldPrefix + '.')) {
-                return newPrefix + cur.slice(oldPrefix.length);
-              }
-              const cut = cur.lastIndexOf('.');
-              return cut > 0 ? (newPrefix + cur.slice(cut)) : newPrefix;
-            });
-          });
-        } catch (e) {
-          log(`Failed applying UID prefix to file "${f.name}": ${e && e.message ? e.message : e}`, 'error');
-        }
-      }
-
-      // Refresh pendingEdits from primary dict
-      pendingEdits.clear();
-      if (dict){
-        for (const [tag, el] of Object.entries(dict)){
-          if (!el || el.vr === 'SQ' || isBinaryVR(el.vr)) continue;
-          pendingEdits.set(tag, { vr: el.vr, valueString: elToString(el) });
-        }
-      }
-      sharedUIDPrefix = newPrefix;
-      uidPrefixInput.value = newPrefix;
-      const allUIDs = collectUIDsAcrossFiles();
-      uidInfo.textContent = allUIDs.length
-        ? `UID values across all files: ${sharedUIDPrefix}`
-        : 'No UID fields found.';
+function updateCompare() {
+  if (files.length <= 1) {
+    compareCard.classList.remove('disabled');
+    viewCompareRadio.disabled = !compareDict;
+    compareStatus.textContent = compareDict ? `Comparing: ${compareName}` : 'No compare file loaded';
+    if (!compareDict && activeView === 'compare') {
       activeView = 'primary';
       viewPrimaryRadio.checked = true;
-      viewCompareRadio.checked = false;
-      renderTable();
-      showDownloadControls();
     }
+  } else {
+    compareCard.classList.add('disabled');
+    compareStatus.textContent = `Disabled (${files.length} files loaded)`;
+    compareDict = compareName = null;
+    activeView = 'primary';
+    viewPrimaryRadio.checked = true;
+    viewCompareRadio.disabled = true;
+  }
+}
 
-    // ---------- Binary normalization + preview ----------
-    function base64ToArrayBuffer(b64) {
-      b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
-      const pad = b64.length % 4; if (pad) b64 += '='.repeat(4 - pad);
-      const bin = atob(b64);
-      const len = bin.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
-      return bytes.buffer;
+// ============ WALK & NORMALIZE ============
+function walkEls(node, fn) {
+  if (!node || typeof node !== 'object') return;
+  for (const [t, el] of Object.entries(node)) {
+    if (!el || typeof el !== 'object') continue;
+    fn(t, el, node);
+    if (el.vr === 'SQ' && Array.isArray(el.Value)) {
+      el.Value.forEach(item => walkEls(item, fn));
     }
-    function normalizeBinaryElementsRecursive(node) {
-      if (!node || typeof node !== 'object') return;
-      const binaryVRs = new Set(['OB','OW','OF','UN','OD','OL']);
-      for (const [tag, el] of Object.entries(node)) {
-        if (!el || typeof el !== 'object') continue;
-        if (el.vr === 'SQ' && Array.isArray(el.Value)) {
-          for (const item of el.Value) normalizeBinaryElementsRecursive(item);
-          continue;
-        }
-        if (typeof el.InlineBinary === 'string') {
-          try {
-            const buf = base64ToArrayBuffer(el.InlineBinary);
-            el.Value = [buf]; delete el.InlineBinary;
-          } catch (e) {
-            log(`Failed to convert InlineBinary at tag ${tag}: ${e && e.message ? e.message : e}`, 'warn');
-          }
-        }
-        const isPixelDataTag = (tag.toLowerCase() === 'x7fe00010' || tag === '7fe00010');
-        const needsBinary = isPixelDataTag || binaryVRs.has(el.vr);
-        if (needsBinary) {
-          let arr = el.Value; if (arr == null) arr = []; if (!Array.isArray(arr)) arr = [arr];
-          arr = arr.map(v => {
-            if (v instanceof ArrayBuffer) return v;
-            if (ArrayBuffer.isView(v)) { const { buffer, byteOffset, byteLength } = v; return buffer.slice(byteOffset, byteOffset + byteLength); }
-            if (typeof Blob !== 'undefined' && v instanceof Blob) { log(`Dropping Blob in binary VR at ${tag}`, 'warn'); return null; }
-            return null;
-          }).filter(Boolean);
-          el.Value = arr;
-        }
+  }
+}
+
+function b64ToAB(b) {
+  b = b.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = b.length % 4;
+  if (pad) b += '='.repeat(4 - pad);
+  const bin = atob(b);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function normBin(node) {
+  const bins = new Set(['OB','OW','OF','UN','OD','OL']);
+  walkEls(node, (t, el) => {
+    if (typeof el.InlineBinary === 'string') {
+      try { el.Value = [b64ToAB(el.InlineBinary)]; delete el.InlineBinary; } catch (e) {}
+    }
+    const isPx = t.toLowerCase() === 'x7fe00010' || t === '7fe00010';
+    if (isPx || bins.has(el.vr)) {
+      let arr = el.Value || [];
+      if (!Array.isArray(arr)) arr = [arr];
+      el.Value = arr.map(v => 
+        v instanceof ArrayBuffer ? v : 
+        ArrayBuffer.isView(v) ? v.buffer.slice(v.byteOffset, v.byteOffset + v.byteLength) : 
+        null
+      ).filter(Boolean);
+    }
+  });
+}
+
+function ensureMeta(denat, fm) {
+  const m = fm && typeof fm === 'object' ? {...fm} : {};
+  const sopC = denat['x00080016']?.Value?.[0];
+  const sopI = denat['x00080018']?.Value?.[0];
+  if (!m.FileMetaInformationVersion) m.FileMetaInformationVersion = { vr:'OB', Value:[new Uint8Array([0,1]).buffer] };
+  if (sopC) m.MediaStorageSOPClassUID = { vr:'UI', Value:[sopC] };
+  if (sopI) m.MediaStorageSOPInstanceUID = { vr:'UI', Value:[sopI] };
+  if (!m.TransferSyntaxUID) m.TransferSyntaxUID = { vr:'UI', Value:['1.2.840.10008.1.2.1'] };
+  if (!m.ImplementationClassUID) m.ImplementationClassUID = { vr:'UI', Value:['1.2.826.0.1.3680043.10.743'] };
+  return m;
+}
+
+// ============ PREVIEW WITH FULLSCREEN ============
+function drawPreview(d) {
+  const rows = d['x00280010']?.Value?.[0];
+  const cols = d['x00280011']?.Value?.[0];
+  const spp = d['x00280002']?.Value?.[0] || 1;
+  const pi = d['x00280004']?.Value?.[0];
+  const ba = d['x00280100']?.Value?.[0] || 16;
+  const bs = d['x00280101']?.Value?.[0] || ba;
+  const hb = d['x00280102']?.Value?.[0] || bs - 1;
+  const pr = d['x00280103']?.Value?.[0] || 0;
+  const wc = d['x00281050']?.Value?.[0];
+  const ww = d['x00281051']?.Value?.[0];
+  
+  if (!rows || !cols || spp !== 1 || !/^MONOCHROME[12]$/i.test(pi || '')) {
+    previewCard.style.display = 'none';
+    return;
+  }
+  
+  const px = d['x7fe00010'] || d['7fe00010'];
+  if (!px?.Value?.[0] || !(px.Value[0] instanceof ArrayBuffer)) {
+    previewCard.style.display = 'none';
+    return;
+  }
+  
+  let data = ba === 16 ? new (pr ? Int16Array : Uint16Array)(px.Value[0]) : 
+             ba === 8 ? new Uint8Array(px.Value[0]) : null;
+  if (!data) { previewCard.style.display = 'none'; return; }
+  
+  // Draw to preview canvas
+  previewCanvas.width = cols;
+  previewCanvas.height = rows;
+  const ctx = previewCanvas.getContext('2d');
+  const img = ctx.createImageData(cols, rows);
+  const out = img.data;
+  
+  const mask = bs < 16 ? (1 << bs) - 1 : 0xFFFF;
+  const shift = hb - bs + 1;
+  
+  for (let i = 0; i < rows * cols; i++) {
+    let v = data[i];
+    if (ba === 16) {
+      if (!pr) v >>>= 0;
+      if (shift > 0) v >>>= shift;
+      if (bs < 16) v &= mask;
+      if (pr) {
+        const sb = 1 << (bs - 1);
+        if (v & sb) v -= sb << 1;
       }
     }
-
-    function ensureMetaFromDataset(denat, fileMeta) {
-      let m = (fileMeta && typeof fileMeta === 'object') ? shallowClone(fileMeta) : {};
-      const sopClass = denat['x00080016']?.Value?.[0];
-      const sopInstance = denat['x00080018']?.Value?.[0];
-      const u8 = new Uint8Array([0x00, 0x01]);
-      if (!m.FileMetaInformationVersion) m.FileMetaInformationVersion = { vr:'OB', Value:[u8.buffer] };
-      else if (m.FileMetaInformationVersion.Value && m.FileMetaInformationVersion.Value[0] instanceof Uint8Array)
-        m.FileMetaInformationVersion.Value[0] = m.FileMetaInformationVersion.Value[0].buffer;
-
-      if (sopClass) m.MediaStorageSOPClassUID = { vr:'UI', Value:[sopClass] };
-      if (sopInstance) m.MediaStorageSOPInstanceUID = { vr:'UI', Value:[sopInstance] };
-
-      if (fileMeta?.TransferSyntaxUID?.Value?.[0]) m.TransferSyntaxUID = { vr:'UI', Value:[fileMeta.TransferSyntaxUID.Value[0]] };
-      else if (!m.TransferSyntaxUID) m.TransferSyntaxUID = { vr:'UI', Value:['1.2.840.10008.1.2.1'] };
-
-      if (!m.ImplementationClassUID) m.ImplementationClassUID = { vr:'UI', Value:['1.2.826.0.1.3680043.10.743'] };
-      return m;
+    let g = v;
+    if (ww && wc) {
+      const lo = wc - 0.5 - (ww - 1) / 2;
+      const hi = wc - 0.5 + (ww - 1) / 2;
+      g = v <= lo ? 0 : v > hi ? 255 : Math.round(((v - lo) / (hi - lo)) * 255);
+    } else {
+      const mx = (1 << bs) - 1;
+      g = Math.round((v / mx) * 255);
     }
+    const p = i * 4;
+    out[p] = out[p + 1] = out[p + 2] = g;
+    out[p + 3] = 255;
+  }
+  
+  ctx.putImageData(img, 0, 0);
+  previewCard.style.display = 'block';
+  
+  // Store for fullscreen
+  previewImageData = { width: cols, height: rows, data: img };
+}
 
-    function getTagStr(el) { return el?.Value?.[0]; }
-    function getTagNum(el, def=undefined) {
-      const v = el?.Value?.[0];
-      const n = Number(v);
-      return Number.isFinite(n) ? n : def;
-    }
-    function windowTransform(sample, wc, ww) {
-      if (wc == null || ww == null || ww <= 1) return sample;
-      const c = wc, w = ww;
-      const lo = c - 0.5 - (w-1)/2;
-      const hi = c - 0.5 + (w-1)/2;
-      if (sample <= lo) return 0;
-      if (sample >  hi) return 255;
-      return Math.round(((sample - lo) / (hi - lo)) * 255);
-    }
-    function drawPreviewFromDenat(denat) {
-      const rows = getTagNum(denat['x00280010']);
-      const cols = getTagNum(denat['x00280011']);
-      const spp  = getTagNum(denat['x00280002'], 1);
-      const pi   = getTagStr(denat['x00280004']);
-      const bitsAllocated = getTagNum(denat['x00280100'], 16);
-      const bitsStored    = getTagNum(denat['x00280101'], bitsAllocated);
-      const highBit       = getTagNum(denat['x00280102'], bitsStored - 1);
-      const pixelRepr     = getTagNum(denat['x00280103'], 0);
-      const wc = getTagNum(denat['x00281050']);
-      const ww = getTagNum(denat['x00281051']);
+function showFullscreen() {
+  if (!previewImageData) return;
+  fullscreenCanvas.width = previewImageData.width;
+  fullscreenCanvas.height = previewImageData.height;
+  const ctx = fullscreenCanvas.getContext('2d');
+  ctx.putImageData(previewImageData.data, 0, 0);
+  fullscreenOverlay.classList.add('visible');
+}
 
-      if (!rows || !cols || spp !== 1 || !/^MONOCHROME[12]$/i.test(pi || '')) {
-        previewCard.classList.add('hidden');
-        return;
-      }
+function hideFullscreen() {
+  fullscreenOverlay.classList.remove('visible');
+}
 
-      const px = denat['x7fe00010'] || denat['7fe00010'];
-      if (!px || !px.Value || !px.Value[0]) { previewCard.classList.add('hidden'); return; }
-      const buf = px.Value[0];
-      if (!(buf instanceof ArrayBuffer)) { previewCard.classList.add('hidden'); return; }
+// ============ ANONYMIZE & RANDOMIZE ============
+const PHI = ['x00100010','x00100020','x00100030','x00100040','x00101010','x00101020','x00101030','x00102160','x00104000','x00080050','x00080080','x00080081','x00080090','x00081010','x00081030','x0008103e','x00081040','x00081050','x00081070','x00081090','x00181000','x00181020','x00181030','x00200010'];
+const DATES = ['x00080020','x00080021','x00080022','x00080023'];
+const TIMES = ['x00080030','x00080031','x00080032','x00080033'];
 
-      let data16 = null, data8 = null;
-      if (bitsAllocated === 16) {
-        data16 = new (pixelRepr ? Int16Array : Uint16Array)(buf);
-      } else if (bitsAllocated === 8) {
-        data8 = new Uint8Array(buf);
-      } else {
-        previewCard.classList.add('hidden');
-        return;
-      }
+function nowDA() { const t = new Date(); return `${t.getFullYear()}${String(t.getMonth()+1).padStart(2,'0')}${String(t.getDate()).padStart(2,'0')}`; }
+function nowTM() { const t = new Date(); return `${String(t.getHours()).padStart(2,'0')}${String(t.getMinutes()).padStart(2,'0')}${String(t.getSeconds()).padStart(2,'0')}`; }
+function randDigits(n) { let s = ''; for (let i = 0; i < n; i++) s += Math.floor(Math.random() * 10); return s; }
+function randFrom(a) { return a[Math.floor(Math.random() * a.length)]; }
+function setTag(d, t, vr, val) { d[t] = { vr, Value: Array.isArray(val) ? val : [val] }; }
+function remPrivate(node) {
+  walkEls(node, (t, el, parent) => {
+    const g = parseInt((t.startsWith('x') ? t.slice(1) : t).slice(0,4), 16);
+    if (g % 2 === 1) delete parent[t];
+  });
+}
+function newUID() {
+  const a = new Uint8Array(16);
+  crypto.getRandomValues(a);
+  a[6] = (a[6] & 0x0f) | 0x40;
+  a[8] = (a[8] & 0x3f) | 0x80;
+  let n = 0n;
+  for (const b of a) n = (n << 8n) + BigInt(b);
+  return `2.25.${n.toString(10)}`;
+}
 
-      const canvas = previewCanvas;
-      const ctx = canvas.getContext('2d');
-      canvas.width = cols; canvas.height = rows;
-      const img = ctx.createImageData(cols, rows);
-      const out = img.data;
+function anonymize(d) {
+  remPrivate(d);
+  for (const t of PHI) if (d[t]) setTag(d, t, d[t].vr || 'LO', 'ANON');
+  setTag(d, 'x00100010', 'PN', 'ANON^PATIENT');
+  setTag(d, 'x00100020', 'LO', 'ANON');
+  setTag(d, 'x00100040', 'CS', 'O');
+  setTag(d, 'x00101010', 'AS', '000Y');
+  for (const t of DATES) if (d[t]) setTag(d, t, 'DA', nowDA());
+  for (const t of TIMES) if (d[t]) setTag(d, t, 'TM', nowTM());
+}
 
-      if (data16) {
-        const mask = bitsStored < 16 ? ((1 << bitsStored) - 1) : 0xFFFF;
-        const shift = (highBit - bitsStored + 1);
-        const signed = !!pixelRepr;
-        for (let i = 0; i < rows*cols; i++) {
-          let v = data16[i];
-          if (!signed) v = (v >>> 0);
-          if (shift > 0) v = (v >>> shift);
-          if (bitsStored < 16) v = (v & mask);
+function randomize(d) {
+  setTag(d, 'x00100010', 'PN', `${randFrom(['DOE','SMITH','GARCIA','LEE','WANG'])}^${randFrom(['JOHN','MARIA','ALICE','JAMES'])}`);
+  setTag(d, 'x00100020', 'LO', randDigits(8));
+  setTag(d, 'x00100030', 'DA', `${1950 + Math.floor(Math.random() * 60)}${String(1 + Math.floor(Math.random() * 12)).padStart(2,'0')}${String(1 + Math.floor(Math.random() * 28)).padStart(2,'0')}`);
+  setTag(d, 'x00100040', 'CS', randFrom(['M','F','O']));
+  setTag(d, 'x00101010', 'AS', `${String(Math.floor(Math.random() * 90) + 1).padStart(3,'0')}Y`);
+  for (const t of DATES) setTag(d, t, 'DA', nowDA());
+  for (const t of TIMES) setTag(d, t, 'TM', nowTM());
+  setTag(d, 'x00200010', 'SH', randDigits(6));
+  setTag(d, 'x00080050', 'SH', randDigits(9));
+}
 
-          if (signed) {
-            const signBit = 1 << (bitsStored - 1);
-            if (v & signBit) v = v - (signBit << 1);
-          }
-
-          let g = v;
-          if (ww && wc) g = windowTransform(v, wc, ww);
-          else {
-            const max = (1 << bitsStored) - 1;
-            g = Math.round((v / max) * 255);
-          }
-          const p = i * 4;
-          out[p] = out[p+1] = out[p+2] = g; out[p+3] = 255;
-        }
-      } else if (data8) {
-        for (let i = 0; i < rows*cols; i++) {
-          let g = data8[i];
-          if (ww && wc) g = windowTransform(g, wc, ww);
-          const p = i * 4;
-          out[p] = out[p+1] = out[p+2] = g; out[p+3] = 255;
-        }
-      }
-
-      ctx.putImageData(img, 0, 0);
-      previewCard.classList.remove('hidden');
-    }
-
-    // ---------- UID generation ----------
-    function randomUUIDBytes(){
-      const a = new Uint8Array(16);
-      if (crypto?.getRandomValues) crypto.getRandomValues(a);
-      else for (let i=0;i<16;i++) a[i] = Math.floor(Math.random()*256);
-      a[6] = (a[6] & 0x0f) | 0x40;
-      a[8] = (a[8] & 0x3f) | 0x80;
-      return a;
-    }
-    function decimalFromBytes(bytes){
-      let n = 0n;
-      for (const b of bytes) n = (n << 8n) + BigInt(b);
-      return n.toString(10);
-    }
-    function newUID(){
-      return `2.25.${decimalFromBytes(randomUUIDBytes())}`;
-    }
-
-    // ---------- Anonymize & Randomize ----------
-    const PHI_TAGS = [
-      'x00100010','x00100020','x00100030','x00100040','x00101010','x00101020','x00101030','x00101040',
-      'x00102160','x00102180','x001021A0','x001021B0','x00104000','x00101060','x00101080','x00101090',
-      'x00080050','x00080080','x00080081','x00080082','x00080090','x00080092','x00080094',
-      'x00081010','x00081030','x0008103E','x00081040','x00081048','x00081049','x00081050','x00081060','x00081070',
-      'x00081020','x00081090','x00181000','x00181020','x00181030','x00181050','x00181070','x00181080','x00181090',
-      'x00200010',
-    ];
-
-    const SAFE_EDIT_TAGS = {
-      'x00081030': { vr: 'LO', anon: 'Anonymized Study', rand: () => randomFrom(['Head MRI','Chest CT','Knee MRI','Abdomen US','Screening']) },
-      'x0008103E': { vr: 'LO', anon: 'Anonymized Series', rand: () => randomFrom(['Axial T1','Axial T2','Cor T2','Sag PD','Helical']) },
-      'x00181030': { vr: 'LO', anon: 'Anonymized Protocol', rand: () => randomFrom(['Routine','Contrast','Screening','Follow-up']) },
-      'x00080080': { vr: 'LO', anon: 'ANON INSTITUTION', rand: () => randomFrom(['HOSPITAL A','CLINIC B','IMAGING CENTER C']) },
-      'x00081010': { vr: 'SH', anon: 'ANON DEPT',        rand: () => randomFrom(['RAD','CT','MR','US']) },
-      'x00080070': { vr: 'LO', anon: 'ANON MANUFACTURER', rand: () => randomFrom(['SIEMENS','GE','PHILIPS','CANON','FUJIFILM','CARESTREAM']) },
-      'x00081090': { vr: 'LO', anon: 'MODEL',            rand: () => randomFrom(['Aera','Optima','Ingenia','Aquilion','Supria','DRX']) },
-      'x00181020': { vr: 'LO', anon: 'SW',               rand: () => `v${Math.floor(Math.random()*3)+1}.${Math.floor(Math.random()*10)}.${Math.floor(Math.random()*10)}` },
-      'x00081050': { vr: 'PN', anon: 'ANON^PHYS',        rand: () => `${randomLast()}^${randomFirst()}` },
-      'x00081070': { vr: 'PN', anon: 'ANON^OP',          rand: () => `${randomLast()}^${randomFirst()}` },
-      'x00081020': { vr: 'LO', anon: 'ANON STATION',     rand: () => `STN${randomDigits(3)}` },
-      'x00080050': { vr: 'SH', anon: '',                 rand: () => randomDigits(9) },
-      'x00200010': { vr: 'SH', anon: '0',                rand: () => randomDigits(6) },
-      'x00200011': { vr: 'IS', anon: '1',                rand: () => String(1+Math.floor(Math.random()*4)) },
-      'x00200013': { vr: 'IS', anon: '1',                rand: () => String(1+Math.floor(Math.random()*200)) },
-      'x00080060': { vr: 'CS', anon: 'OT',               rand: () => randomFrom(['CT','MR','US','CR','DX','MG','XA','NM','PT','OT','SC']) },
-      'x00180015': { vr: 'CS', anon: '',                 rand: () => randomFrom(['HEAD','CHEST','ABD','KNEE','CSPINE','LSPINE','PELVIS']) },
-      'x00200062': { vr: 'CS', anon: '',                 rand: () => randomFrom(['L','R','B','U','D','M']) },
-      'x00185100': { vr: 'CS', anon: '',                 rand: () => randomFrom(['HFS','FFS','HFP','FFP','LFP','RFP']) },
-    };
-
-    const DATE_TAGS = ['x00080020','x00080021','x00080022','x00080023'];
-    const TIME_TAGS = ['x00080030','x00080031','x00080032','x00080033'];
-
-    function randomFrom(a){ return a[Math.floor(Math.random()*a.length)]; }
-    function randomDigits(n){ let s=''; for (let i=0;i<n;i++) s += Math.floor(Math.random()*10); return s; }
-    function randomFirst(){ return randomFrom(['JOHN','MARIA','ALICE','ROBERT','SOFIA','EMMA','LIAM','NOAH','LUCAS','OLIVIA','AVA','ETHAN']); }
-    function randomLast(){  return randomFrom(['DOE','SMITH','ROJAS','PEREZ','GARCIA','LEE','KIM','ITO','MARTIN','WANG','BROWN','DAVIS']); }
-    function randomDateYYYYMMDD(minYear=1940, maxYear=2010){
-      const y = Math.floor(Math.random()*(maxYear-minYear+1)) + minYear;
-      const m = Math.floor(Math.random()*12) + 1;
-      const d = Math.floor(Math.random()*28) + 1;
-      return `${y.toString().padStart(4,'0')}${m.toString().padStart(2,'0')}${d.toString().padStart(2,'0')}`;
-    }
-    function randAS(){
-      const unit = randomFrom(['D','W','M','Y']);
-      const num  = unit==='Y' ? Math.floor(Math.random()*90)+1 : Math.floor(Math.random()*52)+1;
-      return `${num.toString().padStart(3,'0')}${unit}`;
-    }
-    function nowDA(){ const t=new Date(); return `${t.getFullYear().toString().padStart(4,'0')}${(t.getMonth()+1).toString().padStart(2,'0')}${t.getDate().toString().padStart(2,'0')}`; }
-    function nowTM(){ const t=new Date(); return `${t.getHours().toString().padStart(2,'0')}${t.getMinutes().toString().padStart(2,'0')}${t.getSeconds().toString().padStart(2,'0')}`; }
-
-    function setOrCreate(dataset, tag, vr, val){
-      dataset[tag] = { vr, Value: Array.isArray(val) ? val : [val] };
-    }
-    function removePrivateTagsRecursive(node){
-      if (!node || typeof node !== 'object') return;
-      for (const key of Object.keys(node)){
-        if (!/^x[0-9a-f]{8}$/i.test(key)) continue;
-        const g = parseInt(key.slice(1,5), 16);
-        if (g % 2 === 1) { delete node[key]; continue; }
-        const el = node[key];
-        if (el?.vr === 'SQ' && Array.isArray(el.Value)){
-          for (const item of el.Value) removePrivateTagsRecursive(item);
-        }
-      }
-    }
-
-    function anonymizeInPlace(dataset){
-      removePrivateTagsRecursive(dataset);
-
-      for (const t of PHI_TAGS){
-        if (!dataset[t]) continue;
-        const vr = dataset[t].vr || 'LO';
-        let val = 'ANON';
-        if (vr === 'DA' || vr === 'TM') val = '';
-        if (t === 'x00100040') val = 'O';
-        setOrCreate(dataset, t, vr, val);
-      }
-
-      setOrCreate(dataset, 'x00100010', 'PN', 'ANON^PATIENT');
-      setOrCreate(dataset, 'x00100020', 'LO', 'ANON');
-      setOrCreate(dataset, 'x00101010', 'AS', '000Y');
-      setOrCreate(dataset, 'x00100040', 'CS', 'O');
-
-      for (const t of DATE_TAGS){ if (dataset[t]) setOrCreate(dataset, t, 'DA', nowDA()); }
-      for (const t of TIME_TAGS){ if (dataset[t]) setOrCreate(dataset, t, 'TM', nowTM()); }
-
-      for (const [tag, spec] of Object.entries(SAFE_EDIT_TAGS)){
-        setOrCreate(dataset, tag, spec.vr, spec.anon);
-      }
-    }
-
-    function randomizeInPlace(dataset){
-      setOrCreate(dataset, 'x00100010', 'PN', `${randomLast()}^${randomFirst()}`);
-      setOrCreate(dataset, 'x00100020', 'LO', randomDigits(8));
-      setOrCreate(dataset, 'x00100030', 'DA', randomDateYYYYMMDD());
-      setOrCreate(dataset, 'x00101010', 'AS', randAS());
-      setOrCreate(dataset, 'x00100040', 'CS', randomFrom(['M','F','O']));
-
-      for (const t of DATE_TAGS) setOrCreate(dataset, t, 'DA', nowDA());
-      for (const t of TIME_TAGS) setOrCreate(dataset, t, 'TM', nowTM());
-
-      setOrCreate(dataset, 'x00200010', 'SH', randomDigits(6));
-      setOrCreate(dataset, 'x00080050', 'SH', randomDigits(9));
-
-      for (const [tag, spec] of Object.entries(SAFE_EDIT_TAGS)){
-        const val = typeof spec.rand === 'function' ? spec.rand() : spec.anon;
-        setOrCreate(dataset, tag, spec.vr, val);
-      }
-    }
-
-    function remapAllUIDsAcrossFiles(){
-      const map = new Map();
-      log(`Remapping all UIDs across ${files.length} file(s).`, 'info');
-      for (const f of files){
-        walkElements(f.dict, (tag, el) => {
-          if (el.vr !== 'UI' || !el.Value) return;
-          el.Value = el.Value.map(v => {
-            const s = String(v || '').trim();
-            if (!s) return s;
-            if (!map.has(s)) map.set(s, newUID());
-            return map.get(s);
-          });
-        });
-      }
-    }
-
-    // Numeric diagnostics: try to detect suspicious numeric values
-    function scanNumericIssues(dataset, label='dataset'){
-      const numericVRs = new Set(['DS','IS','FL','FD','SS','US','SL','UL']);
-      let found = 0;
-      walkElements(dataset, (tag, el) => {
-        if (!numericVRs.has(el.vr)) return;
-        if (!el.Value) return;
-        el.Value.forEach((v, idx) => {
-          let ok = false;
-          if (typeof v === 'number') ok = Number.isFinite(v);
-          else if (typeof v === 'string') {
-            const n = Number(v);
-            ok = Number.isFinite(n);
-          }
-          if (!ok) {
-            found++;
-            log(
-              `Suspicious numeric value in ${label} at ${fmtTag(tag)} [${keywordFor(tag)}], VR=${el.vr}, index=${idx}, value=${JSON.stringify(v)}`,
-              'warn'
-            );
-          }
-        });
+function remapUIDs() {
+  const map = new Map();
+  for (const f of files) {
+    walkEls(f.dict, (t, el) => {
+      if (el.vr !== 'UI' || !el.Value) return;
+      el.Value = el.Value.map(v => {
+        const s = String(v || '').trim();
+        if (!s) return s;
+        if (!map.has(s)) map.set(s, newUID());
+        return map.get(s);
       });
-      if (!found) {
-        log(`No obvious numeric issues detected in ${label}. The error may be due to Pixel Data, Sequences, or a dcmjs bug.`, 'info');
-      } else {
-        log(`Found ${found} suspicious numeric value(s) in ${label}.`, 'warn');
+    });
+  }
+}
+
+function syncToUI() {
+  pendingEdits.clear();
+  if (dict) {
+    Object.entries(dict).forEach(([t, el]) => {
+      if (el && el.vr !== 'SQ' && !isBinaryVR(el.vr)) {
+        pendingEdits.set(t, { vr: el.vr, valueString: elToString(el) });
       }
+    });
+  }
+  activeView = 'primary';
+  viewPrimaryRadio.checked = true;
+  renderTable();
+  if (dict) drawPreview(dict);
+}
+
+// ============ FILE HANDLING ============
+async function handleFiles(list) {
+  files = [];
+  dict = meta = null;
+  pendingEdits.clear();
+  tagBody.innerHTML = '';
+  previewCard.style.display = 'none';
+  logArea.textContent = '';
+  logCard.style.display = 'none';
+  compareDict = compareName = null;
+  previewImageData = null;
+  
+  const arr = Array.from(list || []);
+  if (!arr.length) return;
+  
+  log(`Loading ${arr.length} file(s)...`);
+  
+  for (const file of arr) {
+    try {
+      const buf = await file.arrayBuffer();
+      const msg = DicomMessage.readFile(buf);
+      files.push({ name: file.name, dict: msg.dict, meta: msg.meta || {} });
+      log(`✓ ${file.name}`);
+    } catch (e) {
+      log(`✗ ${file.name}: ${e.message || e}`);
     }
+  }
+  
+  if (!files.length) {
+    alert('No valid DICOM files.');
+    return;
+  }
+  
+  dict = files[0].dict;
+  meta = files[0].meta;
+  
+  fileNamePill.textContent = files.length === 1 ? files[0].name : `${files[0].name} (+${files.length - 1})`;
+  fileCountPill.textContent = `${files.length} file${files.length > 1 ? 's' : ''}`;
+  
+  syncToUI();
+}
 
-    // Push active dataset → inputs → pendingEdits
-    function syncDatasetToInputs(){
-      pendingEdits.clear();
-      if (dict){
-        for (const [tag, el] of Object.entries(dict)){
-          if (!el || el.vr === 'SQ' || isBinaryVR(el.vr)) continue;
-          pendingEdits.set(tag, { vr: el.vr, valueString: elToString(el) });
-        }
-      }
-      activeView = 'primary';
-      viewPrimaryRadio.checked = true;
-      viewCompareRadio.checked = false;
-      renderTable();
-      showDownloadControls();
-      if (dict) drawPreviewFromDenat(dict);
-    }
+async function handleCompare(file) {
+  if (!file || !files.length) return;
+  if (files.length > 1) {
+    alert('Compare only available for single file.');
+    return;
+  }
+  try {
+    const buf = await file.arrayBuffer();
+    const msg = DicomMessage.readFile(buf);
+    compareDict = msg.dict;
+    compareName = file.name;
+    log(`Compare loaded: ${compareName}`);
+    compareStatus.textContent = `Comparing: ${compareName}`;
+    viewCompareRadio.disabled = false;
+    renderTable();
+  } catch (e) {
+    log(`Compare failed: ${e.message || e}`);
+    alert('Failed to load compare file.');
+  }
+}
 
-    // ---------- File handling ----------
-    async function handleFiles(fileList) {
-      try {
-        files = [];
-        dict = null;
-        meta = null;
-        pendingEdits.clear();
-        tagBody.innerHTML = '';
-        previewCard.classList.add('hidden');
-        logArea.textContent = '';
-        logCard.classList.add('hidden');
-        rebuildBatchButtons();
-        showDownloadControls();
-        encodeErrorAlertShown = false;
-
-        // Clear compare when loading new main set
-        compareDict = null;
-        compareMeta = null;
-        compareName = null;
-
-        const arr = Array.from(fileList || []);
-        if (!arr.length) return;
-
-        log(`Starting to load ${arr.length} file(s).`, 'info');
-
-        for (const file of arr){
-          try {
-            const buf = await file.arrayBuffer();
-            const msg = DicomMessage.readFile(buf);
-            files.push({
-              name: file.name,
-              dict: msg.dict,
-              meta: msg.meta || {}
-            });
-            log(`Loaded file "${file.name}" successfully.`, 'info');
-          } catch (e) {
-            log(`Failed to read file "${file.name}": ${e && e.message ? e.message : e}`, 'error');
-          }
-        }
-
-        if (!files.length) {
-          alert('No valid DICOM files could be loaded. See log for details.');
-          return;
-        }
-
-        // Active = first file
-        dict = files[0].dict;
-        meta = files[0].meta;
-
-        editor.classList.remove('hidden');
-
-        const firstName = files[0].name || '—';
-        if (files.length === 1) {
-          fileNamePill.textContent = firstName;
-        } else {
-          fileNamePill.textContent = `${firstName} (+${files.length - 1} more)`;
-        }
-        fileCountPill.textContent = `${files.length} file${files.length>1?'s':''}`;
-
-        const ts = meta?.TransferSyntaxUID?.Value?.[0] || '—';
-        tsuidPill.textContent = 'Transfer Syntax: ' + ts;
-        const hasPx = !!(dict['x7fe00010'] || dict['7fe00010']);
-        pixelPill.textContent = 'Pixel Data: ' + (hasPx ? 'Present' : 'Absent');
-
-        syncDatasetToInputs();
-        computeAndShowUIDPrefix();
-        rebuildBatchButtons();
-        showDownloadControls();
-        updateCompareAvailability();
-        log(`Finished loading. ${files.length} file(s) ready.`, 'info');
-      } catch (err) {
-        log(`Failed to load DICOM(s): ${err && err.message ? err.message : err}`, 'error');
-        alert('Failed to load DICOM(s). See log for details.');
-      }
-    }
-
-    async function handleCompareFile(file) {
-      if (!file) return;
-      if (!files.length) {
-        alert('Load a primary file first before comparing.');
-        return;
-      }
-      if (files.length > 1) {
-        alert('Comparison is only available when a single primary file is loaded.');
-        return;
-      }
-      try {
-        const buf = await file.arrayBuffer();
-        const msg = DicomMessage.readFile(buf);
-        compareDict = msg.dict;
-        compareMeta = msg.meta || {};
-        compareName = file.name || 'Compare.dcm';
-        log(`Loaded compare file "${compareName}".`, 'info');
-        compareStatus.textContent = `Comparing to: ${compareName}`;
-        viewCompareRadio.disabled = false;
-        // stay on whatever view the user picked; default is primary until they click compare
-        renderTable(); // re-highlight
-      } catch (e) {
-        log(`Failed to load compare file "${file.name}": ${e && e.message ? e.message : e}`, 'error');
-        alert('Failed to load compare DICOM. See log for details.');
-      }
-    }
-
-    // ---------- Download helpers (ALL + batches) ----------
-    function downloadRange(startIndex, endIndex) {
-      try {
-        if (!files.length) return;
-        startIndex = Math.max(0, startIndex | 0);
-        endIndex = Math.min(files.length, endIndex | 0);
-        if (startIndex >= endIndex) return;
-
-        let success = 0;
-        let failed = 0;
-        log(`Starting download for files ${startIndex + 1}–${endIndex} of ${files.length}.`, 'info');
-
-        for (let idx = startIndex; idx < endIndex; idx++) {
-          const f = files[idx];
-          try {
-            const denat = (typeof structuredClone === 'function')
-              ? structuredClone(f.dict)
-              : shallowClone(f.dict);
-
-            // Apply all manual UI edits (from primary view) to EVERY file
-            pendingEdits.forEach(function ({ vr, valueString }, tag) {
-              if (isReadOnly(tag, vr)) return;
-              denat[tag] = { vr: vr, Value: parseByVR(vr, valueString) };
-            });
-
-            const metaOut = ensureMetaFromDataset(denat, f.meta);
-            normalizeBinaryElementsRecursive(denat);
-            normalizeBinaryElementsRecursive(metaOut);
-
-            const dd = new DicomDict(metaOut);
-            dd.dict = denat;
-            const outBytes = dd.write();
-            const payload = outBytes && outBytes.buffer ? outBytes.buffer : outBytes;
-            const blob = new Blob([payload], { type: 'application/dicom' });
-
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            const baseName = f.name || `file${idx+1}`;
-            const base = baseName.replace(/\.[^.]+$/, '');
-            const ts = new Date().toISOString().replace(/[:.]/g, '-'); 
-            a.download = `${base}.edited.${ts}.dcm`;
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
-
-            success++;
-            log(`Download started for file #${idx+1} ("${baseName}").`, 'info');
-          } catch (e) {
-            failed++;
-            const msg = e && e.message ? e.message : String(e);
-            log(`Failed to encode/download file #${idx+1} ("${f.name}"): ${msg}`, 'error');
-            if (msg.includes('toExponential')) {
-              log('Hint: this often means a numeric DICOM value (e.g. FL/FD/DS/IS) has an invalid or non-numeric string.', 'warn');
-            }
-            // Run numeric diagnostics for this dataset
-            try {
-              scanNumericIssues(denat, `file #${idx+1} ("${f.name}")`);
-            } catch (scanErr) {
-              log(`Numeric issue scan failed for file #${idx+1}: ${scanErr && scanErr.message ? scanErr.message : scanErr}`, 'error');
-            }
-
-            if (!encodeErrorAlertShown) {
-              encodeErrorAlertShown = true;
-              alert('One or more files could not be written and may be corrupted or contain invalid numeric metadata (e.g. bad FL/FD/DS/IS values). Check the Log panel for details.');
-            }
-          }
-        }
-
-        log(
-          `Batch download ${startIndex + 1}–${endIndex} finished. Success: ${success}, Failed: ${failed}. ` +
-          `Note: your browser may still block some downloads even if they were generated successfully.`,
-          failed ? 'warn' : 'info'
-        );
-      } catch (err) {
-        log(`Global failure during batch download: ${err && err.message ? err.message : err}`, 'error');
-        alert('Failed to write DICOM(s). See log for details.');
-      }
-    }
-
-    // ---------- Events ----------
-    window.addEventListener('dragover', function (e) {
-      e.preventDefault();
-      body.classList.add('dragging');
-    });
-    window.addEventListener('dragleave', function () {
-      body.classList.remove('dragging');
-    });
-    window.addEventListener('drop', function (e) {
-      e.preventDefault();
-      body.classList.remove('dragging');
-      const fl = e.dataTransfer?.files;
-      if (fl && fl.length) handleFiles(fl);
-    });
-
-    dropZone.addEventListener('click', function () { fileInput.click(); });
-    browseBtn.addEventListener('click', function () { fileInput.click(); });
-    fileInput.addEventListener('change', function (e) {
-      const fl = e.target.files;
-      if (fl && fl.length) handleFiles(fl);
-    });
-
-    downloadAllBtn.addEventListener('click', () => {
-      if (!files.length) return;
-      downloadRange(0, files.length);
-    });
-
-    applyPrefixBtn.addEventListener('click', function(){
-      if (!linkUIDsChk.checked) return;
-      const newPref = (uidPrefixInput.value || '').trim();
-      if (newPref && newPref !== sharedUIDPrefix) applyPrefixToAll(newPref);
-    });
-    linkUIDsChk.addEventListener('change', function(){
-      uidPrefixInput.disabled = !linkUIDsChk.checked;
-      applyPrefixBtn.disabled = !linkUIDsChk.checked;
-      uidBar.style.opacity = linkUIDsChk.checked ? '1' : '.6';
-    });
-
-    anonymizeBtn.addEventListener('click', () => {
-      if (!files.length) return;
-      log(`Starting anonymization for ${files.length} file(s).`, 'info');
-      let failed = 0;
-      files.forEach((f, idx) => {
-        try {
-          anonymizeInPlace(f.dict);
-        } catch (e) {
-          failed++;
-          log(`Anonymize failed for file #${idx+1} ("${f.name}"): ${e && e.message ? e.message : e}`, 'error');
-        }
+function downloadRange(start, end) {
+  if (!files.length) return;
+  for (let i = start; i < end; i++) {
+    const f = files[i];
+    try {
+      const d = typeof structuredClone === 'function' ? structuredClone(f.dict) : {...f.dict};
+      pendingEdits.forEach(({ vr, valueString }, t) => {
+        if (!isReadOnly(t, vr)) d[t] = { vr, Value: parseByVR(vr, valueString) };
       });
-      try {
-        remapAllUIDsAcrossFiles();
-      } catch (e) {
-        failed++;
-        log(`UID remap during anonymize failed: ${e && e.message ? e.message : e}`, 'error');
-      }
-      syncDatasetToInputs();
-      computeAndShowUIDPrefix();
-      log(`Anonymize complete. Failed files: ${failed}.`, failed ? 'warn' : 'info');
-    });
+      const m = ensureMeta(d, f.meta);
+      normBin(d);
+      normBin(m);
+      const dd = new DicomDict(m);
+      dd.dict = d;
+      const out = dd.write();
+      const blob = new Blob([out.buffer || out], { type: 'application/dicom' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${f.name.replace(/\.[^.]+$/, '')}.edited.dcm`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+      log(`⬇ ${f.name}`);
+    } catch (e) {
+      log(`✗ Download ${f.name}: ${e.message || e}`);
+    }
+  }
+}
 
-    randomizeBtn.addEventListener('click',  () => {
-      if (!files.length) return;
-      log(`Starting randomization for ${files.length} file(s).`, 'info');
-      let failed = 0;
-      files.forEach((f, idx) => {
-        try {
-          randomizeInPlace(f.dict);
-        } catch (e) {
-          failed++;
-          log(`Randomize failed for file #${idx+1} ("${f.name}"): ${e && e.message ? e.message : e}`, 'error');
-        }
-      });
-      try {
-        remapAllUIDsAcrossFiles();
-      } catch (e) {
-        failed++;
-        log(`UID remap during randomize failed: ${e && e.message ? e.message : e}`, 'error');
-      }
-      syncDatasetToInputs();
-      computeAndShowUIDPrefix();
-      log(`Randomize complete. Failed files: ${failed}.`, failed ? 'warn' : 'info');
-    });
+// ============ EVENTS ============
+window.addEventListener('dragover', e => { e.preventDefault(); body.classList.add('dragging'); });
+window.addEventListener('dragleave', () => body.classList.remove('dragging'));
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  body.classList.remove('dragging');
+  if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
+});
 
-    // Compare drop / click
-    compareDropZone.addEventListener('click', () => {
-      if (files.length > 1) {
-        alert('Comparison is only available when a single primary file is loaded.');
-        return;
-      }
-      compareFileInput.click();
-    });
+dropZone.addEventListener('click', () => fileInput.click());
+browseBtn.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { if (e.target.files?.length) handleFiles(e.target.files); });
 
-    compareFileInput.addEventListener('change', (e) => {
-      const f = e.target.files?.[0];
-      if (f) handleCompareFile(f);
-    });
+downloadAllBtn.addEventListener('click', () => downloadRange(0, files.length));
 
-    compareDropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    });
-    compareDropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (files.length > 1) {
-        alert('Comparison is only available when a single primary file is loaded.');
-        return;
-      }
-      const f = e.dataTransfer?.files?.[0];
-      if (f) handleCompareFile(f);
-    });
+applyPrefixBtn.addEventListener('click', () => {
+  const p = uidPrefixInput.value.trim();
+  if (p && p !== sharedUIDPrefix) applyPrefixToAll(p);
+});
 
-    // View selector (primary / compare)
-    viewPrimaryRadio.addEventListener('change', () => {
-      if (viewPrimaryRadio.checked) {
-        activeView = 'primary';
-        renderTable();
-      }
-    });
-    viewCompareRadio.addEventListener('change', () => {
-      if (viewCompareRadio.checked && compareDict && files.length <= 1) {
-        activeView = 'compare';
-        renderTable();
-      }
-    });
-  </script>
+anonymizeBtn.addEventListener('click', () => {
+  files.forEach(f => anonymize(f.dict));
+  remapUIDs();
+  syncToUI();
+  log('Anonymized all files');
+});
+
+randomizeBtn.addEventListener('click', () => {
+  files.forEach(f => randomize(f.dict));
+  remapUIDs();
+  syncToUI();
+  log('Randomized all files');
+});
+
+compareDropZone.addEventListener('click', () => {
+  if (files.length > 1) { alert('Compare only for single file.'); return; }
+  compareFileInput.click();
+});
+compareFileInput.addEventListener('change', e => {
+  if (e.target.files?.[0]) handleCompare(e.target.files[0]);
+});
+compareDropZone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+compareDropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.dataTransfer?.files?.[0]) handleCompare(e.dataTransfer.files[0]);
+});
+
+viewPrimaryRadio.addEventListener('change', () => {
+  if (viewPrimaryRadio.checked) { activeView = 'primary'; renderTable(); }
+});
+viewCompareRadio.addEventListener('change', () => {
+  if (viewCompareRadio.checked && compareDict) { activeView = 'compare'; renderTable(); }
+});
+
+searchInput.addEventListener('input', e => { searchQuery = e.target.value; renderTable(); });
+
+filterBtns.forEach(btn => btn.addEventListener('click', () => {
+  filterBtns.forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeCat = btn.dataset.cat;
+  renderTable();
+}));
+
+// Preview fullscreen
+previewBox.addEventListener('click', showFullscreen);
+fullscreenOverlay.addEventListener('click', hideFullscreen);
+</script>
 </body>
 </html>
