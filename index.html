@@ -1204,71 +1204,111 @@ function ensureMeta(denat, fm) {
 }
 
 // ============ PREVIEW WITH FULLSCREEN ============
+function lookupTag(d, tag8) {
+  // dcmjs key format can vary in case; search insensitively
+  const lo = tag8.toLowerCase();
+  return d['x' + lo] || d[lo] ||
+    d[Object.keys(d).find(k => k.replace(/^x/i,'').toLowerCase() === lo) || ''];
+}
+
 function drawPreview(d) {
-  const rows = d['x00280010']?.Value?.[0];
-  const cols = d['x00280011']?.Value?.[0];
-  const spp = d['x00280002']?.Value?.[0] || 1;
-  const pi = d['x00280004']?.Value?.[0];
-  const ba = d['x00280100']?.Value?.[0] || 16;
-  const bs = d['x00280101']?.Value?.[0] || ba;
-  const hb = d['x00280102']?.Value?.[0] || bs - 1;
-  const pr = d['x00280103']?.Value?.[0] || 0;
-  const wc = d['x00281050']?.Value?.[0];
-  const ww = d['x00281051']?.Value?.[0];
-  
-  if (!rows || !cols || spp !== 1 || !/^MONOCHROME[12]$/i.test(pi || '')) {
+  const rowEl = lookupTag(d, '00280010');
+  const colEl = lookupTag(d, '00280011');
+  const rows = rowEl?.Value?.[0];
+  const cols = colEl?.Value?.[0];
+  const spp  = lookupTag(d, '00280002')?.Value?.[0] || 1;
+  const pi   = lookupTag(d, '00280004')?.Value?.[0];
+  const ba   = lookupTag(d, '00280100')?.Value?.[0] || 16;
+  const bs   = lookupTag(d, '00280101')?.Value?.[0] || ba;
+  const hb   = lookupTag(d, '00280102')?.Value?.[0] || bs - 1;
+  const pr   = lookupTag(d, '00280103')?.Value?.[0] || 0;
+  const wc   = lookupTag(d, '00281050')?.Value?.[0];
+  const ww   = lookupTag(d, '00281051')?.Value?.[0];
+
+  const isMonochrome = /^MONOCHROME[12]$/i.test(pi || '');
+  const isRGB = /^(RGB|YBR_FULL)$/i.test(pi || '') && spp === 3;
+  if (!rows || !cols || (!isMonochrome && !isRGB)) {
+    console.log('[preview] no renderable image:', { rows, cols, spp, pi });
     previewCard.style.display = 'none';
     return;
   }
-  
-  const px = d['x7fe00010'] || d['7fe00010'];
-  if (!px?.Value?.[0] || !(px.Value[0] instanceof ArrayBuffer)) {
+
+  const px = lookupTag(d, '7fe00010');
+  if (!px) {
+    console.log('[preview] pixel data tag not found in dict. keys:', Object.keys(d).filter(k => k.includes('7fe') || k.includes('7FE')));
     previewCard.style.display = 'none';
     return;
   }
-  
-  let data = ba === 16 ? new (pr ? Int16Array : Uint16Array)(px.Value[0]) : 
-             ba === 8 ? new Uint8Array(px.Value[0]) : null;
-  if (!data) { previewCard.style.display = 'none'; return; }
-  
-  // Draw to preview canvas
+  // Inline-binary not yet converted? convert now as fallback.
+  if (typeof px.InlineBinary === 'string' && !px.Value?.[0]) {
+    try { px.Value = [b64ToAB(px.InlineBinary)]; } catch (e) {}
+  }
+  if (!px.Value?.[0]) {
+    console.log('[preview] pixel data has no Value. px:', px);
+    previewCard.style.display = 'none';
+    return;
+  }
+  // Normalise TypedArray → ArrayBuffer if normBin missed it
+  let pxBuf = px.Value[0];
+  if (ArrayBuffer.isView(pxBuf)) pxBuf = pxBuf.buffer.slice(pxBuf.byteOffset, pxBuf.byteOffset + pxBuf.byteLength);
+  if (!(pxBuf instanceof ArrayBuffer)) {
+    console.log('[preview] pixel data Value[0] is not ArrayBuffer:', typeof pxBuf, pxBuf);
+    previewCard.style.display = 'none';
+    return;
+  }
+
   previewCanvas.width = cols;
   previewCanvas.height = rows;
   const ctx = previewCanvas.getContext('2d');
   const img = ctx.createImageData(cols, rows);
   const out = img.data;
-  
-  const mask = bs < 16 ? (1 << bs) - 1 : 0xFFFF;
-  const shift = hb - bs + 1;
-  
-  for (let i = 0; i < rows * cols; i++) {
-    let v = data[i];
-    if (ba === 16) {
-      if (!pr) v >>>= 0;
-      if (shift > 0) v >>>= shift;
-      if (bs < 16) v &= mask;
-      if (pr) {
-        const sb = 1 << (bs - 1);
-        if (v & sb) v -= sb << 1;
+
+  if (isRGB) {
+    const raw = new Uint8Array(pxBuf);
+    for (let i = 0; i < rows * cols; i++) {
+      const p = i * 4;
+      out[p]     = raw[i * 3];
+      out[p + 1] = raw[i * 3 + 1];
+      out[p + 2] = raw[i * 3 + 2];
+      out[p + 3] = 255;
+    }
+  } else {
+    let data = ba === 16 ? new (pr ? Int16Array : Uint16Array)(pxBuf) :
+               ba === 8 ? new Uint8Array(pxBuf) : null;
+    if (!data) { previewCard.style.display = 'none'; return; }
+
+    const mask = bs < 16 ? (1 << bs) - 1 : 0xFFFF;
+    const shift = hb - bs + 1;
+
+    for (let i = 0; i < rows * cols; i++) {
+      let v = data[i];
+      if (ba === 16) {
+        if (!pr) v >>>= 0;
+        if (shift > 0) v >>>= shift;
+        if (bs < 16) v &= mask;
+        if (pr) {
+          const sb = 1 << (bs - 1);
+          if (v & sb) v -= sb << 1;
+        }
       }
+      let g = v;
+      if (ww && wc) {
+        const lo = wc - 0.5 - (ww - 1) / 2;
+        const hi = wc - 0.5 + (ww - 1) / 2;
+        g = v <= lo ? 0 : v > hi ? 255 : Math.round(((v - lo) / (hi - lo)) * 255);
+      } else {
+        const mx = (1 << bs) - 1;
+        g = Math.round((v / mx) * 255);
+      }
+      const p = i * 4;
+      out[p] = out[p + 1] = out[p + 2] = g;
+      out[p + 3] = 255;
     }
-    let g = v;
-    if (ww && wc) {
-      const lo = wc - 0.5 - (ww - 1) / 2;
-      const hi = wc - 0.5 + (ww - 1) / 2;
-      g = v <= lo ? 0 : v > hi ? 255 : Math.round(((v - lo) / (hi - lo)) * 255);
-    } else {
-      const mx = (1 << bs) - 1;
-      g = Math.round((v / mx) * 255);
-    }
-    const p = i * 4;
-    out[p] = out[p + 1] = out[p + 2] = g;
-    out[p + 3] = 255;
   }
-  
+
   ctx.putImageData(img, 0, 0);
   previewCard.style.display = 'block';
-  
+
   // Store for fullscreen
   previewImageData = { width: cols, height: rows, data: img };
 }
@@ -1386,6 +1426,7 @@ async function handleFiles(list) {
     try {
       const buf = await file.arrayBuffer();
       const msg = DicomMessage.readFile(buf);
+      normBin(msg.dict);
       files.push({ name: file.name, dict: msg.dict, meta: msg.meta || {} });
       log(`✓ ${file.name}`);
     } catch (e) {
