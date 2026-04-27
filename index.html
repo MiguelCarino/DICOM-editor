@@ -579,7 +579,146 @@
     .social-btn:hover { transform: translateY(-3px); color: var(--accent); }
     .card.disabled { opacity: 0.5; pointer-events: none; }
     .hidden { display: none !important; }
-    
+
+    /* Tab Navigation */
+    .tab-nav { display: flex; gap: 4px; }
+    .tab-btn {
+      padding: 6px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font: 500 13px var(--font);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover { color: var(--text-dim); border-color: var(--border-glow); }
+    .tab-btn.active {
+      background: rgba(167,139,250,0.15);
+      border-color: var(--accent);
+      color: var(--text);
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
+    /* Create DICOM Tab */
+    #createTab { grid-row: 2; }
+    .create-panel {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 16px;
+      padding: 16px 20px;
+      overflow: hidden;
+      min-height: 0;
+    }
+    @media (max-width: 1000px) {
+      .create-panel { grid-template-columns: 1fr; }
+      .create-sidebar { display: none; }
+    }
+    .create-left {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .img-grid-wrap {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      background: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      transition: all 0.2s;
+    }
+    .img-grid-wrap.drag-over, body.dragging .img-grid-wrap {
+      border-color: var(--accent);
+      background: rgba(167,139,250,0.05);
+      box-shadow: 0 0 30px var(--accent-glow);
+    }
+    .img-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+    }
+    .img-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 200px;
+      gap: 8px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .img-empty-icon { font-size: 36px; opacity: 0.35; }
+    .img-thumb {
+      background: var(--surface-solid);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .img-thumb:hover { border-color: var(--accent); box-shadow: 0 0 15px var(--accent-glow); }
+    .img-thumb img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+    .img-thumb-info {
+      padding: 5px 8px;
+      font-size: 10px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: var(--mono);
+    }
+    .img-thumb-remove {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.75);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      font-size: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .img-thumb:hover .img-thumb-remove { opacity: 1; }
+    .create-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+    .meta-form { display: flex; flex-direction: column; gap: 8px; }
+    .form-group { display: flex; flex-direction: column; gap: 3px; }
+    .form-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+    }
+    .form-input {
+      padding: 7px 10px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font: 13px var(--font);
+      width: 100%;
+      transition: all 0.2s;
+    }
+    .form-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 15px var(--accent-glow); }
+    .form-select { cursor: pointer; }
+    .form-select option { background: var(--surface-solid); }
+
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.3); border-radius: 4px; }
@@ -590,6 +729,10 @@
   <div class="app">
     <header class="header">
       <div class="logo">DICOM Editor</div>
+      <nav class="tab-nav">
+        <button class="tab-btn active" id="editorTabBtn">Editor</button>
+        <button class="tab-btn" id="createTabBtn">Create DICOM</button>
+      </nav>
       <div class="header-spacer"></div>
         <div class="brand-links">
           <a href="https://github.com/MiguelCarino/DICOM-editor" target="_blank" class="social-btn" aria-label="GitHub">
@@ -604,7 +747,7 @@
         </div>
     </header>
 
-    <div class="main">
+    <div class="main" id="editorTab">
       <div class="left-panel">
         <div class="top-bar" id="topBar">
           <div class="pill" id="fileNamePill">No file loaded</div>
@@ -699,6 +842,106 @@
         </div>
       </div>
     </div>
+
+  <!-- Create DICOM Tab -->
+  <div class="create-panel" id="createTab" style="display:none">
+    <div class="create-left">
+      <div class="top-bar">
+        <div class="pill" id="createImgCount">0 images</div>
+        <button class="btn" id="createAddBtn">+ Add Images</button>
+        <input id="createFileInput" type="file" multiple accept="image/*" hidden />
+        <div style="flex:1"></div>
+        <button class="btn" id="clearCreateBtn">Clear All</button>
+      </div>
+      <div class="img-grid-wrap" id="createImgWrap">
+        <div id="createImgGrid">
+          <div class="img-empty">
+            <div class="img-empty-icon">🖼</div>
+            <span>Drop images here or click "+ Add Images"</span>
+            <span style="font-size:11px">PNG · JPEG · BMP · WebP supported</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="create-sidebar">
+      <button id="createSideAddBtn" class="btn">+ Add Images</button>
+      <div class="card">
+        <div class="card-title">Load Images</div>
+        <div class="drop-zone" id="createSideDropZone">
+          <h4>Drop images here</h4>
+          <p>PNG · JPEG · BMP · WebP</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Quick Fill</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" id="cdAnonymizeBtn" style="flex:1">Anonymize</button>
+          <button class="btn" id="cdRandomizeBtn" style="flex:1">Randomize</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Patient</div>
+        <div class="meta-form">
+          <div class="form-group">
+            <label class="form-label">Patient Name</label>
+            <input class="form-input" id="cdPatientName" placeholder="LAST^FIRST" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Patient ID</label>
+            <input class="form-input" id="cdPatientID" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date of Birth</label>
+            <input class="form-input" id="cdPatientDOB" type="date" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Sex</label>
+            <select class="form-input form-select" id="cdPatientSex">
+              <option value="">Unknown</option>
+              <option value="M">Male</option>
+              <option value="F">Female</option>
+              <option value="O">Other</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Study / Series</div>
+        <div class="meta-form">
+          <div class="form-group">
+            <label class="form-label">Study Date</label>
+            <input class="form-input" id="cdStudyDate" type="date" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Modality</label>
+            <select class="form-input form-select" id="cdModality">
+              <option value="OT">OT – Other</option>
+              <option value="SC">SC – Secondary Capture</option>
+              <option value="CR">CR – Computed Radiography</option>
+              <option value="CT">CT – Computed Tomography</option>
+              <option value="MR">MR – Magnetic Resonance</option>
+              <option value="US">US – Ultrasound</option>
+              <option value="DX">DX – Digital Radiography</option>
+              <option value="MG">MG – Mammography</option>
+              <option value="NM">NM – Nuclear Medicine</option>
+              <option value="PT">PT – PET</option>
+              <option value="XA">XA – X-Ray Angiography</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Study Description</label>
+            <input class="form-input" id="cdStudyDesc" placeholder="e.g. Chest X-Ray" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Series Description</label>
+            <input class="form-input" id="cdSeriesDesc" placeholder="e.g. AP View" />
+          </div>
+        </div>
+      </div>
+      <button class="btn primary" id="createDicomBtn">⬇ Create DICOM</button>
+    </div>
+  </div>
   </div>
 
   <div class="fullscreen-overlay" id="fullscreenOverlay">
@@ -1504,7 +1747,12 @@ window.addEventListener('dragleave', () => body.classList.remove('dragging'));
 window.addEventListener('drop', e => {
   e.preventDefault();
   body.classList.remove('dragging');
-  if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
+  if (!e.dataTransfer?.files?.length) return;
+  if (activeTab === 'create') {
+    addCreateImages(Array.from(e.dataTransfer.files));
+  } else {
+    handleFiles(e.dataTransfer.files);
+  }
 });
 
 dropZone.addEventListener('click', () => fileInput.click());
@@ -1565,6 +1813,264 @@ filterBtns.forEach(btn => btn.addEventListener('click', () => {
 // Preview fullscreen
 previewBox.addEventListener('click', showFullscreen);
 fullscreenOverlay.addEventListener('click', hideFullscreen);
+
+// ============ TAB SWITCHING ============
+let activeTab = 'editor';
+
+const editorTabBtn = document.getElementById('editorTabBtn');
+const createTabBtn = document.getElementById('createTabBtn');
+const editorTabPanel = document.getElementById('editorTab');
+const createTabPanel = document.getElementById('createTab');
+
+function switchTab(tab) {
+  activeTab = tab;
+  if (tab === 'editor') {
+    editorTabBtn.classList.add('active');
+    createTabBtn.classList.remove('active');
+    editorTabPanel.style.display = '';
+    createTabPanel.style.display = 'none';
+  } else {
+    createTabBtn.classList.add('active');
+    editorTabBtn.classList.remove('active');
+    createTabPanel.style.display = '';
+    editorTabPanel.style.display = 'none';
+  }
+}
+
+editorTabBtn.addEventListener('click', () => switchTab('editor'));
+createTabBtn.addEventListener('click', () => switchTab('create'));
+
+// ============ CREATE DICOM ============
+let createImages = [];
+
+const createAddBtn   = document.getElementById('createAddBtn');
+const createSideAddBtn = document.getElementById('createSideAddBtn');
+const createFileInput  = document.getElementById('createFileInput');
+const createImgWrap  = document.getElementById('createImgWrap');
+const createImgGrid  = document.getElementById('createImgGrid');
+const createImgCount = document.getElementById('createImgCount');
+const clearCreateBtn = document.getElementById('clearCreateBtn');
+const createSideDropZone = document.getElementById('createSideDropZone');
+const createDicomBtn = document.getElementById('createDicomBtn');
+
+// Set study date default to today
+(function() {
+  const today = new Date();
+  const iso = today.toISOString().slice(0, 10);
+  document.getElementById('cdStudyDate').value = iso;
+})();
+
+function addCreateImages(files) {
+  const exts = /\.(png|jpe?g|bmp|gif|webp|tiff?)$/i;
+  for (const f of files) {
+    if (!f.type.startsWith('image/') && !exts.test(f.name)) continue;
+    createImages.push({ file: f, objectURL: URL.createObjectURL(f) });
+  }
+  renderCreateGrid();
+}
+
+function removeCreateImage(idx) {
+  URL.revokeObjectURL(createImages[idx].objectURL);
+  createImages.splice(idx, 1);
+  renderCreateGrid();
+}
+
+function renderCreateGrid() {
+  createImgCount.textContent = `${createImages.length} image${createImages.length !== 1 ? 's' : ''}`;
+  if (!createImages.length) {
+    createImgGrid.innerHTML = `
+      <div class="img-empty">
+        <div class="img-empty-icon">🖼</div>
+        <span>Drop images here or click "+ Add Images"</span>
+        <span style="font-size:11px">PNG · JPEG · BMP · WebP supported</span>
+      </div>`;
+    return;
+  }
+  createImgGrid.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.className = 'img-grid';
+  createImages.forEach((img, i) => {
+    const div = document.createElement('div');
+    div.className = 'img-thumb';
+    div.innerHTML = `
+      <img src="${img.objectURL}" alt="${img.file.name}">
+      <div class="img-thumb-info">${img.file.name}</div>
+      <button class="img-thumb-remove" title="Remove">✕</button>`;
+    div.querySelector('.img-thumb-remove').addEventListener('click', e => {
+      e.stopPropagation();
+      removeCreateImage(i);
+    });
+    grid.appendChild(div);
+  });
+  createImgGrid.appendChild(grid);
+}
+
+createAddBtn.addEventListener('click', () => createFileInput.click());
+createSideAddBtn.addEventListener('click', () => createFileInput.click());
+createSideDropZone.addEventListener('click', () => createFileInput.click());
+createFileInput.addEventListener('change', e => {
+  if (e.target.files?.length) addCreateImages(Array.from(e.target.files));
+  e.target.value = '';
+});
+clearCreateBtn.addEventListener('click', () => {
+  createImages.forEach(img => URL.revokeObjectURL(img.objectURL));
+  createImages = [];
+  renderCreateGrid();
+});
+
+createSideDropZone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
+createSideDropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.dataTransfer?.files?.length) addCreateImages(Array.from(e.dataTransfer.files));
+});
+
+async function buildDicomFromImage(file, meta, instanceNum) {
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement('canvas');
+  canvas.width  = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+
+  const rows = canvas.height;
+  const cols = canvas.width;
+  const rgba = ctx.getImageData(0, 0, cols, rows).data;
+
+  // DICOM OB values must be even-length; pad with a null byte if needed
+  const pixBytes = rows * cols * 3;
+  const rgb = new Uint8Array(pixBytes % 2 === 0 ? pixBytes : pixBytes + 1);
+  for (let i = 0; i < rows * cols; i++) {
+    rgb[i * 3]     = rgba[i * 4];
+    rgb[i * 3 + 1] = rgba[i * 4 + 1];
+    rgb[i * 3 + 2] = rgba[i * 4 + 2];
+  }
+
+  const sopInstanceUID = newUID();
+
+  // Keys must be 8-char uppercase hex (no 'x' prefix) — dcmjs Tag.fromString
+  // does parseInt(str.substring(0,4), 16) which breaks if 'x' is present.
+  const d = {
+    '00080005': { vr: 'CS', Value: ['ISO_IR 192'] },
+    '00080008': { vr: 'CS', Value: ['ORIGINAL', 'PRIMARY'] },
+    '00080016': { vr: 'UI', Value: ['1.2.840.10008.5.1.4.1.1.7'] },
+    '00080018': { vr: 'UI', Value: [sopInstanceUID] },
+    '00080020': { vr: 'DA', Value: [meta.studyDate] },
+    '00080021': { vr: 'DA', Value: [meta.studyDate] },
+    '00080022': { vr: 'DA', Value: [meta.studyDate] },
+    '00080023': { vr: 'DA', Value: [meta.studyDate] },
+    '00080030': { vr: 'TM', Value: [meta.studyTime] },
+    '00080031': { vr: 'TM', Value: [meta.studyTime] },
+    '00080032': { vr: 'TM', Value: [meta.studyTime] },
+    '00080033': { vr: 'TM', Value: [meta.studyTime] },
+    '00080060': { vr: 'CS', Value: [meta.modality] },
+    '00081030': { vr: 'LO', Value: [meta.studyDescription] },
+    '0008103E': { vr: 'LO', Value: [meta.seriesDescription] },
+    '00100010': { vr: 'PN', Value: [meta.patientName] },
+    '00100020': { vr: 'LO', Value: [meta.patientID] },
+    '00100030': { vr: 'DA', Value: [meta.patientDOB] },
+    '00100040': { vr: 'CS', Value: [meta.patientSex] },
+    '0020000D': { vr: 'UI', Value: [meta.studyUID] },
+    '0020000E': { vr: 'UI', Value: [meta.seriesUID] },
+    '00200010': { vr: 'SH', Value: ['1'] },
+    '00200011': { vr: 'IS', Value: [1] },
+    '00200012': { vr: 'IS', Value: [instanceNum] },
+    '00200013': { vr: 'IS', Value: [instanceNum] },
+    '00280002': { vr: 'US', Value: [3] },
+    '00280004': { vr: 'CS', Value: ['RGB'] },
+    '00280006': { vr: 'US', Value: [0] },
+    '00280010': { vr: 'US', Value: [rows] },
+    '00280011': { vr: 'US', Value: [cols] },
+    '00280100': { vr: 'US', Value: [8] },
+    '00280101': { vr: 'US', Value: [8] },
+    '00280102': { vr: 'US', Value: [7] },
+    '00280103': { vr: 'US', Value: [0] },
+    '7FE00010': { vr: 'OB', Value: [rgb.buffer] },
+  };
+
+  // Meta also needs plain 8-char hex keys — DicomDict.write() checks meta["00020010"]
+  const fileMeta = {
+    '00020002': { vr: 'UI', Value: ['1.2.840.10008.5.1.4.1.1.7'] },
+    '00020003': { vr: 'UI', Value: [sopInstanceUID] },
+    '00020010': { vr: 'UI', Value: ['1.2.840.10008.1.2.1'] },
+    '00020012': { vr: 'UI', Value: ['1.2.826.0.1.3680043.10.743'] },
+  };
+
+  const dd = new DicomDict(fileMeta);
+  dd.dict = d;
+  const out = dd.write();
+  return out.buffer || out;
+}
+
+// Quick-fill helpers for Create DICOM
+function fillCreateAnon() {
+  document.getElementById('cdPatientName').value = 'ANON^PATIENT';
+  document.getElementById('cdPatientID').value   = 'ANON';
+  document.getElementById('cdPatientDOB').value  = '';
+  document.getElementById('cdPatientSex').value  = 'O';
+  document.getElementById('cdStudyDate').value   = new Date().toISOString().slice(0, 10);
+  document.getElementById('cdStudyDesc').value   = '';
+  document.getElementById('cdSeriesDesc').value  = '';
+}
+
+function fillCreateRandom() {
+  const year  = 1950 + Math.floor(Math.random() * 60);
+  const month = String(1  + Math.floor(Math.random() * 12)).padStart(2, '0');
+  const day   = String(1  + Math.floor(Math.random() * 28)).padStart(2, '0');
+  document.getElementById('cdPatientName').value = `${randFrom(['DOE','SMITH','GARCIA','LEE','WANG'])}^${randFrom(['JOHN','MARIA','ALICE','JAMES','EMMA'])}`;
+  document.getElementById('cdPatientID').value   = randDigits(8);
+  document.getElementById('cdPatientDOB').value  = `${year}-${month}-${day}`;
+  document.getElementById('cdPatientSex').value  = randFrom(['M', 'F', 'O']);
+  document.getElementById('cdStudyDate').value   = new Date().toISOString().slice(0, 10);
+  document.getElementById('cdStudyDesc').value   = randFrom(['CHEST X-RAY', 'MRI BRAIN', 'CT ABDOMEN', 'US PELVIS', 'MAMMOGRAM']);
+  document.getElementById('cdSeriesDesc').value  = randFrom(['AP VIEW', 'LATERAL', 'AXIAL', 'CORONAL', 'SAGITTAL']);
+}
+
+document.getElementById('cdAnonymizeBtn').addEventListener('click', fillCreateAnon);
+document.getElementById('cdRandomizeBtn').addEventListener('click', fillCreateRandom);
+
+createDicomBtn.addEventListener('click', async () => {
+  if (!createImages.length) { alert('No images loaded.'); return; }
+
+  const studyDate = (document.getElementById('cdStudyDate').value || '').replace(/-/g, '') || nowDA();
+  const meta = {
+    patientName:      document.getElementById('cdPatientName').value.trim() || 'UNKNOWN',
+    patientID:        document.getElementById('cdPatientID').value.trim(),
+    patientDOB:       (document.getElementById('cdPatientDOB').value || '').replace(/-/g, ''),
+    patientSex:       document.getElementById('cdPatientSex').value,
+    studyUID:         newUID(),
+    seriesUID:        newUID(),
+    studyDate,
+    studyTime:        nowTM(),
+    studyDescription: document.getElementById('cdStudyDesc').value.trim(),
+    modality:         document.getElementById('cdModality').value || 'OT',
+    seriesDescription: document.getElementById('cdSeriesDesc').value.trim(),
+  };
+
+  createDicomBtn.disabled = true;
+  createDicomBtn.textContent = 'Creating…';
+
+  for (let i = 0; i < createImages.length; i++) {
+    try {
+      const buf  = await buildDicomFromImage(createImages[i].file, meta, i + 1);
+      const blob = new Blob([buf], { type: 'application/dicom' });
+      const a    = document.createElement('a');
+      a.href     = URL.createObjectURL(blob);
+      a.download = createImages[i].file.name.replace(/\.[^.]+$/, '') + '.dcm';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    } catch (e) {
+      alert(`Failed for ${createImages[i].file.name}: ${e.message || e}`);
+    }
+  }
+
+  createDicomBtn.disabled = false;
+  createDicomBtn.textContent = '⬇ Create DICOM';
+});
 </script>
 </body>
 </html>
