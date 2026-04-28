@@ -1629,6 +1629,68 @@ function nowDA() { const t = new Date(); return `${t.getFullYear()}${String(t.ge
 function nowTM() { const t = new Date(); return `${String(t.getHours()).padStart(2,'0')}${String(t.getMinutes()).padStart(2,'0')}${String(t.getSeconds()).padStart(2,'0')}`; }
 function randDigits(n) { let s = ''; for (let i = 0; i < n; i++) s += Math.floor(Math.random() * 10); return s; }
 function randFrom(a) { return a[Math.floor(Math.random() * a.length)]; }
+
+const CULTURES = {
+  english: {
+    surnames:   ['DOE','SMITH','JONES','BROWN','TAYLOR','WILSON','DAVIS','MOORE','THOMAS','JACKSON','HARRIS','CLARK'],
+    first_m:    ['JOHN','JAMES','WILLIAM','ROBERT','CHARLES','HENRY','GEORGE','MICHAEL','EDWARD','THOMAS','RICHARD','DAVID'],
+    first_f:    ['JANE','MARY','ELIZABETH','ALICE','HELEN','MARGARET','SARAH','EMMA','DOROTHY','RUTH','GRACE','FRANCES'],
+    anon_m: 'DOE^JOHN',        anon_f: 'DOE^JANE',
+  },
+  french: {
+    surnames:   ['DUPONT','MARTIN','BERNARD','THOMAS','PETIT','RICHARD','DURAND','MOREAU','LEROY','SIMON','MICHEL','LEFEBVRE'],
+    first_m:    ['JEAN','PIERRE','LOUIS','MARC','PAUL','NICOLAS','HENRI','FRANCK','LUC','CLAUDE','RENE','DIDIER'],
+    first_f:    ['MARIE','ANNE','CLAIRE','SOPHIE','JULIE','ISABELLE','HELENE','CAMILLE','LUCIE','LAURENCE','EMILIE','CECILE'],
+    anon_m: 'DUPONT^JEAN',     anon_f: 'DUPONT^MARIE',
+  },
+  russian: {
+    surnames_m: ['IVANOV','PETROV','SIDOROV','SMIRNOV','KUZNETSOV','POPOV','NOVIKOV','VOLKOV','SOKOLOV','MOROZOV'],
+    surnames_f: ['IVANOVA','PETROVA','SIDOROVA','SMIRNOVA','KUZNETSOVA','POPOVA','NOVIKOVA','VOLKOVA','SOKOLOVA','MOROZOVA'],
+    first_m:    ['IVAN','ALEKSANDR','DMITRI','NIKOLAI','SERGEI','MIKHAIL','ANDREI','PAVEL','ALEKSEI','VLADIMIR'],
+    first_f:    ['ANNA','NATALIA','IRINA','ELENA','MARINA','OLGA','TATIANA','EKATERINA','SVETLANA','YULIA'],
+    anon_m: 'IVANOV^IVAN',     anon_f: 'IVANOVA^ANNA',
+  },
+  hispanic: {
+    surnames:   ['GARCIA','RODRIGUEZ','MARTINEZ','HERNANDEZ','LOPEZ','GONZALEZ','PEREZ','SANCHEZ','RAMIREZ','TORRES','FLORES','REYES'],
+    first_m:    ['JUAN','JOSE','CARLOS','MIGUEL','PEDRO','ANTONIO','FRANCISCO','LUIS','JAVIER','MANUEL','RAFAEL','SERGIO'],
+    first_f:    ['MARIA','ANA','ROSA','CARMEN','ELENA','LUCIA','ISABEL','PATRICIA','LAURA','CLAUDIA','ANGELA','MONICA'],
+    anon_m: 'GARCIA^JUAN',     anon_f: 'GARCIA^MARIA',
+  },
+  chinese: {
+    surnames:   ['ZHANG','WANG','LI','ZHAO','CHEN','LIU','YANG','HUANG','ZHOU','WU','XU','SUN'],
+    first_m:    ['WEI','LEI','MING','HAO','JUN','YANG','TAO','CHAO','PENG','FENG','GANG','HUI'],
+    first_f:    ['FANG','LI','NA','JING','HONG','MEI','YING','XIA','YAN','LAN','PING','HUA'],
+    anon_m: 'ZHANG^WEI',       anon_f: 'LI^FANG',
+  },
+  japanese: {
+    surnames:   ['YAMADA','TANAKA','SUZUKI','ITO','SATO','WATANABE','KOBAYASHI','KATO','YOSHIDA','YAMAMOTO','NAKAMURA','HAYASHI'],
+    first_m:    ['TARO','KENJI','HIROSHI','TAKASHI','DAISUKE','NAOKI','RYO','SHOTA','YUTA','KAZUYA','MAKOTO','KENICHI'],
+    first_f:    ['HANAKO','YUKI','SAKURA','AKIKO','MICHIKO','KAZUKO','YOKO','HARUKO','MIKI','NANA','AI','EMI'],
+    anon_m: 'YAMADA^TARO',     anon_f: 'YAMADA^HANAKO',
+  },
+  korean: {
+    surnames:   ['KIM','LEE','PARK','CHOI','JUNG','KANG','CHO','YOON','JANG','LIM','OH','SHIN'],
+    first_m:    ['GILDONG','MINJUN','JUNHO','HYUNJIN','SEONGMIN','JAEHO','TAEYONG','DONGHYUN','SANGWOO','JIHO','JIHOON','MINHO'],
+    first_f:    ['YOUNGHEE','MINJUNG','JIYEON','SOYEON','HYEWON','EUNHEE','SOHEE','JIEUN','YUNA','SEOYEON','CHAEYOUNG','DAYEON'],
+    anon_m: 'HONG^GILDONG',    anon_f: 'KIM^YOUNGHEE',
+  },
+};
+const CULTURE_KEYS = Object.keys(CULTURES);
+
+function randName(sex) {
+  const culture = CULTURES[randFrom(CULTURE_KEYS)];
+  const isFemale = sex === 'F';
+  const surname = isFemale && culture.surnames_f
+    ? randFrom(culture.surnames_f)
+    : randFrom(culture.surnames || culture.surnames_m);
+  const first = isFemale ? randFrom(culture.first_f) : randFrom(culture.first_m);
+  return `${surname}^${first}`;
+}
+
+function randAnonName() {
+  const culture = CULTURES[randFrom(CULTURE_KEYS)];
+  return culture.anon_f;
+}
 function setTag(d, t, vr, val) { d[t] = { vr, Value: Array.isArray(val) ? val : [val] }; }
 function remPrivate(node) {
   walkEls(node, (t, el, parent) => {
@@ -1649,7 +1711,7 @@ function newUID() {
 function anonymize(d) {
   remPrivate(d);
   for (const t of PHI) if (d[t]) setTag(d, t, d[t].vr || 'LO', 'ANON');
-  setTag(d, 'x00100010', 'PN', 'ANON^PATIENT');
+  setTag(d, 'x00100010', 'PN', randAnonName());
   setTag(d, 'x00100020', 'LO', 'ANON');
   setTag(d, 'x00100040', 'CS', 'O');
   setTag(d, 'x00101010', 'AS', '000Y');
@@ -1658,10 +1720,11 @@ function anonymize(d) {
 }
 
 function randomize(d) {
-  setTag(d, 'x00100010', 'PN', `${randFrom(['DOE','SMITH','GARCIA','LEE','WANG'])}^${randFrom(['JOHN','MARIA','ALICE','JAMES'])}`);
+  const sex = randFrom(['M', 'F', 'O']);
+  setTag(d, 'x00100010', 'PN', randName(sex));
   setTag(d, 'x00100020', 'LO', randDigits(8));
   setTag(d, 'x00100030', 'DA', `${1950 + Math.floor(Math.random() * 60)}${String(1 + Math.floor(Math.random() * 12)).padStart(2,'0')}${String(1 + Math.floor(Math.random() * 28)).padStart(2,'0')}`);
-  setTag(d, 'x00100040', 'CS', randFrom(['M','F','O']));
+  setTag(d, 'x00100040', 'CS', sex);
   setTag(d, 'x00101010', 'AS', `${String(Math.floor(Math.random() * 90) + 1).padStart(3,'0')}Y`);
   for (const t of DATES) setTag(d, t, 'DA', nowDA());
   for (const t of TIMES) setTag(d, t, 'TM', nowTM());
@@ -2163,7 +2226,7 @@ async function buildDicomFromImage(file, meta, instanceNum) {
 
 // Quick-fill helpers for Create DICOM
 function fillCreateAnon() {
-  document.getElementById('cdPatientName').value = 'ANON^PATIENT';
+  document.getElementById('cdPatientName').value = randAnonName();
   document.getElementById('cdPatientID').value   = 'ANON';
   document.getElementById('cdPatientDOB').value  = '';
   document.getElementById('cdPatientSex').value  = 'O';
@@ -2175,10 +2238,11 @@ function fillCreateRandom() {
   const year  = 1950 + Math.floor(Math.random() * 60);
   const month = String(1  + Math.floor(Math.random() * 12)).padStart(2, '0');
   const day   = String(1  + Math.floor(Math.random() * 28)).padStart(2, '0');
-  document.getElementById('cdPatientName').value = `${randFrom(['DOE','SMITH','GARCIA','LEE','WANG'])}^${randFrom(['JOHN','MARIA','ALICE','JAMES','EMMA'])}`;
+  const sex   = randFrom(['M', 'F', 'O']);
+  document.getElementById('cdPatientName').value = randName(sex);
   document.getElementById('cdPatientID').value   = randDigits(8);
   document.getElementById('cdPatientDOB').value  = `${year}-${month}-${day}`;
-  document.getElementById('cdPatientSex').value  = randFrom(['M', 'F', 'O']);
+  document.getElementById('cdPatientSex').value  = sex;
   document.getElementById('cdStudyDate').value   = new Date().toISOString().slice(0, 10);
   document.getElementById('cdStudyDesc').value   = randFrom(['CHEST X-RAY', 'MRI BRAIN', 'CT ABDOMEN', 'US PELVIS', 'MAMMOGRAM']);
 }
