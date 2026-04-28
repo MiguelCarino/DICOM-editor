@@ -723,6 +723,56 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.3); border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(167,139,250,0.5); }
+
+    /* Series assignment */
+    .img-thumb-series {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.25);
+      color: #fff;
+      font: 700 9px var(--mono);
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      text-align: center;
+      backdrop-filter: blur(4px);
+      max-width: 52px;
+    }
+    .img-thumb-series option { background: #161229; }
+    .series-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+    .series-item { display: flex; align-items: center; gap: 6px; }
+    .series-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .series-label { font: 700 10px var(--mono); color: var(--text-muted); min-width: 22px; }
+    .series-rm-btn {
+      flex-shrink: 0;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: var(--text-muted);
+      font-size: 10px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .series-rm-btn:hover { background: rgba(248,113,113,0.3); color: #f87171; border-color: #f87171; }
+    .series-add-btn {
+      margin-top: 4px;
+      width: 100%;
+      padding: 5px;
+      font-size: 11px;
+      background: var(--surface);
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: var(--font);
+    }
+    .series-add-btn:hover { border-color: var(--accent); color: var(--accent); }
   </style>
 </head>
 <body>
@@ -907,7 +957,7 @@
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Study / Series</div>
+        <div class="card-title">Study</div>
         <div class="meta-form">
           <div class="form-group">
             <label class="form-label">Study Date</label>
@@ -933,11 +983,12 @@
             <label class="form-label">Study Description</label>
             <input class="form-input" id="cdStudyDesc" placeholder="e.g. Chest X-Ray" />
           </div>
-          <div class="form-group">
-            <label class="form-label">Series Description</label>
-            <input class="form-input" id="cdSeriesDesc" placeholder="e.g. AP View" />
-          </div>
         </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Series</div>
+        <div class="series-list" id="seriesList"></div>
+        <button class="series-add-btn" id="addSeriesBtn">+ Add Series</button>
       </div>
       <button class="btn primary" id="createDicomBtn">⬇ Create DICOM</button>
     </div>
@@ -1843,6 +1894,10 @@ createTabBtn.addEventListener('click', () => switchTab('create'));
 // ============ CREATE DICOM ============
 let createImages = [];
 
+const SERIES_COLORS = ['#a78bfa','#22d3ee','#f472b6','#fb923c','#4ade80','#facc15','#f87171','#94a3b8'];
+let createSeries = [{ id: 1, description: '', color: SERIES_COLORS[0] }];
+let nextSeriesId = 2;
+
 const createAddBtn   = document.getElementById('createAddBtn');
 const createSideAddBtn = document.getElementById('createSideAddBtn');
 const createFileInput  = document.getElementById('createFileInput');
@@ -1864,7 +1919,7 @@ function addCreateImages(files) {
   const exts = /\.(png|jpe?g|bmp|gif|webp|tiff?)$/i;
   for (const f of files) {
     if (!f.type.startsWith('image/') && !exts.test(f.name)) continue;
-    createImages.push({ file: f, objectURL: URL.createObjectURL(f) });
+    createImages.push({ file: f, objectURL: URL.createObjectURL(f), series: createSeries[0].id });
   }
   renderCreateGrid();
 }
@@ -1872,6 +1927,67 @@ function addCreateImages(files) {
 function removeCreateImage(idx) {
   URL.revokeObjectURL(createImages[idx].objectURL);
   createImages.splice(idx, 1);
+  renderCreateGrid();
+}
+
+function seriesColor(id) {
+  const s = createSeries.find(s => s.id === id);
+  return s ? s.color : '#94a3b8';
+}
+
+function renderSeriesPanel() {
+  const container = document.getElementById('seriesList');
+  if (!container) return;
+  container.innerHTML = '';
+  createSeries.forEach(s => {
+    const row = document.createElement('div');
+    row.className = 'series-item';
+
+    const dot = document.createElement('span');
+    dot.className = 'series-dot';
+    dot.style.background = s.color;
+
+    const label = document.createElement('span');
+    label.className = 'series-label';
+    label.textContent = `S${s.id}`;
+
+    const input = document.createElement('input');
+    input.className = 'form-input';
+    input.style.cssText = 'flex:1;font-size:12px;padding:5px 8px';
+    input.placeholder = 'Description';
+    input.value = s.description;
+    input.addEventListener('input', () => { s.description = input.value; });
+
+    row.appendChild(dot);
+    row.appendChild(label);
+    row.appendChild(input);
+
+    if (createSeries.length > 1) {
+      const rm = document.createElement('button');
+      rm.className = 'series-rm-btn';
+      rm.title = 'Remove series';
+      rm.textContent = '✕';
+      rm.addEventListener('click', () => removeSeries(s.id));
+      row.appendChild(rm);
+    }
+
+    container.appendChild(row);
+  });
+}
+
+function addSeries() {
+  const color = SERIES_COLORS[createSeries.length % SERIES_COLORS.length];
+  createSeries.push({ id: nextSeriesId++, description: '', color });
+  renderSeriesPanel();
+  renderCreateGrid();
+}
+
+function removeSeries(id) {
+  if (createSeries.length <= 1) return;
+  createSeries = createSeries.filter(s => s.id !== id);
+  const fallbackId = createSeries[0].id;
+  createImages.forEach(img => { if (img.series === id) img.series = fallbackId; });
+  renderSeriesPanel();
   renderCreateGrid();
 }
 
@@ -1892,14 +2008,51 @@ function renderCreateGrid() {
   createImages.forEach((img, i) => {
     const div = document.createElement('div');
     div.className = 'img-thumb';
-    div.innerHTML = `
-      <img src="${img.objectURL}" alt="${img.file.name}">
-      <div class="img-thumb-info">${img.file.name}</div>
-      <button class="img-thumb-remove" title="Remove">✕</button>`;
-    div.querySelector('.img-thumb-remove').addEventListener('click', e => {
-      e.stopPropagation();
-      removeCreateImage(i);
+
+    const image = document.createElement('img');
+    image.src = img.objectURL;
+    image.alt = img.file.name;
+
+    const info = document.createElement('div');
+    info.className = 'img-thumb-info';
+    info.textContent = img.file.name;
+
+    const rmBtn = document.createElement('button');
+    rmBtn.className = 'img-thumb-remove';
+    rmBtn.title = 'Remove';
+    rmBtn.textContent = '✕';
+    rmBtn.addEventListener('click', e => { e.stopPropagation(); removeCreateImage(i); });
+
+    const sel = document.createElement('select');
+    sel.className = 'img-thumb-series';
+    sel.title = 'Assign series';
+    sel.style.background = seriesColor(img.series) + 'cc';
+    createSeries.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = `S${s.id}`;
+      if (img.series === s.id) opt.selected = true;
+      sel.appendChild(opt);
     });
+    const newOpt = document.createElement('option');
+    newOpt.value = 'new';
+    newOpt.textContent = '+ New';
+    sel.appendChild(newOpt);
+
+    sel.addEventListener('change', () => {
+      if (sel.value === 'new') {
+        addSeries();
+        createImages[i].series = createSeries[createSeries.length - 1].id;
+      } else {
+        createImages[i].series = parseInt(sel.value);
+      }
+      renderCreateGrid();
+    });
+
+    div.appendChild(image);
+    div.appendChild(info);
+    div.appendChild(rmBtn);
+    div.appendChild(sel);
     grid.appendChild(div);
   });
   createImgGrid.appendChild(grid);
@@ -1915,7 +2068,10 @@ createFileInput.addEventListener('change', e => {
 clearCreateBtn.addEventListener('click', () => {
   createImages.forEach(img => URL.revokeObjectURL(img.objectURL));
   createImages = [];
+  createSeries = [{ id: 1, description: '', color: SERIES_COLORS[0] }];
+  nextSeriesId = 2;
   renderCreateGrid();
+  renderSeriesPanel();
 });
 
 createSideDropZone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
@@ -2013,7 +2169,6 @@ function fillCreateAnon() {
   document.getElementById('cdPatientSex').value  = 'O';
   document.getElementById('cdStudyDate').value   = new Date().toISOString().slice(0, 10);
   document.getElementById('cdStudyDesc').value   = '';
-  document.getElementById('cdSeriesDesc').value  = '';
 }
 
 function fillCreateRandom() {
@@ -2026,45 +2181,59 @@ function fillCreateRandom() {
   document.getElementById('cdPatientSex').value  = randFrom(['M', 'F', 'O']);
   document.getElementById('cdStudyDate').value   = new Date().toISOString().slice(0, 10);
   document.getElementById('cdStudyDesc').value   = randFrom(['CHEST X-RAY', 'MRI BRAIN', 'CT ABDOMEN', 'US PELVIS', 'MAMMOGRAM']);
-  document.getElementById('cdSeriesDesc').value  = randFrom(['AP VIEW', 'LATERAL', 'AXIAL', 'CORONAL', 'SAGITTAL']);
 }
 
 document.getElementById('cdAnonymizeBtn').addEventListener('click', fillCreateAnon);
 document.getElementById('cdRandomizeBtn').addEventListener('click', fillCreateRandom);
+document.getElementById('addSeriesBtn').addEventListener('click', addSeries);
+
+// Initialize series panel
+renderSeriesPanel();
 
 createDicomBtn.addEventListener('click', async () => {
   if (!createImages.length) { alert('No images loaded.'); return; }
 
   const studyDate = (document.getElementById('cdStudyDate').value || '').replace(/-/g, '') || nowDA();
-  const meta = {
+  const commonMeta = {
     patientName:      document.getElementById('cdPatientName').value.trim() || 'UNKNOWN',
     patientID:        document.getElementById('cdPatientID').value.trim(),
     patientDOB:       (document.getElementById('cdPatientDOB').value || '').replace(/-/g, ''),
     patientSex:       document.getElementById('cdPatientSex').value,
     studyUID:         newUID(),
-    seriesUID:        newUID(),
     studyDate,
     studyTime:        nowTM(),
     studyDescription: document.getElementById('cdStudyDesc').value.trim(),
     modality:         document.getElementById('cdModality').value || 'OT',
-    seriesDescription: document.getElementById('cdSeriesDesc').value.trim(),
   };
+
+  // Build per-series metadata (each series gets its own UID)
+  const seriesMetaMap = {};
+  for (const s of createSeries) {
+    seriesMetaMap[s.id] = { ...commonMeta, seriesUID: newUID(), seriesDescription: s.description };
+  }
 
   createDicomBtn.disabled = true;
   createDicomBtn.textContent = 'Creating…';
 
+  const instanceCount = {};
+  for (const s of createSeries) instanceCount[s.id] = 0;
+
   for (let i = 0; i < createImages.length; i++) {
+    const img = createImages[i];
+    const seriesId = img.series || createSeries[0].id;
+    const meta = seriesMetaMap[seriesId] || seriesMetaMap[createSeries[0].id];
+    instanceCount[seriesId] = (instanceCount[seriesId] || 0) + 1;
     try {
-      const buf  = await buildDicomFromImage(createImages[i].file, meta, i + 1);
+      const buf  = await buildDicomFromImage(img.file, meta, instanceCount[seriesId]);
       const blob = new Blob([buf], { type: 'application/dicom' });
       const a    = document.createElement('a');
       a.href     = URL.createObjectURL(blob);
-      a.download = createImages[i].file.name.replace(/\.[^.]+$/, '') + '.dcm';
+      a.download = img.file.name.replace(/\.[^.]+$/, '') + '.dcm';
       document.body.appendChild(a);
       a.click();
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
     } catch (e) {
-      alert(`Failed for ${createImages[i].file.name}: ${e.message || e}`);
+      alert(`Failed for ${img.file.name}: ${e.message || e}`);
     }
   }
 
