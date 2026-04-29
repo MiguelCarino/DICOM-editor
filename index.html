@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DICOM Tag Editor</title>
+  <title>DICOM</title>
   <script src="https://cdn.jsdelivr.net/npm/dcmjs@0.29.8/build/dcmjs.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
@@ -773,15 +773,100 @@
       font-family: var(--font);
     }
     .series-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Extractor Tab */
+    #extractorTab { grid-row: 2; }
+    .extractor-panel {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 16px;
+      padding: 16px 20px;
+      overflow: hidden;
+      min-height: 0;
+    }
+    @media (max-width: 1000px) {
+      .extractor-panel { grid-template-columns: 1fr; }
+      .extractor-sidebar { display: none; }
+    }
+    .extractor-left {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .extractor-grid-wrap {
+      flex: 1;
+      min-height: 200px;
+      overflow-y: auto;
+      background: var(--surface);
+      border: 2px dashed rgba(167,139,250,0.25);
+      border-radius: var(--radius);
+      padding: 12px;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .extractor-grid-wrap.has-files { cursor: default; }
+    .extractor-grid-wrap.drag-over, body.dragging .extractor-grid-wrap {
+      border-color: var(--accent);
+      background: rgba(167,139,250,0.05);
+      box-shadow: 0 0 30px var(--accent-glow);
+    }
+    .extractor-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+    }
+    .dcm-card {
+      background: var(--surface-solid);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.2s;
+    }
+    .dcm-card:hover { border-color: var(--accent); box-shadow: 0 0 15px var(--accent-glow); }
+    .dcm-card canvas { width: 100%; aspect-ratio: 1; object-fit: contain; display: block; background: #000; }
+    .dcm-card-info {
+      padding: 5px 8px;
+      font-size: 10px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: var(--mono);
+    }
+    .dcm-card-dl {
+      margin: 4px 8px 8px;
+      padding: 4px;
+      font-size: 10px;
+      font-family: var(--font);
+      background: rgba(167,139,250,0.1);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text-muted);
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .dcm-card-dl:hover { border-color: var(--accent); color: var(--accent); }
+    .extractor-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body>
   <div class="app">
     <header class="header">
-      <div class="logo">DICOM Editor</div>
+      <div class="logo">DICOM</div>
       <nav class="tab-nav">
-        <button class="tab-btn active" id="editorTabBtn">Editor</button>
-        <button class="tab-btn" id="createTabBtn">Create DICOM</button>
+        <button class="tab-btn active" id="editorTabBtn">EDITOR</button>
+        <button class="tab-btn" id="createTabBtn">Creator</button>
+        <button class="tab-btn" id="extractorTabBtn">Extractor</button>
       </nav>
       <div class="header-spacer"></div>
         <div class="brand-links">
@@ -991,6 +1076,34 @@
         <button class="series-add-btn" id="addSeriesBtn">+ Add Series</button>
       </div>
       <button class="btn primary" id="createDicomBtn">⬇ Create DICOM</button>
+    </div>
+  </div>
+  <!-- Extractor Tab -->
+  <div class="extractor-panel" id="extractorTab" style="display:none">
+    <div class="extractor-left">
+      <div class="top-bar">
+        <div class="pill" id="extractorCount">0 files</div>
+        <button class="btn" id="extractorAddBtn">+ Load DCM Files</button>
+        <input id="extractorFileInput" type="file" multiple accept=".dcm,.dicom" hidden />
+        <div style="flex:1"></div>
+        <button class="btn" id="clearExtractorBtn">Clear All</button>
+      </div>
+      <div class="extractor-grid-wrap" id="extractorGridWrap">
+        <div id="extractorGrid">
+          <div class="img-empty">
+            <div class="img-empty-icon">🩻</div>
+            <span>Drop .dcm files here or click to browse</span>
+            <span style="font-size:11px">Renders DICOM pixel data as PNG images</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="extractor-sidebar">
+      <div class="card">
+        <div class="card-title">Export</div>
+        <button class="btn primary" id="extractAllBtn" style="width:100%">&#8595; Extract All as PNG</button>
+      </div>
     </div>
   </div>
   </div>
@@ -1864,7 +1977,7 @@ window.addEventListener('drop', e => {
   if (!e.dataTransfer?.files?.length) return;
   if (activeTab === 'create') {
     addCreateImages(Array.from(e.dataTransfer.files));
-  } else {
+  } else if (activeTab === 'editor') {
     handleFiles(e.dataTransfer.files);
   }
 });
@@ -1933,26 +2046,201 @@ let activeTab = 'editor';
 
 const editorTabBtn = document.getElementById('editorTabBtn');
 const createTabBtn = document.getElementById('createTabBtn');
+const extractorTabBtn = document.getElementById('extractorTabBtn');
 const editorTabPanel = document.getElementById('editorTab');
 const createTabPanel = document.getElementById('createTab');
+const extractorTabPanel = document.getElementById('extractorTab');
 
 function switchTab(tab) {
   activeTab = tab;
-  if (tab === 'editor') {
-    editorTabBtn.classList.add('active');
-    createTabBtn.classList.remove('active');
-    editorTabPanel.style.display = '';
-    createTabPanel.style.display = 'none';
-  } else {
-    createTabBtn.classList.add('active');
-    editorTabBtn.classList.remove('active');
-    createTabPanel.style.display = '';
-    editorTabPanel.style.display = 'none';
-  }
+  editorTabBtn.classList.toggle('active', tab === 'editor');
+  createTabBtn.classList.toggle('active', tab === 'create');
+  extractorTabBtn.classList.toggle('active', tab === 'extractor');
+  editorTabPanel.style.display = tab === 'editor' ? 'grid' : 'none';
+  createTabPanel.style.display = tab === 'create' ? 'grid' : 'none';
+  extractorTabPanel.style.display = tab === 'extractor' ? 'grid' : 'none';
 }
 
 editorTabBtn.addEventListener('click', () => switchTab('editor'));
 createTabBtn.addEventListener('click', () => switchTab('create'));
+extractorTabBtn.addEventListener('click', () => switchTab('extractor'));
+
+// ============ EXTRACTOR ============
+let extractorFiles = [];
+
+const extractorAddBtn    = document.getElementById('extractorAddBtn');
+const extractorFileInput = document.getElementById('extractorFileInput');
+const extractorGridWrap  = document.getElementById('extractorGridWrap');
+const extractorGrid      = document.getElementById('extractorGrid');
+const extractorCount     = document.getElementById('extractorCount');
+const clearExtractorBtn  = document.getElementById('clearExtractorBtn');
+const extractAllBtn      = document.getElementById('extractAllBtn');
+
+extractorAddBtn.addEventListener('click', () => extractorFileInput.click());
+extractorFileInput.addEventListener('change', e => { if (e.target.files?.length) addExtractorFiles(e.target.files); });
+clearExtractorBtn.addEventListener('click', () => { extractorFiles = []; renderExtractorGrid(); });
+
+extractorGridWrap.addEventListener('click', () => extractorFileInput.click());
+extractorGridWrap.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); extractorGridWrap.classList.add('drag-over'); });
+extractorGridWrap.addEventListener('dragleave', () => extractorGridWrap.classList.remove('drag-over'));
+extractorGridWrap.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); extractorGridWrap.classList.remove('drag-over'); addExtractorFiles(e.dataTransfer.files); });
+
+async function addExtractorFiles(fileList) {
+  for (const f of fileList) {
+    const ext = f.name.split('.').pop().toLowerCase();
+    if (!['dcm','dicom'].includes(ext) && f.type !== 'application/dicom') continue;
+    const buf = await f.arrayBuffer();
+    try {
+      const msg = DicomMessage.readFile(buf);
+      normBin(msg.dict);
+      extractorFiles.push({ name: f.name, dict: msg.dict });
+    } catch(e) {
+      console.warn('[extractor] failed to parse', f.name, e);
+    }
+  }
+  renderExtractorGrid();
+}
+
+function renderDcmToCanvas(dict, canvas) {
+  const rowEl = lookupTag(dict, '00280010');
+  const colEl = lookupTag(dict, '00280011');
+  const rows = rowEl?.Value?.[0];
+  const cols = colEl?.Value?.[0];
+  const spp  = lookupTag(dict, '00280002')?.Value?.[0] || 1;
+  const pi   = lookupTag(dict, '00280004')?.Value?.[0];
+  const ba   = lookupTag(dict, '00280100')?.Value?.[0] || 16;
+  const bs   = lookupTag(dict, '00280101')?.Value?.[0] || ba;
+  const hb   = lookupTag(dict, '00280102')?.Value?.[0] || bs - 1;
+  const pr   = lookupTag(dict, '00280103')?.Value?.[0] || 0;
+  const wc   = lookupTag(dict, '00281050')?.Value?.[0];
+  const ww   = lookupTag(dict, '00281051')?.Value?.[0];
+
+  const isMonochrome = /^MONOCHROME[12]$/i.test(pi || '');
+  const isRGB = /^(RGB|YBR_FULL)$/i.test(pi || '') && spp === 3;
+  if (!rows || !cols || (!isMonochrome && !isRGB)) return false;
+
+  const px = lookupTag(dict, '7fe00010');
+  if (!px) return false;
+  if (typeof px.InlineBinary === 'string' && !px.Value?.[0]) {
+    try { px.Value = [b64ToAB(px.InlineBinary)]; } catch(e) {}
+  }
+  if (!px.Value?.[0]) return false;
+  let pxBuf = px.Value[0];
+  if (ArrayBuffer.isView(pxBuf)) pxBuf = pxBuf.buffer.slice(pxBuf.byteOffset, pxBuf.byteOffset + pxBuf.byteLength);
+  if (!(pxBuf instanceof ArrayBuffer)) return false;
+
+  canvas.width = cols;
+  canvas.height = rows;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(cols, rows);
+  const out = img.data;
+
+  if (isRGB) {
+    const raw = new Uint8Array(pxBuf);
+    for (let i = 0; i < rows * cols; i++) {
+      const p = i * 4;
+      out[p]     = raw[i * 3];
+      out[p + 1] = raw[i * 3 + 1];
+      out[p + 2] = raw[i * 3 + 2];
+      out[p + 3] = 255;
+    }
+  } else {
+    const data = ba === 16 ? new (pr ? Int16Array : Uint16Array)(pxBuf) :
+                 ba === 8  ? new Uint8Array(pxBuf) : null;
+    if (!data) return false;
+    const mask = bs < 16 ? (1 << bs) - 1 : 0xFFFF;
+    const shift = hb - bs + 1;
+    for (let i = 0; i < rows * cols; i++) {
+      let v = data[i];
+      if (ba === 16) {
+        if (!pr) v >>>= 0;
+        if (shift > 0) v >>>= shift;
+        if (bs < 16) v &= mask;
+        if (pr) { const sb = 1 << (bs - 1); if (v & sb) v -= sb << 1; }
+      }
+      let g = v;
+      if (ww && wc) {
+        const lo = wc - 0.5 - (ww - 1) / 2;
+        const hi = wc - 0.5 + (ww - 1) / 2;
+        g = v <= lo ? 0 : v > hi ? 255 : Math.round(((v - lo) / (hi - lo)) * 255);
+      } else {
+        const mx = (1 << bs) - 1;
+        g = Math.round((v / mx) * 255);
+      }
+      const p = i * 4;
+      out[p] = out[p + 1] = out[p + 2] = g;
+      out[p + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return true;
+}
+
+function renderExtractorGrid() {
+  extractorCount.textContent = `${extractorFiles.length} file${extractorFiles.length !== 1 ? 's' : ''}`;
+  if (extractorFiles.length === 0) {
+    extractorGrid.className = '';
+    extractorGridWrap.classList.remove('has-files');
+    extractorGrid.innerHTML = `<div class="img-empty"><div class="img-empty-icon">🩻</div><span>Drop .dcm files here or click to browse</span><span style="font-size:11px">Renders DICOM pixel data as PNG images</span></div>`;
+    return;
+  }
+  extractorGrid.className = 'extractor-grid';
+  extractorGridWrap.classList.add('has-files');
+  extractorGrid.innerHTML = '';
+  extractorFiles.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'dcm-card';
+
+    const canvas = document.createElement('canvas');
+    const ok = renderDcmToCanvas(item.dict, canvas);
+    if (!ok) {
+      canvas.width = 160; canvas.height = 160;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(0, 0, 160, 160);
+      ctx.fillStyle = '#555';
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('No image data', 80, 80);
+    }
+
+    const info = document.createElement('div');
+    info.className = 'dcm-card-info';
+    info.textContent = item.name;
+    info.title = item.name;
+
+    const dl = document.createElement('button');
+    dl.className = 'dcm-card-dl';
+    dl.textContent = '\u2193 Save PNG';
+    dl.addEventListener('click', e => {
+      e.stopPropagation();
+      const base = item.name.replace(/\.[^.]+$/, '');
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = base + '.png';
+      a.click();
+    });
+    card.addEventListener('click', e => e.stopPropagation());
+
+    card.appendChild(canvas);
+    card.appendChild(info);
+    card.appendChild(dl);
+    extractorGrid.appendChild(card);
+  });
+}
+
+extractAllBtn.addEventListener('click', () => {
+  if (!extractorFiles.length) return;
+  extractorFiles.forEach(item => {
+    const canvas = document.createElement('canvas');
+    if (!renderDcmToCanvas(item.dict, canvas)) return;
+    const base = item.name.replace(/\.[^.]+$/, '');
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = base + '.png';
+    a.click();
+  });
+});
 
 // ============ CREATE DICOM ============
 let createImages = [];
