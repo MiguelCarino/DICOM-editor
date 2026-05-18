@@ -1396,7 +1396,15 @@ function elToString(el) {
   if (el.InlineBinary) return '<binary>';
   const v = el.Value;
   if (v == null) return '';
-  if (Array.isArray(v)) return v.map(x => x == null ? '' : String(x)).join('\\');
+  if (Array.isArray(v)) return v.map(x => {
+    if (x == null) return '';
+    if (typeof x === 'object' && x !== null) {
+      // PersonName stored as {Alphabetic, Ideographic, Phonetic}
+      const parts = [x.Alphabetic || '', x.Ideographic, x.Phonetic].filter(c => c != null);
+      return parts.join('=').replace(/=+$/, '');
+    }
+    return String(x);
+  }).join('\\');
   return String(v);
 }
 function parseByVR(vr, str) {
@@ -1405,6 +1413,14 @@ function parseByVR(vr, str) {
   switch (vr) {
     case 'US': case 'UL': case 'SS': case 'SL': case 'FL': case 'FD':
       return parts.map(x => { const n = Number(x); return Number.isFinite(n) ? n : 0; });
+    case 'PN':
+      return parts.map(s => {
+        const [a = '', i = '', p = ''] = s.split('=');
+        const obj = { Alphabetic: a };
+        if (i) obj.Ideographic = i;
+        if (p) obj.Phonetic = p;
+        return obj;
+      });
     default: return parts;
   }
 }
@@ -2181,6 +2197,12 @@ function downloadRange(start, end) {
       const d = typeof structuredClone === 'function' ? structuredClone(f.dict) : {...f.dict};
       pendingEdits.forEach(({ vr, valueString }, t) => {
         if (!isReadOnly(t, vr)) d[t] = { vr, Value: parseByVR(vr, valueString) };
+      });
+      // Remove deprecated group length tags (element 0000) — their byte-count values
+      // become stale after any edit, and dcmjs throws for private groups like (000F,0000).
+      Object.keys(d).forEach(t => {
+        const hex = (t.startsWith('x') ? t.slice(1) : t).toLowerCase();
+        if (hex.length === 8 && hex.slice(4) === '0000') delete d[t];
       });
       const m = ensureMeta(d, f.meta);
       normBin(d);
