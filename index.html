@@ -1722,6 +1722,13 @@ function ensureMeta(denat, fm) {
   if (!m.FileMetaInformationVersion) m.FileMetaInformationVersion = { vr:'OB', Value:[new Uint8Array([0,1]).buffer] };
   if (sopC) m.MediaStorageSOPClassUID = { vr:'UI', Value:[sopC] };
   if (sopI) m.MediaStorageSOPInstanceUID = { vr:'UI', Value:[sopI] };
+  // dcmjs always writes the dataset as Explicit VR Little Endian regardless of the
+  // source transfer syntax. Uncompressed variants must be normalised to EVLE so the
+  // meta header matches the actual byte encoding — a mismatch makes files unreadable.
+  const ts = (m.TransferSyntaxUID?.Value?.[0] ?? '').trim();
+  const uncompressed = new Set(['', '1.2.840.10008.1.2', '1.2.840.10008.1.2.1',
+                                 '1.2.840.10008.1.2.2', '1.2.840.10008.1.2.1.99']);
+  if (uncompressed.has(ts)) m.TransferSyntaxUID = { vr:'UI', Value:['1.2.840.10008.1.2.1'] };
   if (!m.TransferSyntaxUID) m.TransferSyntaxUID = { vr:'UI', Value:['1.2.840.10008.1.2.1'] };
   if (!m.ImplementationClassUID) m.ImplementationClassUID = { vr:'UI', Value:['1.2.826.0.1.3680043.10.743'] };
   return m;
