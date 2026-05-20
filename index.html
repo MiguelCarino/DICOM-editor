@@ -1717,20 +1717,35 @@ function normBin(node) {
 
 function ensureMeta(denat, fm) {
   const m = fm && typeof fm === 'object' ? {...fm} : {};
-  const sopC = denat['x00080016']?.Value?.[0];
-  const sopI = denat['x00080018']?.Value?.[0];
-  if (!m.FileMetaInformationVersion) m.FileMetaInformationVersion = { vr:'OB', Value:[new Uint8Array([0,1]).buffer] };
-  if (sopC) m.MediaStorageSOPClassUID = { vr:'UI', Value:[sopC] };
-  if (sopI) m.MediaStorageSOPInstanceUID = { vr:'UI', Value:[sopI] };
-  // dcmjs always writes the dataset as Explicit VR Little Endian regardless of the
-  // source transfer syntax. Uncompressed variants must be normalised to EVLE so the
-  // meta header matches the actual byte encoding — a mismatch makes files unreadable.
-  const ts = (m.TransferSyntaxUID?.Value?.[0] ?? '').trim();
-  const uncompressed = new Set(['', '1.2.840.10008.1.2', '1.2.840.10008.1.2.1',
-                                 '1.2.840.10008.1.2.2', '1.2.840.10008.1.2.1.99']);
-  if (uncompressed.has(ts)) m.TransferSyntaxUID = { vr:'UI', Value:['1.2.840.10008.1.2.1'] };
-  if (!m.TransferSyntaxUID) m.TransferSyntaxUID = { vr:'UI', Value:['1.2.840.10008.1.2.1'] };
-  if (!m.ImplementationClassUID) m.ImplementationClassUID = { vr:'UI', Value:['1.2.826.0.1.3680043.10.743'] };
+
+  // Sync SOP UIDs from the dataset into meta so they stay consistent after edits.
+  // denat may use plain 8-char hex or x-prefixed keys depending on the dcmjs version.
+  const sopC = (denat['00080016'] ?? denat['x00080016'])?.Value?.[0];
+  const sopI = (denat['00080018'] ?? denat['x00080018'])?.Value?.[0];
+
+  // DicomDict.write() reads meta by plain 8-char hex key (e.g. meta["00020010"]).
+  // Camelcase keys like m.TransferSyntaxUID are silently ignored — use hex keys only.
+  if (!(m['00020001'] ?? m.FileMetaInformationVersion))
+    m['00020001'] = { vr:'OB', Value:[new Uint8Array([0,1]).buffer] };
+  if (sopC) m['00020002'] = { vr:'UI', Value:[sopC] };
+  if (sopI) m['00020003'] = { vr:'UI', Value:[sopI] };
+
+  // dcmjs always encodes the dataset as Explicit VR Little Endian regardless of the
+  // source transfer syntax. If the meta still says Implicit VR (or another uncompressed
+  // variant) every reader misparsed the dataset — all tag offsets land in the wrong place.
+  const tsEl = m['00020010'] ?? m.TransferSyntaxUID;
+  const ts = (tsEl?.Value?.[0] ?? '').trim();
+  const uncompressedTS = new Set(['', '1.2.840.10008.1.2', '1.2.840.10008.1.2.1',
+                                   '1.2.840.10008.1.2.2', '1.2.840.10008.1.2.1.99']);
+  if (uncompressedTS.has(ts)) {
+    m['00020010'] = { vr:'UI', Value:['1.2.840.10008.1.2.1'] };
+    delete m.TransferSyntaxUID; // remove any stale camelCase copy
+  }
+  if (!m['00020010'] && !m.TransferSyntaxUID)
+    m['00020010'] = { vr:'UI', Value:['1.2.840.10008.1.2.1'] };
+  if (!m['00020012'] && !m.ImplementationClassUID)
+    m['00020012'] = { vr:'UI', Value:['1.2.826.0.1.3680043.10.743'] };
+
   return m;
 }
 
