@@ -5,20 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DICOM</title>
   <script src="https://cdn.jsdelivr.net/npm/dcmjs@0.29.8/build/dcmjs.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=IBM+Plex+Sans:wght@300;400;500;700&family=Red+Hat+Display:wght@700;900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0c0a1d;
-      --bg-gradient: linear-gradient(135deg, #0c0a1d 0%, #1a1333 50%, #0f1a2e 100%);
-      --surface: rgba(255,255,255,0.04);
-      --surface-solid: #161229;
+      --surface: #012d54;
+      --surface-solid: #011d3a;
       --surface-hover: rgba(255,255,255,0.08);
-      --border: rgba(255,255,255,0.08);
-      --border-glow: rgba(139,92,246,0.3);
-      --text: #f0f0ff;
-      --text-dim: #a0a0c0;
-      --text-muted: #606080;
-      
+      --border: #262626;
+      --border-glow: rgba(234,179,8,0.3);
+      --text: #ffffff;
+      --text-dim: #a3a3a3;
+      --text-muted: #666666;
+
       /* Vibrant category colors */
       --cat-patient: #22d3ee;
       --cat-patient-bg: rgba(34,211,238,0.15);
@@ -36,22 +34,23 @@
       --cat-private-bg: rgba(248,113,113,0.15);
       --cat-other: #94a3b8;
       --cat-other-bg: rgba(148,163,184,0.15);
-      
-      --accent: #a78bfa;
-      --accent-glow: rgba(167,139,250,0.4);
+
+      --accent: #eab308;
+      --accent-faint: rgba(234,179,8,0.05);
+      --accent-glow: rgba(234,179,8,0.15);
       --pink: #f472b6;
       --cyan: #22d3ee;
-      
-      --font: 'Space Grotesk', sans-serif;
-      --mono: 'JetBrains Mono', monospace;
-      --radius: 12px;
+
+      --font: 'IBM Plex Sans', sans-serif;
+      --mono: 'IBM Plex Mono', monospace;
+      --radius: 4px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; overflow: hidden; }
     body {
       font-family: var(--font);
-      background: var(--bg);
-      background-image: var(--bg-gradient);
+      background: linear-gradient(135deg, #000000 0%, #000000 100%);
+      background-attachment: fixed;
       color: var(--text);
       line-height: 1.5;
     }
@@ -70,15 +69,15 @@
       align-items: center;
       gap: 16px;
       padding: 12px 20px;
-      background: rgba(12,10,29,0.8);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, #0f0f0f 0%, #050505 100%);
+      border-bottom: 1px solid #262626;
       z-index: 100;
     }
     .logo {
-      font-weight: 700;
+      font-family: 'Red Hat Display', sans-serif;
+      font-weight: 900;
       font-size: 18px;
-      background: linear-gradient(135deg, var(--cyan), var(--accent), var(--pink));
+      background: linear-gradient(130deg, #fef08a 0%, #eab308 50%, #b45309 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -105,14 +104,14 @@
       box-shadow: 0 0 20px var(--accent-glow);
     }
     .btn.primary {
-      background: linear-gradient(135deg, var(--accent), var(--pink));
+      background: var(--accent);
       border: none;
-      color: #fff;
-      font-weight: 600;
+      color: #0a0a0a;
+      font-weight: 700;
     }
     .btn.primary:hover {
       filter: brightness(1.1);
-      box-shadow: 0 0 30px var(--accent-glow);
+      box-shadow: 0 4px 12px var(--accent-glow);
     }
     
     /* Main Content */
@@ -226,7 +225,7 @@
     .filter-btn.active {
       color: var(--text);
       border-color: var(--accent);
-      background: rgba(167,139,250,0.1);
+      background: rgba(234,179,8,0.1);
     }
     .filter-btn .dot {
       width: 8px;
@@ -429,16 +428,14 @@
     }
     .drop-zone:hover, body.dragging .drop-zone {
       border-color: var(--accent);
-      background: rgba(167,139,250,0.05);
-      box-shadow: 0 0 30px var(--accent-glow);
+      background: rgba(234,179,8,0.05);
+      box-shadow: 0 0 20px var(--accent-glow);
     }
     .drop-zone h4 {
       font-size: 13px;
       font-weight: 600;
       margin-bottom: 4px;
-      background: linear-gradient(135deg, var(--cyan), var(--pink));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: var(--accent);
     }
     .drop-zone p {
       font-size: 11px;
@@ -519,8 +516,8 @@
       transition: all 0.2s;
     }
     .compare-drop:hover {
-      border-color: var(--pink);
-      background: rgba(244,114,182,0.05);
+      border-color: var(--accent);
+      background: rgba(234,179,8,0.05);
     }
     .compare-legend {
       display: flex;
@@ -594,10 +591,10 @@
     }
     .tab-btn:hover { color: var(--text-dim); border-color: var(--border-glow); }
     .tab-btn.active {
-      background: rgba(167,139,250,0.15);
+      background: rgba(234,179,8,0.15);
       border-color: var(--accent);
-      color: var(--text);
-      box-shadow: 0 0 15px var(--accent-glow);
+      color: var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
     }
 
     /* Create DICOM Tab */
@@ -633,8 +630,8 @@
     }
     .img-grid-wrap.drag-over, body.dragging .img-grid-wrap {
       border-color: var(--accent);
-      background: rgba(167,139,250,0.05);
-      box-shadow: 0 0 30px var(--accent-glow);
+      background: rgba(234,179,8,0.05);
+      box-shadow: 0 0 20px var(--accent-glow);
     }
     .img-grid {
       display: grid;
@@ -719,10 +716,10 @@
     .form-select { cursor: pointer; }
     .form-select option { background: var(--surface-solid); }
 
-    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.3); border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(167,139,250,0.5); }
+    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.5); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(234,179,8,0.5); }
 
     /* Series assignment */
     .img-thumb-series {
@@ -741,7 +738,7 @@
       backdrop-filter: blur(4px);
       max-width: 52px;
     }
-    .img-thumb-series option { background: #161229; }
+    .img-thumb-series option { background: #012d54; }
     .series-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
     .series-item { display: flex; align-items: center; gap: 6px; }
     .series-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
@@ -800,7 +797,7 @@
       min-height: 200px;
       overflow-y: auto;
       background: var(--surface);
-      border: 2px dashed rgba(167,139,250,0.25);
+      border: 2px dashed #262626;
       border-radius: var(--radius);
       padding: 12px;
       transition: all 0.2s;
@@ -809,8 +806,8 @@
     .extractor-grid-wrap.has-files { cursor: default; }
     .extractor-grid-wrap.drag-over, body.dragging .extractor-grid-wrap {
       border-color: var(--accent);
-      background: rgba(167,139,250,0.05);
-      box-shadow: 0 0 30px var(--accent-glow);
+      background: rgba(234,179,8,0.05);
+      box-shadow: 0 0 20px var(--accent-glow);
     }
     .extractor-grid {
       display: grid;
@@ -842,7 +839,7 @@
       padding: 4px;
       font-size: 10px;
       font-family: var(--font);
-      background: rgba(167,139,250,0.1);
+      background: rgba(234,179,8,0.08);
       border: 1px solid var(--border);
       border-radius: 5px;
       color: var(--text-muted);
@@ -932,7 +929,7 @@
     <header class="header">
       <div class="logo">DICOM</div>
       <nav class="tab-nav">
-        <button class="tab-btn active" id="editorTabBtn">EDITOR</button>
+        <button class="tab-btn active" id="editorTabBtn">Editor</button>
         <button class="tab-btn" id="createTabBtn">Creator</button>
         <button class="tab-btn" id="extractorTabBtn">Extractor</button>
       </nav>
@@ -1212,12 +1209,16 @@ const TAG_DICT = {
   'x00080021': { desc: 'Series Date', cat: 'series' },
   'x00080022': { desc: 'Acquisition Date', cat: 'image' },
   'x00080023': { desc: 'Content Date', cat: 'image' },
+  'x0008002a': { desc: 'Acquisition DateTime', cat: 'image' },
   'x00080030': { desc: 'Study Time', cat: 'study' },
   'x00080031': { desc: 'Series Time', cat: 'series' },
   'x00080032': { desc: 'Acquisition Time', cat: 'image' },
   'x00080033': { desc: 'Content Time', cat: 'image' },
   'x00080050': { desc: 'Accession Number', cat: 'study' },
   'x00080060': { desc: 'Modality', cat: 'series' },
+  'x00080061': { desc: 'Modalities in Study', cat: 'study' },
+  'x00080064': { desc: 'Conversion Type', cat: 'image' },
+  'x00080068': { desc: 'Presentation Intent Type', cat: 'image' },
   'x00080070': { desc: 'Manufacturer', cat: 'equipment' },
   'x00080080': { desc: 'Institution Name', cat: 'equipment' },
   'x00080081': { desc: 'Institution Address', cat: 'equipment' },
@@ -1225,6 +1226,7 @@ const TAG_DICT = {
   'x00080090': { desc: 'Referring Physician Name', cat: 'study' },
   'x00080092': { desc: "Referring Physician's Address", cat: 'study' },
   'x00080094': { desc: "Referring Physician's Telephone Numbers", cat: 'study' },
+  'x00080201': { desc: 'Timezone Offset From UTC', cat: 'other' },
   'x00081010': { desc: 'Station Name', cat: 'equipment' },
   'x00081030': { desc: 'Study Description', cat: 'study' },
   'x0008103e': { desc: 'Series Description', cat: 'series' },
@@ -1234,7 +1236,20 @@ const TAG_DICT = {
   'x00081050': { desc: 'Performing Physician Name', cat: 'study' },
   'x00081060': { desc: 'Name of Physician(s) Reading Study', cat: 'study' },
   'x00081070': { desc: 'Operators Name', cat: 'study' },
+  'x00081080': { desc: 'Admitting Diagnoses Description', cat: 'study' },
+  'x00081084': { desc: 'Admitting Diagnoses Code Sequence', cat: 'study' },
   'x00081090': { desc: 'Manufacturer Model Name', cat: 'equipment' },
+  'x00081110': { desc: 'Referenced Study Sequence', cat: 'study' },
+  'x00081111': { desc: 'Referenced Performed Procedure Step Sequence', cat: 'study' },
+  'x00081115': { desc: 'Referenced Series Sequence', cat: 'series' },
+  'x00081140': { desc: 'Referenced Image Sequence', cat: 'image' },
+  'x00081150': { desc: 'Referenced SOP Class UID', cat: 'uid' },
+  'x00081155': { desc: 'Referenced SOP Instance UID', cat: 'uid' },
+  'x00081160': { desc: 'Referenced Frame Number', cat: 'image' },
+  'x00082110': { desc: 'Lossy Image Compression (retired)', cat: 'image' },
+  'x00082111': { desc: 'Derivation Description', cat: 'image' },
+  'x00082112': { desc: 'Source Image Sequence', cat: 'image' },
+  'x00089209': { desc: 'Acquisition Contrast', cat: 'image' },
   
   // Patient
   'x00100010': { desc: 'Patient Name', cat: 'patient' },
@@ -1243,17 +1258,32 @@ const TAG_DICT = {
   'x00100030': { desc: 'Patient Birth Date', cat: 'patient' },
   'x00100032': { desc: 'Patient Birth Time', cat: 'patient' },
   'x00100040': { desc: 'Patient Sex', cat: 'patient' },
+  'x00101000': { desc: 'Other Patient IDs', cat: 'patient' },
+  'x00101001': { desc: 'Other Patient Names', cat: 'patient' },
+  'x00101002': { desc: 'Other Patient IDs Sequence', cat: 'patient' },
+  'x00101005': { desc: "Patient's Birth Name", cat: 'patient' },
   'x00101010': { desc: 'Patient Age', cat: 'patient' },
   'x00101020': { desc: 'Patient Size', cat: 'patient' },
+  'x00101021': { desc: "Patient's Size Code Sequence", cat: 'patient' },
+  'x00101022': { desc: "Patient's Body Mass Index", cat: 'patient' },
   'x00101030': { desc: 'Patient Weight', cat: 'patient' },
   'x00101040': { desc: "Patient's Address", cat: 'patient' },
   'x00101060': { desc: "Patient's Mother's Maiden Name", cat: 'patient' },
   'x00101080': { desc: 'Military Rank', cat: 'patient' },
   'x00101090': { desc: 'Medical Record Locator', cat: 'patient' },
+  'x00102000': { desc: 'Medical Alerts', cat: 'patient' },
+  'x00102110': { desc: 'Allergies', cat: 'patient' },
+  'x00102150': { desc: 'Country of Residence', cat: 'patient' },
   'x00102160': { desc: 'Ethnic Group', cat: 'patient' },
   'x00102180': { desc: 'Occupation', cat: 'patient' },
   'x001021a0': { desc: 'Smoking Status', cat: 'patient' },
   'x001021b0': { desc: "Additional Patient's History", cat: 'patient' },
+  'x001021c0': { desc: 'Pregnancy Status', cat: 'patient' },
+  'x001021d0': { desc: 'Last Menstrual Date', cat: 'patient' },
+  'x001021f0': { desc: "Patient's Religious Preference", cat: 'patient' },
+  'x00102297': { desc: 'Responsible Person', cat: 'patient' },
+  'x00102298': { desc: 'Responsible Person Role', cat: 'patient' },
+  'x00102299': { desc: 'Responsible Organization', cat: 'patient' },
   'x00104000': { desc: 'Patient Comments', cat: 'patient' },
   
   // Acquisition / Equipment
@@ -1263,33 +1293,92 @@ const TAG_DICT = {
   'x00180021': { desc: 'Sequence Variant', cat: 'series' },
   'x00180022': { desc: 'Scan Options', cat: 'series' },
   'x00180023': { desc: 'MR Acquisition Type', cat: 'series' },
+  'x00180024': { desc: 'Sequence Name', cat: 'series' },
+  'x00180025': { desc: 'Angio Flag', cat: 'image' },
   'x00180050': { desc: 'Slice Thickness', cat: 'image' },
   'x00180060': { desc: 'KVP', cat: 'image' },
   'x00180080': { desc: 'Repetition Time', cat: 'image' },
   'x00180081': { desc: 'Echo Time', cat: 'image' },
   'x00180082': { desc: 'Inversion Time', cat: 'image' },
+  'x00180083': { desc: 'Number of Averages', cat: 'image' },
+  'x00180084': { desc: 'Imaging Frequency', cat: 'image' },
   'x00180085': { desc: 'Imaged Nucleus', cat: 'image' },
+  'x00180086': { desc: 'Echo Number(s)', cat: 'image' },
   'x00180087': { desc: 'Magnetic Field Strength', cat: 'image' },
   'x00180088': { desc: 'Spacing Between Slices', cat: 'image' },
+  'x00180089': { desc: 'Number of Phase Encoding Steps', cat: 'image' },
   'x00180091': { desc: 'Echo Train Length', cat: 'image' },
+  'x00180093': { desc: 'Percent Sampling', cat: 'image' },
+  'x00180094': { desc: 'Percent Phase Field of View', cat: 'image' },
+  'x00180095': { desc: 'Pixel Bandwidth', cat: 'image' },
   'x00181000': { desc: 'Device Serial Number', cat: 'equipment' },
+  'x00181004': { desc: 'Plate ID', cat: 'equipment' },
+  'x00181008': { desc: 'Gantry ID', cat: 'equipment' },
   'x00181020': { desc: 'Software Versions', cat: 'equipment' },
   'x00181030': { desc: 'Protocol Name', cat: 'equipment' },
+  'x00181040': { desc: 'Contrast/Bolus Route', cat: 'series' },
+  'x00181041': { desc: 'Contrast/Bolus Volume', cat: 'series' },
+  'x00181042': { desc: 'Contrast/Bolus Start Time', cat: 'series' },
+  'x00181043': { desc: 'Contrast/Bolus Stop Time', cat: 'series' },
+  'x00181044': { desc: 'Contrast/Bolus Total Dose', cat: 'series' },
+  'x00181048': { desc: 'Contrast/Bolus Ingredient', cat: 'series' },
+  'x00181049': { desc: 'Contrast/Bolus Ingredient Concentration', cat: 'series' },
   'x00181050': { desc: 'Spatial Resolution', cat: 'image' },
+  'x00181060': { desc: 'Trigger Time', cat: 'image' },
+  'x00181063': { desc: 'Frame Time', cat: 'image' },
+  'x00181065': { desc: 'Frame Time Vector', cat: 'image' },
+  'x00181066': { desc: 'Frame Delay', cat: 'image' },
   'x00181070': { desc: 'Radiopharmaceutical Route', cat: 'image' },
+  'x00181072': { desc: 'Radiopharmaceutical Start Time', cat: 'image' },
+  'x00181073': { desc: 'Radiopharmaceutical Stop Time', cat: 'image' },
+  'x00181074': { desc: 'Radionuclide Total Dose', cat: 'image' },
+  'x00181075': { desc: 'Radionuclide Half Life', cat: 'image' },
   'x00181080': { desc: 'Beat Rejection Flag', cat: 'image' },
+  'x00181081': { desc: 'Low R-R Value', cat: 'image' },
+  'x00181082': { desc: 'High R-R Value', cat: 'image' },
+  'x00181083': { desc: 'Intervals Acquired', cat: 'image' },
+  'x00181084': { desc: 'Intervals Rejected', cat: 'image' },
+  'x00181088': { desc: 'Heart Rate', cat: 'image' },
   'x00181090': { desc: 'Cardiac Number of Images', cat: 'image' },
+  'x00181094': { desc: 'Trigger Window', cat: 'image' },
   'x00181100': { desc: 'Reconstruction Diameter', cat: 'image' },
   'x00181110': { desc: 'Distance Source to Detector', cat: 'image' },
+  'x00181111': { desc: 'Distance Source to Patient', cat: 'image' },
   'x00181120': { desc: 'Gantry/Detector Tilt', cat: 'image' },
+  'x00181121': { desc: 'Gantry/Detector Slew', cat: 'image' },
   'x00181130': { desc: 'Table Height', cat: 'image' },
   'x00181140': { desc: 'Rotation Direction', cat: 'image' },
+  'x00181147': { desc: 'Field of View Shape', cat: 'image' },
+  'x00181149': { desc: 'Field of View Dimension(s)', cat: 'image' },
   'x00181150': { desc: 'Exposure Time', cat: 'image' },
   'x00181151': { desc: 'X-Ray Tube Current', cat: 'image' },
   'x00181152': { desc: 'Exposure', cat: 'image' },
+  'x00181153': { desc: 'Exposure in uAs', cat: 'image' },
   'x00181160': { desc: 'Filter Type', cat: 'image' },
+  'x00181164': { desc: 'Imager Pixel Spacing', cat: 'image' },
+  'x00181170': { desc: 'Generator Power', cat: 'image' },
+  'x00181190': { desc: 'Focal Spot(s)', cat: 'image' },
+  'x00181200': { desc: 'Date of Last Calibration', cat: 'equipment' },
+  'x00181201': { desc: 'Time of Last Calibration', cat: 'equipment' },
   'x00181210': { desc: 'Convolution Kernel', cat: 'image' },
+  'x00181242': { desc: 'Actual Frame Duration', cat: 'image' },
+  'x00181250': { desc: 'Receive Coil Name', cat: 'equipment' },
+  'x00181251': { desc: 'Transmit Coil Name', cat: 'equipment' },
+  'x00181310': { desc: 'Acquisition Matrix', cat: 'image' },
+  'x00181312': { desc: 'In-plane Phase Encoding Direction', cat: 'image' },
+  'x00181314': { desc: 'Flip Angle', cat: 'image' },
+  'x00181315': { desc: 'Variable Flip Angle Flag', cat: 'image' },
+  'x00181316': { desc: 'SAR', cat: 'image' },
+  'x00181400': { desc: 'Acquisition Device Processing Description', cat: 'image' },
+  'x00184000': { desc: 'Acquisition Comments', cat: 'image' },
+  'x00185010': { desc: 'Transducer Data', cat: 'image' },
+  'x00185012': { desc: 'Focus Depth', cat: 'image' },
+  'x00185050': { desc: 'Depth of Scan Field', cat: 'image' },
   'x00185100': { desc: 'Patient Position', cat: 'series' },
+  'x00189004': { desc: 'Content Qualification', cat: 'image' },
+  'x00189073': { desc: 'Acquisition Duration', cat: 'image' },
+  'x00189087': { desc: 'Diffusion b-value', cat: 'image' },
+  'x00189089': { desc: 'Diffusion Gradient Direction', cat: 'image' },
   
   // Relationship
   'x0020000d': { desc: 'Study Instance UID', cat: 'uid' },
@@ -1301,27 +1390,73 @@ const TAG_DICT = {
   'x00200032': { desc: 'Image Position (Patient)', cat: 'image' },
   'x00200037': { desc: 'Image Orientation (Patient)', cat: 'image' },
   'x00200052': { desc: 'Frame of Reference UID', cat: 'uid' },
+  'x00200060': { desc: 'Laterality', cat: 'image' },
+  'x00200062': { desc: 'Image Laterality', cat: 'image' },
+  'x00200100': { desc: 'Temporal Position Identifier', cat: 'image' },
+  'x00200105': { desc: 'Number of Temporal Positions', cat: 'image' },
+  'x00200110': { desc: 'Temporal Resolution', cat: 'image' },
+  'x00200200': { desc: 'Synchronization Frame of Reference UID', cat: 'uid' },
   'x00201040': { desc: 'Position Reference Indicator', cat: 'image' },
   'x00201041': { desc: 'Slice Location', cat: 'image' },
-  'x00200062': { desc: 'Image Laterality', cat: 'image' },
+  'x00204000': { desc: 'Image Comments', cat: 'image' },
+  'x00209056': { desc: 'Stack ID', cat: 'image' },
+  'x00209057': { desc: 'In-Stack Position Number', cat: 'image' },
 
   // Image Plane / Pixel
   'x00280002': { desc: 'Samples per Pixel', cat: 'image' },
   'x00280004': { desc: 'Photometric Interpretation', cat: 'image' },
   'x00280006': { desc: 'Planar Configuration', cat: 'image' },
+  'x00280008': { desc: 'Number of Frames', cat: 'image' },
+  'x00280009': { desc: 'Frame Increment Pointer', cat: 'image' },
   'x00280010': { desc: 'Rows', cat: 'image' },
   'x00280011': { desc: 'Columns', cat: 'image' },
   'x00280030': { desc: 'Pixel Spacing', cat: 'image' },
+  'x00280034': { desc: 'Pixel Aspect Ratio', cat: 'image' },
+  'x00280051': { desc: 'Corrected Image', cat: 'image' },
   'x00280100': { desc: 'Bits Allocated', cat: 'image' },
   'x00280101': { desc: 'Bits Stored', cat: 'image' },
   'x00280102': { desc: 'High Bit', cat: 'image' },
   'x00280103': { desc: 'Pixel Representation', cat: 'image' },
+  'x00280106': { desc: 'Smallest Image Pixel Value', cat: 'image' },
+  'x00280107': { desc: 'Largest Image Pixel Value', cat: 'image' },
+  'x00280108': { desc: 'Smallest Pixel Value in Series', cat: 'image' },
+  'x00280109': { desc: 'Largest Pixel Value in Series', cat: 'image' },
+  'x00280120': { desc: 'Pixel Padding Value', cat: 'image' },
+  'x00280301': { desc: 'Burned In Annotation', cat: 'image' },
+  'x00280302': { desc: 'Recognizable Visual Features', cat: 'image' },
+  'x00280303': { desc: 'Longitudinal Temporal Information Modified', cat: 'other' },
   'x00281050': { desc: 'Window Center', cat: 'image' },
   'x00281051': { desc: 'Window Width', cat: 'image' },
   'x00281052': { desc: 'Rescale Intercept', cat: 'image' },
   'x00281053': { desc: 'Rescale Slope', cat: 'image' },
   'x00281054': { desc: 'Rescale Type', cat: 'image' },
-  
+  'x00281055': { desc: 'Window Center & Width Explanation', cat: 'image' },
+  'x00282110': { desc: 'Lossy Image Compression', cat: 'image' },
+  'x00282112': { desc: 'Lossy Image Compression Ratio', cat: 'image' },
+  'x00282114': { desc: 'Lossy Image Compression Method', cat: 'image' },
+
+  // Study / Visit / Procedure
+  'x00321060': { desc: 'Requested Procedure Description', cat: 'study' },
+  'x00324000': { desc: 'Study Comments', cat: 'study' },
+  'x00380010': { desc: 'Admission ID', cat: 'other' },
+  'x00380020': { desc: 'Admitting Date', cat: 'other' },
+  'x00380021': { desc: 'Admitting Time', cat: 'other' },
+  'x00380300': { desc: 'Current Patient Location', cat: 'other' },
+  'x00380500': { desc: 'Patient State', cat: 'other' },
+  'x00384000': { desc: 'Visit Comments', cat: 'other' },
+  'x00400244': { desc: 'Performed Procedure Step Start Date', cat: 'study' },
+  'x00400245': { desc: 'Performed Procedure Step Start Time', cat: 'study' },
+  'x00400250': { desc: 'Performed Procedure Step End Date', cat: 'study' },
+  'x00400251': { desc: 'Performed Procedure Step End Time', cat: 'study' },
+  'x00400253': { desc: 'Performed Procedure Step ID', cat: 'study' },
+  'x00400254': { desc: 'Performed Procedure Step Description', cat: 'study' },
+  'x00400260': { desc: 'Performed Protocol Code Sequence', cat: 'study' },
+  'x00400275': { desc: 'Request Attributes Sequence', cat: 'study' },
+  'x00400280': { desc: 'Comments on Performed Procedure Step', cat: 'study' },
+  'x00401001': { desc: 'Requested Procedure ID', cat: 'study' },
+  'x00401002': { desc: 'Reason for Requested Procedure', cat: 'study' },
+  'x00401003': { desc: 'Requested Procedure Priority', cat: 'study' },
+
   // Pixel Data
   'x7fe00010': { desc: 'Pixel Data', cat: 'image' }
 };
