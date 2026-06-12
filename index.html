@@ -1164,13 +1164,13 @@
     </div>
 
     <div class="create-sidebar">
-      <button id="createSideAddBtn" class="btn">+ Add Images</button>
       <div class="card">
         <div class="card-title">Load Images</div>
         <div class="drop-zone" id="createSideDropZone">
           <h4>Drop images here</h4>
           <p>PNG · JPEG · BMP · WebP</p>
         </div>
+        <button id="createSideAddBtn" class="btn" style="width:100%;margin-top:8px">+ Browse Files</button>
       </div>
       <div class="card">
         <div class="card-title">Quick Fill</div>
@@ -1265,8 +1265,21 @@
 
     <div class="extractor-sidebar">
       <div class="card">
+        <div class="card-title">Load Files</div>
+        <div class="drop-zone" id="extractorDropZone">
+          <h4>Drop .dcm files</h4>
+          <p>or click to browse</p>
+        </div>
+        <button class="btn" id="extractorSideAddBtn" style="width:100%;margin-top:8px">+ Browse Files</button>
+      </div>
+      <div class="card">
         <div class="card-title">Export</div>
-        <button class="btn primary" id="extractAllBtn" style="width:100%">&#8595; Extract All as PNG</button>
+        <button class="btn primary" id="extractAllBtn" style="width:100%;margin-bottom:6px">&#8595; Extract All as PNG</button>
+        <button class="btn" id="extractSelectedBtn" style="width:100%">&#8595; Extract First Frames Only</button>
+      </div>
+      <div class="card" id="extractorLogCard" style="display:none">
+        <div class="card-title">Log</div>
+        <pre class="log-area" id="extractorLogArea"></pre>
       </div>
     </div>
   </div>
@@ -1552,6 +1565,621 @@ const TAG_DICT = {
   'x00401001': { desc: 'Requested Procedure ID', cat: 'study' },
   'x00401002': { desc: 'Reason for Requested Procedure', cat: 'study' },
   'x00401003': { desc: 'Requested Procedure Priority', cat: 'study' },
+  'x00401004': { desc: 'Patient Transport Arrangements', cat: 'other' },
+  'x00401008': { desc: 'Confidentiality Code', cat: 'other' },
+  'x0040a010': { desc: 'Relationship Type', cat: 'other' },
+  'x0040a027': { desc: 'Verifying Organization', cat: 'other' },
+  'x0040a040': { desc: 'Value Type', cat: 'other' },
+  'x0040a043': { desc: 'Concept Name Code Sequence', cat: 'other' },
+  'x0040a050': { desc: 'Continuity of Content', cat: 'other' },
+  'x0040a073': { desc: 'Verifying Observer Sequence', cat: 'other' },
+  'x0040a075': { desc: 'Verifying Observer Name', cat: 'other' },
+  'x0040a088': { desc: 'Verifying Observer Identification Code Sequence', cat: 'other' },
+  'x0040a120': { desc: 'DateTime', cat: 'other' },
+  'x0040a121': { desc: 'Date', cat: 'other' },
+  'x0040a122': { desc: 'Time', cat: 'other' },
+  'x0040a123': { desc: 'Person Name', cat: 'other' },
+  'x0040a124': { desc: 'UID', cat: 'uid' },
+  'x0040a130': { desc: 'Temporal Range Type', cat: 'other' },
+  'x0040a160': { desc: 'Text Value', cat: 'other' },
+  'x0040a168': { desc: 'Concept Code Sequence', cat: 'other' },
+  'x0040a170': { desc: 'Purpose of Reference Code Sequence', cat: 'other' },
+  'x0040a300': { desc: 'Measured Value Sequence', cat: 'other' },
+  'x0040a30a': { desc: 'Numeric Value', cat: 'other' },
+  'x0040a360': { desc: 'Predecessor Documents Sequence', cat: 'other' },
+  'x0040a370': { desc: 'Referenced Request Sequence', cat: 'study' },
+  'x0040a372': { desc: 'Performed Procedure Code Sequence', cat: 'study' },
+  'x0040a375': { desc: 'Current Requested Procedure Evidence Sequence', cat: 'study' },
+  'x0040a385': { desc: 'Pertinent Other Evidence Sequence', cat: 'other' },
+  'x0040a491': { desc: 'Completion Flag', cat: 'other' },
+  'x0040a493': { desc: 'Verification Flag', cat: 'other' },
+  'x0040a504': { desc: 'Content Template Sequence', cat: 'other' },
+  'x0040a525': { desc: 'Identical Documents Sequence', cat: 'other' },
+  'x0040a730': { desc: 'Content Sequence', cat: 'other' },
+  'x0040db00': { desc: 'Template Identifier', cat: 'other' },
+  'x0040db73': { desc: 'Referenced Content Item Identifier', cat: 'other' },
+
+  // Identification / Coding
+  'x00080014': { desc: 'Instance Creator UID', cat: 'uid' },
+  'x00080100': { desc: 'Code Value', cat: 'other' },
+  'x00080102': { desc: 'Coding Scheme Designator', cat: 'other' },
+  'x00080103': { desc: 'Coding Scheme Version', cat: 'other' },
+  'x00080104': { desc: 'Code Meaning', cat: 'other' },
+  'x00080105': { desc: 'Mapping Resource', cat: 'other' },
+  'x00080106': { desc: 'Context Group Version', cat: 'other' },
+  'x00080107': { desc: 'Context Group Local Version', cat: 'other' },
+  'x00080108': { desc: 'Extended Code Meaning', cat: 'other' },
+  'x0008010b': { desc: 'Context Group Extension Flag', cat: 'other' },
+  'x0008010c': { desc: 'Coding Scheme UID', cat: 'uid' },
+  'x0008010f': { desc: 'Context Identifier', cat: 'other' },
+  'x00080116': { desc: 'Coding Scheme Responsible Organization', cat: 'other' },
+  'x00080117': { desc: 'Context UID', cat: 'uid' },
+  'x00080119': { desc: 'Long Code Value', cat: 'other' },
+  'x00080120': { desc: 'URN Code Value', cat: 'other' },
+  'x00081163': { desc: 'Dimension Organization UID', cat: 'uid' },
+  'x00081195': { desc: 'Transaction UID', cat: 'uid' },
+  'x00081197': { desc: 'Failure Reason', cat: 'other' },
+  'x00081250': { desc: 'Related Series Sequence', cat: 'series' },
+  'x00082218': { desc: 'Anatomic Region Sequence', cat: 'other' },
+  'x00082228': { desc: 'Primary Anatomic Structure Sequence', cat: 'other' },
+  'x00082230': { desc: 'Primary Anatomic Structure Modifier Sequence', cat: 'other' },
+  'x00089007': { desc: 'Frame Type', cat: 'image' },
+  'x00089205': { desc: 'Pixel Presentation', cat: 'image' },
+  'x00089206': { desc: 'Volumetric Properties', cat: 'image' },
+  'x00089207': { desc: 'Volume Based Calculation Technique', cat: 'image' },
+  'x00089208': { desc: 'Complex Image Component', cat: 'image' },
+  'x00089410': { desc: 'Referenced Other Plane Sequence', cat: 'image' },
+
+  // Clinical Trial (0012)
+  'x00120010': { desc: 'Clinical Trial Sponsor Name', cat: 'other' },
+  'x00120020': { desc: 'Clinical Trial Protocol ID', cat: 'other' },
+  'x00120021': { desc: 'Clinical Trial Protocol Name', cat: 'other' },
+  'x00120040': { desc: 'Clinical Trial Subject ID', cat: 'patient' },
+  'x00120042': { desc: 'Clinical Trial Subject Reading ID', cat: 'patient' },
+  'x00120050': { desc: 'Clinical Trial Time Point ID', cat: 'other' },
+  'x00120051': { desc: 'Clinical Trial Time Point Description', cat: 'other' },
+  'x00120060': { desc: 'Clinical Trial Coordinating Center Name', cat: 'other' },
+  'x00120062': { desc: 'Patient Identity Removed', cat: 'patient' },
+  'x00120063': { desc: 'De-identification Method', cat: 'other' },
+  'x00120064': { desc: 'De-identification Method Code Sequence', cat: 'other' },
+  'x00120071': { desc: 'Clinical Trial Series ID', cat: 'series' },
+  'x00120072': { desc: 'Clinical Trial Series Description', cat: 'series' },
+  'x00120081': { desc: 'Clinical Trial Protocol Ethics Committee Name', cat: 'other' },
+  'x00120082': { desc: 'Clinical Trial Protocol Ethics Committee Approval Number', cat: 'other' },
+  'x00120083': { desc: 'Consent for Clinical Trial Use Sequence', cat: 'other' },
+  'x00120084': { desc: 'Distribution Type', cat: 'other' },
+  'x00120085': { desc: 'Consent for Distribution Flag', cat: 'other' },
+  'x00120086': { desc: 'Ethics Committee Approval Effectiveness Start Date', cat: 'other' },
+  'x00120087': { desc: 'Ethics Committee Approval Effectiveness End Date', cat: 'other' },
+
+  // MR Acquisition additions (0018)
+  'x00180040': { desc: 'Cine Rate', cat: 'image' },
+  'x00189005': { desc: 'Pulse Sequence Name', cat: 'image' },
+  'x00189006': { desc: 'MR Imaging Description', cat: 'image' },
+  'x00189008': { desc: 'Echo Pulse Sequence', cat: 'image' },
+  'x00189009': { desc: 'Inversion Recovery', cat: 'image' },
+  'x00189010': { desc: 'Flow Compensation', cat: 'image' },
+  'x00189011': { desc: 'Multiple Spin Echo', cat: 'image' },
+  'x00189012': { desc: 'Multi-planar Excitation', cat: 'image' },
+  'x00189014': { desc: 'Phase Contrast', cat: 'image' },
+  'x00189015': { desc: 'Time of Flight Contrast', cat: 'image' },
+  'x00189016': { desc: 'Spoiling', cat: 'image' },
+  'x00189017': { desc: 'Steady State Pulse Sequence', cat: 'image' },
+  'x00189018': { desc: 'Echo Planar Pulse Sequence', cat: 'image' },
+  'x00189020': { desc: 'Magnetization Transfer', cat: 'image' },
+  'x00189021': { desc: 'T2 Preparation', cat: 'image' },
+  'x00189022': { desc: 'Blood Signal Nulling', cat: 'image' },
+  'x00189024': { desc: 'Saturation Recovery', cat: 'image' },
+  'x00189025': { desc: 'Spectrally Selected Suppression', cat: 'image' },
+  'x00189028': { desc: 'Tagging', cat: 'image' },
+  'x00189029': { desc: 'Oversampling Phase', cat: 'image' },
+  'x00189030': { desc: 'Tag Spacing First Dimension', cat: 'image' },
+  'x00189032': { desc: 'Geometry of k-Space Traversal', cat: 'image' },
+  'x00189033': { desc: 'Segmented k-Space Traversal', cat: 'image' },
+  'x00189034': { desc: 'Rectilinear Phase Encode Reordering', cat: 'image' },
+  'x00189035': { desc: 'Tag Thickness', cat: 'image' },
+  'x00189036': { desc: 'Partial Fourier Direction', cat: 'image' },
+  'x00189037': { desc: 'Cardiac Synchronization Technique', cat: 'image' },
+  'x00189075': { desc: 'Diffusion Directionality', cat: 'image' },
+  'x00189077': { desc: 'Parallel Acquisition', cat: 'image' },
+  'x00189078': { desc: 'Parallel Acquisition Technique', cat: 'image' },
+  'x00189079': { desc: 'Inversion Times', cat: 'image' },
+  'x00189081': { desc: 'Partial Fourier', cat: 'image' },
+  'x00189082': { desc: 'Effective Echo Time', cat: 'image' },
+  'x00189090': { desc: 'Velocity Encoding Direction', cat: 'image' },
+  'x00189091': { desc: 'Velocity Encoding Minimum Value', cat: 'image' },
+  'x00189093': { desc: 'Number of k-Space Trajectories', cat: 'image' },
+  'x00189094': { desc: 'Coverage of k-Space', cat: 'image' },
+  'x00189096': { desc: 'Chemical Shift Reference', cat: 'image' },
+  'x00189101': { desc: 'Respiration Trigger Type', cat: 'image' },
+  'x00189147': { desc: 'Diffusion Anisotropy Type', cat: 'image' },
+  'x00189155': { desc: 'Parallel Reduction Factor Out-of-plane', cat: 'image' },
+  'x00189170': { desc: 'Respiratory Motion Compensation Technique', cat: 'image' },
+  'x00189171': { desc: 'Respiratory Signal Source', cat: 'image' },
+  'x00189172': { desc: 'Bulk Motion Signal Source', cat: 'image' },
+  'x00189176': { desc: 'Operating Mode Type', cat: 'image' },
+  'x00189180': { desc: 'Specific Absorption Rate Value', cat: 'image' },
+  'x00189181': { desc: 'Gradient Output', cat: 'image' },
+  'x00189182': { desc: 'Flow Compensation Direction', cat: 'image' },
+  'x00189197': { desc: 'MR Velocity Encoding Sequence', cat: 'image' },
+  'x00189199': { desc: 'Water Referenced Phase Correction', cat: 'image' },
+  'x00189200': { desc: 'MR Spectroscopy Acquisition Type', cat: 'image' },
+  'x00189217': { desc: 'Velocity Encoding Maximum Value', cat: 'image' },
+  'x00189220': { desc: 'Frame Acquisition Duration', cat: 'image' },
+  'x00189226': { desc: 'MR Image Frame Type Sequence', cat: 'image' },
+  'x00189240': { desc: 'RF Echo Train Length', cat: 'image' },
+  'x00189241': { desc: 'Gradient Echo Train Length', cat: 'image' },
+  'x00189250': { desc: 'Arterial Spin Labeling Contrast', cat: 'image' },
+  'x00189251': { desc: 'MR Arterial Spin Labeling Sequence', cat: 'image' },
+  'x00182010': { desc: 'Nominal Scanned Pixel Spacing', cat: 'image' },
+  'x00182030': { desc: 'Rotation of Scanned Film', cat: 'image' },
+
+  // Image Pixel additions (0028)
+  'x00280014': { desc: 'Ultrasound Color Data Present', cat: 'image' },
+  'x00280121': { desc: 'Pixel Padding Range Limit', cat: 'image' },
+  'x00280300': { desc: 'Quality Control Image', cat: 'image' },
+  'x00280304': { desc: 'Referenced Color Palette Instance UID', cat: 'uid' },
+  'x00281040': { desc: 'Pixel Intensity Relationship', cat: 'image' },
+  'x00281041': { desc: 'Pixel Intensity Relationship Sign', cat: 'image' },
+  'x00281090': { desc: 'Recommended Viewing Mode', cat: 'image' },
+  'x00281101': { desc: 'Red Palette Color Lookup Table Descriptor', cat: 'image' },
+  'x00281102': { desc: 'Green Palette Color Lookup Table Descriptor', cat: 'image' },
+  'x00281103': { desc: 'Blue Palette Color Lookup Table Descriptor', cat: 'image' },
+  'x00281199': { desc: 'Palette Color Lookup Table UID', cat: 'uid' },
+  'x00281201': { desc: 'Red Palette Color Lookup Table Data', cat: 'image' },
+  'x00281202': { desc: 'Green Palette Color Lookup Table Data', cat: 'image' },
+  'x00281203': { desc: 'Blue Palette Color Lookup Table Data', cat: 'image' },
+  'x00282000': { desc: 'ICC Profile', cat: 'image' },
+  'x00283000': { desc: 'Modality LUT Sequence', cat: 'image' },
+  'x00283002': { desc: 'LUT Descriptor', cat: 'image' },
+  'x00283003': { desc: 'LUT Explanation', cat: 'image' },
+  'x00283004': { desc: 'Modality LUT Type', cat: 'image' },
+  'x00283006': { desc: 'LUT Data', cat: 'image' },
+  'x00283010': { desc: 'VOI LUT Sequence', cat: 'image' },
+  'x00283110': { desc: 'Softcopy VOI LUT Sequence', cat: 'image' },
+  'x00286010': { desc: 'Representative Frame Number', cat: 'image' },
+  'x00286020': { desc: 'Frame Numbers of Interest', cat: 'image' },
+  'x00286022': { desc: 'Frame(s) of Interest Description', cat: 'image' },
+  'x00286023': { desc: 'Frame of Interest Type', cat: 'image' },
+  'x00286040': { desc: 'R Wave Pointer', cat: 'image' },
+  'x00286100': { desc: 'Mask Subtraction Sequence', cat: 'image' },
+  'x00286101': { desc: 'Mask Operation', cat: 'image' },
+  'x00286110': { desc: 'Mask Frame Numbers', cat: 'image' },
+  'x00289001': { desc: 'Data Point Rows', cat: 'image' },
+  'x00289002': { desc: 'Data Point Columns', cat: 'image' },
+  'x00289110': { desc: 'Pixel Measures Sequence', cat: 'image' },
+  'x00289132': { desc: 'Frame VOI LUT Sequence', cat: 'image' },
+  'x00289145': { desc: 'Pixel Value Transformation Sequence', cat: 'image' },
+  'x00289415': { desc: 'Frame Pixel Shift Sequence', cat: 'image' },
+  'x00289422': { desc: 'Pixel Intensity Relationship LUT Sequence', cat: 'image' },
+  'x00289443': { desc: 'Frame Pixel Data Properties Sequence', cat: 'image' },
+
+  // Storage (0088)
+  'x00880130': { desc: 'Storage Media File-set ID', cat: 'other' },
+  'x00880140': { desc: 'Storage Media File-set UID', cat: 'uid' },
+  'x00880200': { desc: 'Icon Image Sequence', cat: 'image' },
+
+  // Nuclear Medicine / PET (0054)
+  'x00540010': { desc: 'Energy Window Vector', cat: 'image' },
+  'x00540011': { desc: 'Number of Energy Windows', cat: 'image' },
+  'x00540012': { desc: 'Energy Window Information Sequence', cat: 'image' },
+  'x00540013': { desc: 'Energy Window Range Sequence', cat: 'image' },
+  'x00540014': { desc: 'Energy Window Lower Limit', cat: 'image' },
+  'x00540015': { desc: 'Energy Window Upper Limit', cat: 'image' },
+  'x00540016': { desc: 'Radiopharmaceutical Information Sequence', cat: 'image' },
+  'x00540017': { desc: 'Residual Syringe Counts', cat: 'image' },
+  'x00540018': { desc: 'Energy Window Name', cat: 'image' },
+  'x00540020': { desc: 'Detector Vector', cat: 'image' },
+  'x00540021': { desc: 'Number of Detectors', cat: 'image' },
+  'x00540022': { desc: 'Detector Information Sequence', cat: 'image' },
+  'x00540030': { desc: 'Phase Vector', cat: 'image' },
+  'x00540031': { desc: 'Number of Phases', cat: 'image' },
+  'x00540032': { desc: 'Phase Information Sequence', cat: 'image' },
+  'x00540033': { desc: 'Number of Frames in Phase', cat: 'image' },
+  'x00540036': { desc: 'Phase Delay', cat: 'image' },
+  'x00540038': { desc: 'Pause Between Frames', cat: 'image' },
+  'x00540039': { desc: 'Phase Description', cat: 'image' },
+  'x00540050': { desc: 'Rotation Vector', cat: 'image' },
+  'x00540051': { desc: 'Number of Rotations', cat: 'image' },
+  'x00540052': { desc: 'Rotation Information Sequence', cat: 'image' },
+  'x00540053': { desc: 'Number of Frames in Rotation', cat: 'image' },
+  'x00540060': { desc: 'R-R Interval Vector', cat: 'image' },
+  'x00540061': { desc: 'Number of R-R Intervals', cat: 'image' },
+  'x00540062': { desc: 'Gated Information Sequence', cat: 'image' },
+  'x00540063': { desc: 'Data Information Sequence', cat: 'image' },
+  'x00540070': { desc: 'Time Slot Vector', cat: 'image' },
+  'x00540071': { desc: 'Number of Time Slots', cat: 'image' },
+  'x00540072': { desc: 'Time Slot Information Sequence', cat: 'image' },
+  'x00540073': { desc: 'Time Slot Time', cat: 'image' },
+  'x00540080': { desc: 'Slice Vector', cat: 'image' },
+  'x00540081': { desc: 'Number of Slices', cat: 'image' },
+  'x00540090': { desc: 'Angular View Vector', cat: 'image' },
+  'x00540100': { desc: 'Time Slice Vector', cat: 'image' },
+  'x00540101': { desc: 'Number of Time Slices', cat: 'image' },
+  'x00540200': { desc: 'Start Angle', cat: 'image' },
+  'x00540202': { desc: 'Type of Detector Motion', cat: 'image' },
+  'x00540210': { desc: 'Trigger Vector', cat: 'image' },
+  'x00540211': { desc: 'Number of Triggers in Phase', cat: 'image' },
+  'x00540220': { desc: 'View Code Sequence', cat: 'image' },
+  'x00540222': { desc: 'View Modifier Code Sequence', cat: 'image' },
+  'x00540300': { desc: 'Radionuclide Code Sequence', cat: 'image' },
+  'x00540302': { desc: 'Administration Route Code Sequence', cat: 'image' },
+  'x00540304': { desc: 'Radiopharmaceutical Code Sequence', cat: 'image' },
+  'x00540306': { desc: 'Calibration Data Sequence', cat: 'image' },
+  'x00540308': { desc: 'Energy Window Number', cat: 'image' },
+  'x00540400': { desc: 'Image ID', cat: 'image' },
+  'x00540410': { desc: 'Patient Orientation Code Sequence', cat: 'image' },
+  'x00540412': { desc: 'Patient Orientation Modifier Code Sequence', cat: 'image' },
+  'x00540414': { desc: 'Patient Gantry Relationship Code Sequence', cat: 'image' },
+  'x00540500': { desc: 'Slice Progression Direction', cat: 'image' },
+  'x00540501': { desc: 'Scan Progression Direction', cat: 'image' },
+  'x00541000': { desc: 'Series Type', cat: 'series' },
+  'x00541001': { desc: 'Units', cat: 'image' },
+  'x00541002': { desc: 'Counts Source', cat: 'image' },
+  'x00541004': { desc: 'Reprojection Method', cat: 'image' },
+  'x00541006': { desc: 'SUV Type', cat: 'image' },
+  'x00541100': { desc: 'Randoms Correction Method', cat: 'image' },
+  'x00541101': { desc: 'Attenuation Correction Method', cat: 'image' },
+  'x00541102': { desc: 'Decay Correction', cat: 'image' },
+  'x00541103': { desc: 'Reconstruction Method', cat: 'image' },
+  'x00541104': { desc: 'Detector Lines of Response Used', cat: 'image' },
+  'x00541105': { desc: 'Scatter Correction Method', cat: 'image' },
+  'x00541200': { desc: 'Axial Acceptance', cat: 'image' },
+  'x00541201': { desc: 'Axial Mash', cat: 'image' },
+  'x00541202': { desc: 'Transverse Mash', cat: 'image' },
+  'x00541203': { desc: 'Detector Element Size', cat: 'image' },
+  'x00541210': { desc: 'Coincidence Window Width', cat: 'image' },
+  'x00541220': { desc: 'Secondary Counts Type', cat: 'image' },
+  'x00541300': { desc: 'Frame Reference Time', cat: 'image' },
+  'x00541310': { desc: 'Primary (Prompts) Counts Accumulated', cat: 'image' },
+  'x00541311': { desc: 'Secondary Counts Accumulated', cat: 'image' },
+  'x00541320': { desc: 'Slice Sensitivity Factor', cat: 'image' },
+  'x00541321': { desc: 'Decay Factor', cat: 'image' },
+  'x00541322': { desc: 'Dose Calibration Factor', cat: 'image' },
+  'x00541323': { desc: 'Scatter Fraction Factor', cat: 'image' },
+  'x00541324': { desc: 'Dead Time Factor', cat: 'image' },
+  'x00541330': { desc: 'Image Index', cat: 'image' },
+
+  // Histogram (0060)
+  'x00603000': { desc: 'Histogram Sequence', cat: 'image' },
+  'x00603002': { desc: 'Histogram Number of Bins', cat: 'image' },
+  'x00603004': { desc: 'Histogram First Bin Value', cat: 'image' },
+  'x00603006': { desc: 'Histogram Last Bin Value', cat: 'image' },
+  'x00603008': { desc: 'Histogram Bin Width', cat: 'image' },
+  'x00603010': { desc: 'Histogram Explanation', cat: 'image' },
+  'x00603020': { desc: 'Histogram Data', cat: 'image' },
+
+  // Segmentation (0062)
+  'x00620001': { desc: 'Segmentation Type', cat: 'image' },
+  'x00620002': { desc: 'Segment Sequence', cat: 'image' },
+  'x00620003': { desc: 'Referenced Segment Number', cat: 'image' },
+  'x00620004': { desc: 'Segment Number', cat: 'image' },
+  'x00620005': { desc: 'Segment Label', cat: 'image' },
+  'x00620006': { desc: 'Segment Description', cat: 'image' },
+  'x00620008': { desc: 'Segment Algorithm Type', cat: 'image' },
+  'x00620009': { desc: 'Segment Algorithm Name', cat: 'image' },
+  'x0062000a': { desc: 'Segment Identification Sequence', cat: 'image' },
+  'x0062000b': { desc: 'Referenced Segment Number', cat: 'image' },
+  'x0062000c': { desc: 'Recommended Display Grayscale Value', cat: 'image' },
+  'x0062000d': { desc: 'Recommended Display CIELab Value', cat: 'image' },
+  'x0062000e': { desc: 'Maximum Fractional Value', cat: 'image' },
+  'x00620010': { desc: 'Segmentation Fractional Type', cat: 'image' },
+  'x00620011': { desc: 'Segment Surface Source Instance Sequence', cat: 'image' },
+  'x00620012': { desc: 'Algorithm Family Code Sequence', cat: 'image' },
+  'x00620013': { desc: 'Algorithm Name Code Sequence', cat: 'image' },
+  'x00620014': { desc: 'Algorithm Source', cat: 'image' },
+  'x00620015': { desc: 'Algorithm Parameters', cat: 'image' },
+  'x00620016': { desc: 'Segment Coded Attributes Sequence', cat: 'image' },
+  'x00620019': { desc: 'Algorithm Instance UID', cat: 'uid' },
+
+  // Surface (0066)
+  'x00660001': { desc: 'Number of Surfaces', cat: 'image' },
+  'x00660002': { desc: 'Surface Sequence', cat: 'image' },
+  'x00660003': { desc: 'Surface Number', cat: 'image' },
+  'x00660004': { desc: 'Surface Comments', cat: 'image' },
+  'x00660009': { desc: 'Surface Processing', cat: 'image' },
+  'x0066000a': { desc: 'Surface Processing Ratio', cat: 'image' },
+  'x0066000b': { desc: 'Surface Processing Description', cat: 'image' },
+  'x0066000c': { desc: 'Recommended Presentation Opacity', cat: 'image' },
+  'x0066000d': { desc: 'Recommended Presentation Type', cat: 'image' },
+  'x0066000e': { desc: 'Finite Volume', cat: 'image' },
+  'x00660010': { desc: 'Manifold', cat: 'image' },
+  'x00660011': { desc: 'Surface Points Sequence', cat: 'image' },
+  'x00660013': { desc: 'Surface Mesh Primitives Sequence', cat: 'image' },
+  'x00660015': { desc: 'Number of Surface Points', cat: 'image' },
+  'x00660016': { desc: 'Point Coordinates Data', cat: 'image' },
+  'x00660019': { desc: 'Maximum Point Distance', cat: 'image' },
+  'x0066001e': { desc: 'Number of Vectors', cat: 'image' },
+  'x0066001f': { desc: 'Vector Dimensionality', cat: 'image' },
+  'x00660021': { desc: 'Vector Coordinate Data', cat: 'image' },
+  'x00660023': { desc: 'Triangle Point Index List', cat: 'image' },
+  'x00660024': { desc: 'Edge Point Index List', cat: 'image' },
+  'x00660025': { desc: 'Vertex Point Index List', cat: 'image' },
+  'x00660028': { desc: 'Line Sequence', cat: 'image' },
+  'x0066002a': { desc: 'Surface Count', cat: 'image' },
+  'x0066002b': { desc: 'Referenced Surface Sequence', cat: 'image' },
+  'x0066002c': { desc: 'Referenced Surface Number', cat: 'image' },
+  'x00660036': { desc: 'Algorithm Name', cat: 'image' },
+  'x00660037': { desc: 'Recommended Point Radius', cat: 'image' },
+  'x00660038': { desc: 'Recommended Line Thickness', cat: 'image' },
+
+  // Presentation State (0070)
+  'x00700001': { desc: 'Graphic Annotation Sequence', cat: 'image' },
+  'x00700002': { desc: 'Graphic Layer', cat: 'image' },
+  'x00700003': { desc: 'Bounding Box Annotation Units', cat: 'image' },
+  'x00700004': { desc: 'Anchor Point Annotation Units', cat: 'image' },
+  'x00700005': { desc: 'Graphic Annotation Units', cat: 'image' },
+  'x00700006': { desc: 'Unformatted Text Value', cat: 'image' },
+  'x00700008': { desc: 'Text Object Sequence', cat: 'image' },
+  'x00700009': { desc: 'Graphic Object Sequence', cat: 'image' },
+  'x00700010': { desc: 'Bounding Box Top Left Hand Corner', cat: 'image' },
+  'x00700011': { desc: 'Bounding Box Bottom Right Hand Corner', cat: 'image' },
+  'x00700014': { desc: 'Anchor Point', cat: 'image' },
+  'x00700015': { desc: 'Anchor Point Visibility', cat: 'image' },
+  'x00700020': { desc: 'Graphic Dimensions', cat: 'image' },
+  'x00700021': { desc: 'Number of Graphic Points', cat: 'image' },
+  'x00700022': { desc: 'Graphic Data', cat: 'image' },
+  'x00700023': { desc: 'Graphic Type', cat: 'image' },
+  'x00700024': { desc: 'Graphic Filled', cat: 'image' },
+  'x00700041': { desc: 'Image Horizontal Flip', cat: 'image' },
+  'x00700052': { desc: 'Displayed Area Top Left Hand Corner', cat: 'image' },
+  'x00700053': { desc: 'Displayed Area Bottom Right Hand Corner', cat: 'image' },
+  'x0007005a': { desc: 'Displayed Area Selection Sequence', cat: 'image' },
+  'x00700060': { desc: 'Graphic Layer Sequence', cat: 'image' },
+  'x00700062': { desc: 'Graphic Layer Order', cat: 'image' },
+  'x00700066': { desc: 'Graphic Layer Recommended Display Grayscale Value', cat: 'image' },
+  'x00700067': { desc: 'Graphic Layer Recommended Display RGB Value', cat: 'image' },
+  'x00700068': { desc: 'Graphic Layer Description', cat: 'image' },
+  'x00700080': { desc: 'Content Label', cat: 'image' },
+  'x00700081': { desc: 'Content Description', cat: 'image' },
+  'x00700082': { desc: 'Presentation Creation Date', cat: 'image' },
+  'x00700083': { desc: 'Presentation Creation Time', cat: 'image' },
+  'x00700084': { desc: "Content Creator's Name", cat: 'image' },
+  'x00700086': { desc: "Content Creator's Identification Code Sequence", cat: 'image' },
+  'x00700100': { desc: 'Presentation Size Mode', cat: 'image' },
+  'x00700101': { desc: 'Presentation Pixel Spacing', cat: 'image' },
+  'x00700102': { desc: 'Presentation Pixel Aspect Ratio', cat: 'image' },
+  'x00700103': { desc: 'Presentation Pixel Magnification Ratio', cat: 'image' },
+  'x00700260': { desc: 'Show Grayscale Inverted', cat: 'image' },
+  'x00700261': { desc: 'Show Image True Size Flag', cat: 'image' },
+  'x00700262': { desc: 'Show Graphic Annotation Flag', cat: 'image' },
+  'x00700263': { desc: 'Show Patient Demographics Flag', cat: 'image' },
+  'x00700264': { desc: 'Show Acquisition Techniques Flag', cat: 'image' },
+  'x00700266': { desc: 'VOI Type', cat: 'image' },
+  'x00700267': { desc: 'Pseudo-Color Type', cat: 'image' },
+
+  // RT Image (3002)
+  'x30020002': { desc: 'RT Image Label', cat: 'image' },
+  'x30020003': { desc: 'RT Image Name', cat: 'image' },
+  'x30020004': { desc: 'RT Image Description', cat: 'image' },
+  'x3002000a': { desc: 'Reported Values Origin', cat: 'image' },
+  'x3002000c': { desc: 'RT Image Plane', cat: 'image' },
+  'x3002000d': { desc: 'X-Ray Image Receptor Translation', cat: 'image' },
+  'x3002000e': { desc: 'X-Ray Image Receptor Angle', cat: 'image' },
+  'x30020010': { desc: 'RT Image Orientation', cat: 'image' },
+  'x30020011': { desc: 'Image Plane Pixel Spacing', cat: 'image' },
+  'x30020012': { desc: 'RT Image Position', cat: 'image' },
+  'x30020020': { desc: 'Radiation Machine Name', cat: 'equipment' },
+  'x30020022': { desc: 'Radiation Machine SAD', cat: 'image' },
+  'x30020024': { desc: 'Radiation Machine SSD', cat: 'image' },
+  'x30020026': { desc: 'RT Image SID', cat: 'image' },
+  'x30020029': { desc: 'Fraction Number', cat: 'image' },
+  'x30020030': { desc: 'Exposure Sequence', cat: 'image' },
+  'x30020032': { desc: 'Meterset Exposure', cat: 'image' },
+  'x30020050': { desc: 'Primary Fluence Mode Sequence', cat: 'image' },
+  'x30020051': { desc: 'Fluence Mode', cat: 'image' },
+  'x30020052': { desc: 'Fluence Mode ID', cat: 'image' },
+
+  // RT Dose (3004)
+  'x30040001': { desc: 'DVH Type', cat: 'image' },
+  'x30040002': { desc: 'Dose Units', cat: 'image' },
+  'x30040004': { desc: 'Dose Type', cat: 'image' },
+  'x30040006': { desc: 'Dose Comment', cat: 'image' },
+  'x30040008': { desc: 'Normalization Point', cat: 'image' },
+  'x3004000a': { desc: 'Dose Summation Type', cat: 'image' },
+  'x3004000c': { desc: 'Grid Frame Offset Vector', cat: 'image' },
+  'x3004000e': { desc: 'Dose Grid Scaling', cat: 'image' },
+  'x30040010': { desc: 'RT Dose ROI Sequence', cat: 'image' },
+  'x30040012': { desc: 'Dose Value', cat: 'image' },
+  'x30040014': { desc: 'Tissue Heterogeneity Correction', cat: 'image' },
+  'x30040050': { desc: 'DVH Sequence', cat: 'image' },
+  'x30040052': { desc: 'DVH Dose Scaling', cat: 'image' },
+  'x30040054': { desc: 'DVH Volume Units', cat: 'image' },
+  'x30040056': { desc: 'DVH Number of Bins', cat: 'image' },
+  'x30040058': { desc: 'DVH Data', cat: 'image' },
+  'x30040060': { desc: 'DVH Referenced ROI Sequence', cat: 'image' },
+  'x30040062': { desc: 'DVH ROI Contribution Type', cat: 'image' },
+  'x30040070': { desc: 'DVH Minimum Dose', cat: 'image' },
+  'x30040072': { desc: 'DVH Maximum Dose', cat: 'image' },
+  'x30040074': { desc: 'DVH Mean Dose', cat: 'image' },
+
+  // RT Structure Set (3006)
+  'x30060002': { desc: 'Structure Set Label', cat: 'other' },
+  'x30060004': { desc: 'Structure Set Name', cat: 'other' },
+  'x30060006': { desc: 'Structure Set Description', cat: 'other' },
+  'x30060008': { desc: 'Structure Set Date', cat: 'other' },
+  'x30060009': { desc: 'Structure Set Time', cat: 'other' },
+  'x30060010': { desc: 'Referenced Frame of Reference Sequence', cat: 'uid' },
+  'x30060012': { desc: 'RT Referenced Study Sequence', cat: 'study' },
+  'x30060014': { desc: 'RT Referenced Series Sequence', cat: 'series' },
+  'x30060016': { desc: 'Contour Image Sequence', cat: 'image' },
+  'x30060020': { desc: 'Structure Set ROI Sequence', cat: 'other' },
+  'x30060022': { desc: 'ROI Number', cat: 'other' },
+  'x30060024': { desc: 'Referenced Frame of Reference UID', cat: 'uid' },
+  'x30060026': { desc: 'ROI Name', cat: 'other' },
+  'x30060028': { desc: 'ROI Description', cat: 'other' },
+  'x3006002a': { desc: 'ROI Display Color', cat: 'other' },
+  'x3006002c': { desc: 'ROI Volume', cat: 'other' },
+  'x30060036': { desc: 'ROI Generation Algorithm', cat: 'other' },
+  'x30060039': { desc: 'ROI Contour Sequence', cat: 'other' },
+  'x30060040': { desc: 'Contour Sequence', cat: 'other' },
+  'x30060042': { desc: 'Contour Geometric Type', cat: 'other' },
+  'x30060046': { desc: 'Number of Contour Points', cat: 'other' },
+  'x30060048': { desc: 'Contour Number', cat: 'other' },
+  'x30060050': { desc: 'Contour Data', cat: 'other' },
+  'x30060080': { desc: 'RT ROI Observations Sequence', cat: 'other' },
+  'x30060082': { desc: 'Observation Number', cat: 'other' },
+  'x30060084': { desc: 'Referenced ROI Number', cat: 'other' },
+  'x30060085': { desc: 'ROI Observation Label', cat: 'other' },
+  'x30060088': { desc: 'ROI Observation Description', cat: 'other' },
+  'x300600a4': { desc: 'RT ROI Interpreted Type', cat: 'other' },
+  'x300600a6': { desc: 'ROI Interpreter', cat: 'other' },
+  'x300600b0': { desc: 'ROI Physical Properties Sequence', cat: 'other' },
+  'x300600b2': { desc: 'ROI Physical Property', cat: 'other' },
+  'x300600b4': { desc: 'ROI Physical Property Value', cat: 'other' },
+  'x300600c0': { desc: 'Frame of Reference Relationship Sequence', cat: 'uid' },
+  'x300600c2': { desc: 'Related Frame of Reference UID', cat: 'uid' },
+  'x300600c4': { desc: 'Frame of Reference Transformation Type', cat: 'other' },
+  'x300600c6': { desc: 'Frame of Reference Transformation Matrix', cat: 'other' },
+  'x300600c8': { desc: 'Frame of Reference Transformation Comment', cat: 'other' },
+
+  // RT Plan (300A)
+  'x300a0002': { desc: 'RT Plan Label', cat: 'other' },
+  'x300a0003': { desc: 'RT Plan Name', cat: 'other' },
+  'x300a0004': { desc: 'RT Plan Description', cat: 'other' },
+  'x300a0006': { desc: 'RT Plan Date', cat: 'other' },
+  'x300a0007': { desc: 'RT Plan Time', cat: 'other' },
+  'x300a000a': { desc: 'Plan Intent', cat: 'other' },
+  'x300a000c': { desc: 'RT Plan Geometry', cat: 'other' },
+  'x300a0010': { desc: 'Dose Reference Sequence', cat: 'other' },
+  'x300a0012': { desc: 'Dose Reference Number', cat: 'other' },
+  'x300a0013': { desc: 'Dose Reference UID', cat: 'uid' },
+  'x300a0014': { desc: 'Dose Reference Structure Type', cat: 'other' },
+  'x300a0016': { desc: 'Dose Reference Description', cat: 'other' },
+  'x300a0018': { desc: 'Dose Reference Point Coordinates', cat: 'other' },
+  'x300a001a': { desc: 'Nominal Prior Dose', cat: 'other' },
+  'x300a0020': { desc: 'Dose Reference Type', cat: 'other' },
+  'x300a0026': { desc: 'Target Prescription Dose', cat: 'other' },
+  'x300a0027': { desc: 'Target Maximum Dose', cat: 'other' },
+  'x300a0040': { desc: 'Tolerance Table Sequence', cat: 'other' },
+  'x300a0042': { desc: 'Tolerance Table Number', cat: 'other' },
+  'x300a0043': { desc: 'Tolerance Table Label', cat: 'other' },
+  'x300a0044': { desc: 'Gantry Angle Tolerance', cat: 'other' },
+  'x300a0046': { desc: 'Beam Limiting Device Angle Tolerance', cat: 'other' },
+  'x300a004a': { desc: 'Beam Limiting Device Position Tolerance', cat: 'other' },
+  'x300a004c': { desc: 'Patient Support Angle Tolerance', cat: 'other' },
+  'x300a0055': { desc: 'RT Plan Relationship', cat: 'other' },
+  'x300a0070': { desc: 'Fraction Group Sequence', cat: 'other' },
+  'x300a0071': { desc: 'Fraction Group Number', cat: 'other' },
+  'x300a0078': { desc: 'Number of Fractions Planned', cat: 'other' },
+  'x300a007a': { desc: 'Repeat Fraction Cycle Length', cat: 'other' },
+  'x300a0080': { desc: 'Number of Beams', cat: 'other' },
+  'x300a0082': { desc: 'Beam Dose Specification Point', cat: 'other' },
+  'x300a0084': { desc: 'Beam Dose', cat: 'other' },
+  'x300a0086': { desc: 'Beam Meterset', cat: 'other' },
+  'x300a00a0': { desc: 'Beam Sequence', cat: 'other' },
+  'x300a00a2': { desc: 'Beam Name', cat: 'other' },
+  'x300a00a4': { desc: 'Beam Description', cat: 'other' },
+  'x300a00a6': { desc: 'Beam Type', cat: 'other' },
+  'x300a00a8': { desc: 'Radiation Type', cat: 'other' },
+  'x300a00aa': { desc: 'High-Dose Technique Type', cat: 'other' },
+  'x300a00b0': { desc: 'Beam Limiting Device Sequence', cat: 'other' },
+  'x300a00b2': { desc: 'Treatment Machine Name', cat: 'equipment' },
+  'x300a00b3': { desc: 'Primary Dosimeter Unit', cat: 'other' },
+  'x300a00b4': { desc: 'Source-Axis Distance', cat: 'other' },
+  'x300a00b6': { desc: 'Beam Limiting Device Type', cat: 'other' },
+  'x300a00b8': { desc: 'Number of Leaf/Jaw Pairs', cat: 'other' },
+  'x300a00bc': { desc: 'Number of Control Points', cat: 'other' },
+  'x300a00be': { desc: 'Final Cumulative Meterset Weight', cat: 'other' },
+  'x300a00c0': { desc: 'Control Point Sequence', cat: 'other' },
+  'x300a00c2': { desc: 'Control Point Index', cat: 'other' },
+  'x300a00c4': { desc: 'Nominal Beam Energy', cat: 'other' },
+  'x300a00c6': { desc: 'Dose Rate Set', cat: 'other' },
+  'x300a00d0': { desc: 'Number of Wedges', cat: 'other' },
+  'x300a00d1': { desc: 'Wedge Sequence', cat: 'other' },
+  'x300a00d2': { desc: 'Wedge Number', cat: 'other' },
+  'x300a00d3': { desc: 'Wedge Type', cat: 'other' },
+  'x300a00d4': { desc: 'Wedge ID', cat: 'other' },
+  'x300a00d5': { desc: 'Wedge Angle', cat: 'other' },
+  'x300a00d6': { desc: 'Wedge Factor', cat: 'other' },
+  'x300a00d8': { desc: 'Wedge Orientation', cat: 'other' },
+  'x300a00e0': { desc: 'Number of Compensators', cat: 'other' },
+  'x300a00f0': { desc: 'Number of Boli', cat: 'other' },
+  'x300a00f2': { desc: 'Total Wedge Tray Water-Equivalent Thickness', cat: 'other' },
+  'x300a0100': { desc: 'Number of Blocks', cat: 'other' },
+  'x300a0110': { desc: 'Final Cumulative Meterset Weight', cat: 'other' },
+  'x300a0180': { desc: 'Patient Setup Sequence', cat: 'other' },
+  'x300a0182': { desc: 'Patient Setup Number', cat: 'other' },
+  'x300a0184': { desc: 'Patient Additional Position', cat: 'other' },
+  'x300a0190': { desc: 'Fixation Device Sequence', cat: 'other' },
+  'x300a01a0': { desc: 'Shielding Device Sequence', cat: 'other' },
+  'x300a01b0': { desc: 'Setup Technique', cat: 'other' },
+  'x300a01b2': { desc: 'Setup Technique Description', cat: 'other' },
+  'x300a01b4': { desc: 'Setup Device Sequence', cat: 'other' },
+  'x300a01bc': { desc: 'Setup Reference Description', cat: 'other' },
+  'x300a01d0': { desc: 'Setup Reference Description', cat: 'other' },
+  'x300a0206': { desc: 'Treatment Machine Sequence', cat: 'equipment' },
+  'x300a0210': { desc: 'Source Sequence', cat: 'other' },
+  'x300a0212': { desc: 'Source Number', cat: 'other' },
+  'x300a0214': { desc: 'Source Type', cat: 'other' },
+  'x300a0216': { desc: 'Source Manufacturer', cat: 'equipment' },
+  'x300a0222': { desc: 'Active Source Diameter', cat: 'other' },
+  'x300a0224': { desc: 'Active Source Length', cat: 'other' },
+  'x300a0230': { desc: 'Brachy Application Setup Sequence', cat: 'other' },
+  'x300a0232': { desc: 'Brachy Application Setup Number', cat: 'other' },
+  'x300a0234': { desc: 'Brachy Application Setup Name', cat: 'other' },
+  'x300a0242': { desc: 'Template Type', cat: 'other' },
+  'x300a0244': { desc: 'Template Name', cat: 'other' },
+
+  // RT Relationship (300C)
+  'x300c0002': { desc: 'Referenced RT Plan Sequence', cat: 'uid' },
+  'x300c0004': { desc: 'Referenced Beam Sequence', cat: 'other' },
+  'x300c0006': { desc: 'Referenced Beam Number', cat: 'other' },
+  'x300c0007': { desc: 'Referenced Reference Image Number', cat: 'other' },
+  'x300c0008': { desc: 'Start Cumulative Meterset Weight', cat: 'other' },
+  'x300c0009': { desc: 'End Cumulative Meterset Weight', cat: 'other' },
+  'x300c000a': { desc: 'Referenced Brachy Application Setup Sequence', cat: 'other' },
+  'x300c000c': { desc: 'Referenced Brachy Application Setup Number', cat: 'other' },
+  'x300c000e': { desc: 'Referenced Source Number', cat: 'other' },
+  'x300c0020': { desc: 'Referenced Fraction Group Sequence', cat: 'other' },
+  'x300c0022': { desc: 'Referenced Fraction Group Number', cat: 'other' },
+  'x300c0040': { desc: 'Referenced Verification Image Sequence', cat: 'image' },
+  'x300c0042': { desc: 'Referenced Reference Image Sequence', cat: 'image' },
+  'x300c0050': { desc: 'Referenced Dose Reference Sequence', cat: 'other' },
+  'x300c0051': { desc: 'Referenced Dose Reference Number', cat: 'other' },
+  'x300c0055': { desc: 'Brachy Referenced Dose Reference Sequence', cat: 'other' },
+  'x300c0060': { desc: 'Referenced Structure Set Sequence', cat: 'uid' },
+  'x300c006a': { desc: 'Referenced Patient Setup Number', cat: 'other' },
+  'x300c0080': { desc: 'Referenced Dose Sequence', cat: 'uid' },
+  'x300c00a0': { desc: 'Referenced Tolerance Table Number', cat: 'other' },
+  'x300c00b0': { desc: 'Referenced Bolus Sequence', cat: 'other' },
+  'x300c00c0': { desc: 'Referenced Wedge Number', cat: 'other' },
+  'x300c00d0': { desc: 'Referenced Compensator Number', cat: 'other' },
+  'x300c00e0': { desc: 'Referenced Block Number', cat: 'other' },
+  'x300c00f0': { desc: 'Referenced Control Point Index', cat: 'other' },
+  'x300c00f2': { desc: 'Referenced Control Point Sequence', cat: 'other' },
+  'x300c00f4': { desc: 'Referenced Start Control Point Index', cat: 'other' },
+  'x300c00f6': { desc: 'Referenced Stop Control Point Index', cat: 'other' },
+  'x300c0100': { desc: 'Referenced Range Shifter Number', cat: 'other' },
+  'x300c0102': { desc: 'Referenced Lateral Spreading Device Number', cat: 'other' },
+  'x300c0104': { desc: 'Referenced Range Modulator Number', cat: 'other' },
+
+  // RT Approval (300E)
+  'x300e0002': { desc: 'Approval Status', cat: 'other' },
+  'x300e0004': { desc: 'Review Date', cat: 'other' },
+  'x300e0005': { desc: 'Review Time', cat: 'other' },
+  'x300e0008': { desc: 'Reviewer Name', cat: 'other' },
+
+  // Overlays (6000)
+  'x60000010': { desc: 'Overlay Rows', cat: 'image' },
+  'x60000011': { desc: 'Overlay Columns', cat: 'image' },
+  'x60000015': { desc: 'Number of Frames in Overlay', cat: 'image' },
+  'x60000022': { desc: 'Overlay Description', cat: 'image' },
+  'x60000040': { desc: 'Overlay Type', cat: 'image' },
+  'x60000045': { desc: 'Overlay Subtype', cat: 'image' },
+  'x60000050': { desc: 'Overlay Origin', cat: 'image' },
+  'x60000051': { desc: 'Image Frame Origin', cat: 'image' },
+  'x60000052': { desc: 'Overlay Plane Origin', cat: 'image' },
+  'x60000060': { desc: 'Overlay Compression Code (retired)', cat: 'image' },
+  'x60000100': { desc: 'Overlay Bits Allocated', cat: 'image' },
+  'x60000102': { desc: 'Overlay Bit Position', cat: 'image' },
+  'x60001001': { desc: 'Overlay Activation Layer', cat: 'image' },
+  'x60001301': { desc: 'ROI Area', cat: 'image' },
+  'x60001302': { desc: 'ROI Mean', cat: 'image' },
+  'x60001303': { desc: 'ROI Standard Deviation', cat: 'image' },
+  'x60001500': { desc: 'Overlay Label', cat: 'image' },
+  'x60003000': { desc: 'Overlay Data', cat: 'image' },
+  'x60004000': { desc: 'Overlay Comments', cat: 'image' },
 
   // Pixel Data
   'x7fe00010': { desc: 'Pixel Data', cat: 'image' }
@@ -2684,15 +3312,39 @@ let extractorFiles = [];
 const extractorAddBtn    = document.getElementById('extractorAddBtn');
 const extractorFileInput = document.getElementById('extractorFileInput');
 const extractorGridWrap  = document.getElementById('extractorGridWrap');
-const extractorGrid      = document.getElementById('extractorGrid');
-const extractorCount     = document.getElementById('extractorCount');
-const clearExtractorBtn  = document.getElementById('clearExtractorBtn');
-const extractAllBtn      = document.getElementById('extractAllBtn');
+const extractorGrid         = document.getElementById('extractorGrid');
+const extractorCount        = document.getElementById('extractorCount');
+const clearExtractorBtn     = document.getElementById('clearExtractorBtn');
+const extractAllBtn         = document.getElementById('extractAllBtn');
+const extractSelectedBtn    = document.getElementById('extractSelectedBtn');
+const extractorSideAddBtn   = document.getElementById('extractorSideAddBtn');
+const extractorDropZone     = document.getElementById('extractorDropZone');
+const extractorLogCard      = document.getElementById('extractorLogCard');
+const extractorLogArea      = document.getElementById('extractorLogArea');
+
+function extractorLog(msg) {
+  extractorLogCard.style.display = 'block';
+  extractorLogArea.textContent += msg + '\n';
+  extractorLogArea.scrollTop = extractorLogArea.scrollHeight;
+}
 
 extractorAddBtn.addEventListener('click', () => extractorFileInput.click());
+extractorSideAddBtn.addEventListener('click', () => extractorFileInput.click());
 extractorFileInput.addEventListener('change', e => { if (e.target.files?.length) addExtractorFiles(e.target.files); });
-clearExtractorBtn.addEventListener('click', () => { extractorFiles = []; renderExtractorGrid(); });
+clearExtractorBtn.addEventListener('click', () => {
+  extractorFiles = [];
+  extractorLogCard.style.display = 'none';
+  extractorLogArea.textContent = '';
+  renderExtractorGrid();
+});
 
+// Sidebar drop zone
+extractorDropZone.addEventListener('click', () => extractorFileInput.click());
+extractorDropZone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); extractorDropZone.style.borderColor = 'var(--accent)'; });
+extractorDropZone.addEventListener('dragleave', () => extractorDropZone.style.borderColor = '');
+extractorDropZone.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); extractorDropZone.style.borderColor = ''; addExtractorFiles(e.dataTransfer.files); });
+
+// Main grid drop zone
 extractorGridWrap.addEventListener('click', () => extractorFileInput.click());
 extractorGridWrap.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); extractorGridWrap.classList.add('drag-over'); });
 extractorGridWrap.addEventListener('dragleave', () => extractorGridWrap.classList.remove('drag-over'));
@@ -2827,6 +3479,30 @@ extractAllBtn.addEventListener('click', async () => {
       a.click();
       await new Promise(r => setTimeout(r, 40));
     }
+  }
+  showLoading?.(false);
+});
+
+extractSelectedBtn.addEventListener('click', async () => {
+  if (!extractorFiles.length) return;
+  showLoading?.(true, 'Extracting frame 1 of each file…');
+  for (const item of extractorFiles) {
+    showLoading?.(true, `Extracting: ${item.name}`);
+    const result = await decodeDicomPixels(item.dict, 0, { meta: item.meta || null });
+    if (!result || result.error) { extractorLog(`✗ ${item.name}: ${result?.error ?? 'no image data'}`); continue; }
+    const { pixels, rows, cols } = result;
+    const canvas = document.createElement('canvas');
+    canvas.width = cols; canvas.height = rows;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(cols, rows);
+    imgData.data.set(pixels);
+    ctx.putImageData(imgData, 0, 0);
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = item.name.replace(/\.[^.]+$/, '') + '.png';
+    a.click();
+    await new Promise(r => setTimeout(r, 40));
+    extractorLog(`✓ ${item.name}`);
   }
   showLoading?.(false);
 });
