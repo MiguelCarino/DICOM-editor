@@ -379,9 +379,6 @@
       color: var(--text-muted);
     }
     
-    /* Compare highlighting */
-    tr.cmp-match td { background: rgba(74,222,128,0.1); }
-    tr.cmp-diff td { background: rgba(251,146,60,0.1); }
     
     /* Actions Row */
     .actions-row {
@@ -507,7 +504,7 @@
     /* Compare Panel */
     .compare-drop {
       border: 1px dashed var(--border);
-      border-radius: 8px;
+      border-radius: 4px;
       padding: 12px;
       text-align: center;
       font-size: 11px;
@@ -515,45 +512,54 @@
       cursor: pointer;
       transition: all 0.2s;
     }
-    .compare-drop:hover {
-      border-color: var(--accent);
-      background: rgba(234,179,8,0.05);
-    }
+    .compare-drop:hover { border-color: var(--accent); background: rgba(234,179,8,0.05); }
     .compare-legend {
       display: flex;
-      gap: 12px;
+      gap: 10px;
       margin-top: 10px;
       font-size: 10px;
       color: var(--text-muted);
+      flex-wrap: wrap;
     }
     .legend-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      display: inline-block;
-      margin-right: 4px;
+      width: 8px; height: 8px; border-radius: 50%;
+      display: inline-block; margin-right: 4px; flex-shrink: 0;
     }
-    .legend-dot.match { background: var(--cat-equipment); }
-    .legend-dot.diff { background: var(--cat-image); }
-    .compare-status {
-      margin-top: 8px;
-      font-size: 11px;
-      color: var(--text-dim);
+    .legend-dot.match   { background: var(--cat-equipment); }
+    .legend-dot.diff    { background: var(--cat-image); }
+    .legend-dot.only-a  { background: var(--cat-private); }
+    .legend-dot.only-b  { background: var(--cat-patient); }
+    /* Row highlighting */
+    tr.cmp-match td     { background: rgba(74,222,128,0.07); }
+    tr.cmp-diff td      { background: rgba(251,146,60,0.10); }
+    tr.cmp-only-a td    { background: rgba(248,113,113,0.07); }
+    tr.cmp-only-b td    { background: rgba(34,211,238,0.07); }
+    /* Compare value cell */
+    .cmp-val { font: 12px var(--mono); color: var(--text-muted); padding: 2px 4px; word-break: break-all; }
+    .cmp-val.diff { color: var(--cat-image); }
+    .cmp-val.only-b { color: var(--cat-patient); font-style: italic; }
+    /* Copy button */
+    .cmp-copy-btn {
+      padding: 2px 7px; font-size: 11px; border-radius: 4px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--text-muted); cursor: pointer; transition: all 0.15s;
+      white-space: nowrap;
     }
-    .view-toggle {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
+    .cmp-copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+    /* Compare stats bar */
+    .compare-stats {
+      font: 600 10px var(--mono); color: var(--text-muted);
+      margin-top: 8px; text-transform: uppercase; letter-spacing: 0.05em;
     }
-    .view-toggle label {
-      font-size: 11px;
-      color: var(--text-dim);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 4px;
+    .compare-stats span { margin-right: 8px; }
+    .compare-stats .s-match { color: var(--cat-equipment); }
+    .compare-stats .s-diff  { color: var(--cat-image); }
+    .compare-stats .s-only  { color: var(--text-muted); }
+    .compare-fname {
+      font: 500 11px var(--mono); color: var(--text-dim);
+      margin-top: 6px; word-break: break-all;
+      border-bottom: 1px solid var(--border); padding-bottom: 6px;
     }
-    .view-toggle input { accent-color: var(--accent); }
     
     /* Log */
     .log-area {
@@ -923,6 +929,82 @@
     .batch-select:focus { outline: none; border-color: var(--accent); }
     .batch-select option { background: var(--surface-solid); }
 
+    /* ─── COMPARE TAB ───────────────────────── */
+    .compare-tab-panel {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 16px;
+      padding: 16px 20px;
+      overflow: hidden;
+      min-height: 0;
+    }
+    @media (max-width: 1000px) {
+      .compare-tab-panel { grid-template-columns: 1fr; }
+      .compare-tab-sidebar { display: none; }
+    }
+    .compare-tab-left {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .compare-tab-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+    /* Two-pane drop state */
+    .cmp-empty-state {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      min-height: 0;
+    }
+    .cmp-drop-pane {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 2px dashed var(--border);
+      border-radius: 4px;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      padding: 40px 20px;
+    }
+    .cmp-drop-pane:hover, .cmp-drop-pane.drag-over {
+      border-color: var(--accent);
+      background: rgba(234,179,8,0.04);
+    }
+    .cmp-pane-label {
+      font: 900 3rem 'Red Hat Display', sans-serif;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .cmp-pane-sub { font: 13px var(--mono); color: var(--text-muted); text-align: center; }
+    /* Mini preview in sidebar */
+    .cmp-preview-mini {
+      width: 100%; aspect-ratio: 1;
+      background: #000; border-radius: 4px;
+      overflow: hidden; display: none; margin-top: 8px;
+    }
+    .cmp-preview-mini canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .cmp-file-badge {
+      font: 600 10px var(--mono); color: var(--text-muted);
+      text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+      margin-top: 6px;
+    }
+    /* Compare table copy buttons */
+    .cmp-actions-cell { display: flex; gap: 3px; justify-content: center; }
+    .cmp-stat-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+    .cmp-stat { font: 700 11px var(--mono); }
+    .cmp-stat.s-match { color: var(--cat-equipment); }
+    .cmp-stat.s-diff  { color: var(--cat-image); }
+    .cmp-stat.s-only  { color: var(--text-muted); }
+
     /* ─── WINDOW / LEVEL ─────────────────────── */
     .wl-section { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
     .wl-group { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
@@ -967,6 +1049,7 @@
         <button class="tab-btn active" id="editorTabBtn">Editor</button>
         <button class="tab-btn" id="createTabBtn">Creator</button>
         <button class="tab-btn" id="extractorTabBtn">Extractor</button>
+        <button class="tab-btn" id="compareTabBtn">Compare</button>
       </nav>
       <div class="header-spacer"></div>
         <div class="brand-links">
@@ -1040,7 +1123,7 @@
 
         <div class="table-wrap" id="tableWrap">
           <table>
-            <thead>
+            <thead id="tagHead">
               <tr>
                 <th style="width:140px">Tag</th>
                 <th>Description</th>
@@ -1116,24 +1199,9 @@
                 <input type="number" id="wwNum" class="wl-num" value="400" />
               </div>
             </div>
-            <button class="btn primary" id="wlDownloadBtn" style="width:100%;margin-top:4px;font-size:12px">⬇ Download with WL</button>
           </div>
         </div>
 
-        <div class="card" id="compareCard">
-          <div class="card-title">Compare</div>
-          <div class="compare-drop" id="compareDropZone">Drop second file to compare</div>
-          <input id="compareFileInput" type="file" accept=".dcm,.dicom" hidden />
-          <div class="compare-status" id="compareStatus">Single-file mode only</div>
-          <div class="view-toggle">
-            <label><input type="radio" name="viewFile" id="viewPrimary" checked> Primary</label>
-            <label><input type="radio" name="viewFile" id="viewCompare" disabled> Compare</label>
-          </div>
-          <div class="compare-legend">
-            <span><span class="legend-dot match"></span>Same</span>
-            <span><span class="legend-dot diff"></span>Different</span>
-          </div>
-        </div>
 
         <div class="card" id="logCard" style="display:none">
           <div class="card-title">Log</div>
@@ -1283,7 +1351,100 @@
       </div>
     </div>
   </div>
+
+  <!-- Compare Tab -->
+  <div class="compare-tab-panel" id="compareTab" style="display:none">
+    <div class="compare-tab-left">
+      <div class="top-bar">
+        <div class="pill" id="cmpStatusPill">Load two files to compare</div>
+        <label style="font:500 11px var(--mono);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px">
+          <input type="checkbox" id="cmpDiffOnly" style="accent-color:var(--accent)" /> Diffs only
+        </label>
+        <div class="search-box">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+          <input type="text" id="cmpSearch" placeholder="Search tags…" />
+        </div>
+        <div style="flex:1"></div>
+        <button class="btn" id="cmpClearAll">Clear All</button>
+      </div>
+      <!-- Empty state: two drop zones -->
+      <div class="cmp-empty-state" id="cmpEmptyState">
+        <div class="cmp-drop-pane" id="cmpDropPaneA">
+          <div class="cmp-pane-label">A</div>
+          <div class="cmp-pane-sub">Drop first .dcm file<br>or click to browse</div>
+          <input type="file" id="cmpFileInputA" accept=".dcm,.dicom" hidden />
+        </div>
+        <div class="cmp-drop-pane" id="cmpDropPaneB">
+          <div class="cmp-pane-label">B</div>
+          <div class="cmp-pane-sub">Drop second .dcm file<br>or click to browse</div>
+          <input type="file" id="cmpFileInputB" accept=".dcm,.dicom" hidden />
+        </div>
+      </div>
+      <!-- Comparison table -->
+      <div class="table-wrap hidden" id="cmpTableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:130px">Tag</th>
+              <th>Description</th>
+              <th style="width:44px">VR</th>
+              <th>File A</th>
+              <th>File B</th>
+              <th style="width:54px"></th>
+            </tr>
+          </thead>
+          <tbody id="cmpBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="compare-tab-sidebar">
+      <!-- File A card -->
+      <div class="card">
+        <div class="card-title">File A</div>
+        <div class="compare-drop" id="cmpSideDropA" style="cursor:pointer">
+          Drop .dcm or click
+        </div>
+        <div class="cmp-preview-mini" id="cmpPreviewA">
+          <canvas id="cmpCanvasA"></canvas>
+        </div>
+        <div class="cmp-file-badge hidden" id="cmpBadgeA"></div>
+        <button class="btn hidden" id="cmpClearA" style="width:100%;margin-top:6px;font-size:11px">Clear A</button>
+      </div>
+      <!-- File B card -->
+      <div class="card">
+        <div class="card-title">File B</div>
+        <div class="compare-drop" id="cmpSideDropB" style="cursor:pointer">
+          Drop .dcm or click
+        </div>
+        <div class="cmp-preview-mini" id="cmpPreviewB">
+          <canvas id="cmpCanvasB"></canvas>
+        </div>
+        <div class="cmp-file-badge hidden" id="cmpBadgeB"></div>
+        <button class="btn hidden" id="cmpClearB" style="width:100%;margin-top:6px;font-size:11px">Clear B</button>
+      </div>
+      <!-- Stats card -->
+      <div class="card hidden" id="cmpStatsCard">
+        <div class="card-title">Summary</div>
+        <div class="cmp-stat-row" id="cmpStatRow"></div>
+        <div class="compare-legend" style="margin-top:10px">
+          <span><span class="legend-dot match"></span>Match</span>
+          <span><span class="legend-dot diff"></span>Diff</span>
+          <span><span class="legend-dot only-a"></span>Only A</span>
+          <span><span class="legend-dot only-b"></span>Only B</span>
+        </div>
+      </div>
+      <!-- Export card -->
+      <div class="card hidden" id="cmpExportCard">
+        <div class="card-title">Apply &amp; Export</div>
+        <button class="btn" id="cmpApplyAtoB" style="width:100%;margin-bottom:6px">Apply all A→B diffs</button>
+        <button class="btn" id="cmpApplyBtoA" style="width:100%;margin-bottom:10px">Apply all B→A diffs</button>
+        <button class="btn primary" id="cmpDownloadA" style="width:100%;margin-bottom:6px">⬇ Download A</button>
+        <button class="btn primary" id="cmpDownloadB" style="width:100%">⬇ Download B</button>
+      </div>
+    </div>
   </div>
+  </div><!-- end .app -->
 
   <div class="load-overlay" id="loadOverlay">
     <div class="load-spinner"></div>
@@ -2190,6 +2351,7 @@ const body = document.body;
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 const tagBody = document.getElementById('tagBody');
+const tagHead = document.getElementById('tagHead');
 const fileNamePill = document.getElementById('fileNamePill');
 const fileCountPill = document.getElementById('fileCountPill');
 const anonymizeBtn = document.getElementById('anonymizeBtn');
@@ -2201,12 +2363,6 @@ const fullscreenOverlay = document.getElementById('fullscreenOverlay');
 const fullscreenCanvas = document.getElementById('fullscreenCanvas');
 const downloadAllBtn = document.getElementById('downloadAllBtn');
 const batchButtonsContainer = document.getElementById('batchButtons');
-const compareCard = document.getElementById('compareCard');
-const compareDropZone = document.getElementById('compareDropZone');
-const compareFileInput = document.getElementById('compareFileInput');
-const compareStatus = document.getElementById('compareStatus');
-const viewPrimaryRadio = document.getElementById('viewPrimary');
-const viewCompareRadio = document.getElementById('viewCompare');
 const logCard = document.getElementById('logCard');
 const logArea = document.getElementById('logArea');
 const uidPattern = document.getElementById('uidPattern');
@@ -2229,9 +2385,6 @@ let meta = null;
 const pendingEdits = new Map();
 let sharedUIDPrefix = '';
 let detectedPattern = '';
-let compareDict = null;
-let compareName = null;
-let activeView = 'primary';
 let activeCat = 'all';
 let searchQuery = '';
 let previewImageData = null;
@@ -2409,63 +2562,48 @@ function applyPrefixToAll(newP) {
 
 // ============ RENDERING ============
 function renderTable() {
-  if (!dict && !compareDict) { tagBody.innerHTML = ''; return; }
-  const isPrimary = activeView === 'primary' || !compareDict;
-  const mainDict = isPrimary ? dict : compareDict;
-  const otherDict = isPrimary ? compareDict : dict;
-  if (!mainDict) { tagBody.innerHTML = ''; return; }
+  if (!dict) { tagBody.innerHTML = ''; return; }
 
-  const entries = Object.entries(mainDict).filter(([t]) => t.startsWith('x') || /^[0-9a-f]{8}$/i.test(t));
-  entries.sort(([a],[b]) => a.localeCompare(b));
+  const entries = Object.entries(dict)
+    .filter(([t]) => t.startsWith('x') || /^[0-9a-f]{8}$/i.test(t));
+  entries.sort(([a], [b]) => a.localeCompare(b));
+
   const q = searchQuery.toLowerCase();
   const rows = [];
 
   for (const [tag, el] of entries) {
-    const vr = el.vr || '';
+    const vr   = el.vr || '';
     const desc = descFor(tag);
-    const cat = catFor(tag, vr);
+    const cat  = catFor(tag, vr);
+
     if (activeCat !== 'all' && cat !== activeCat) continue;
-    
-    let valStr = isPrimary && pendingEdits.has(tag) ? pendingEdits.get(tag).valueString : elToString(el);
-    
+
+    const valStr = pendingEdits.has(tag)
+      ? pendingEdits.get(tag).valueString
+      : elToString(el);
+
     if (q) {
-      const searchable = `${tag} ${fmtTag(tag)} ${desc || ''} ${valStr}`.toLowerCase();
-      if (!searchable.includes(q)) continue;
+      if (!`${fmtTag(tag)} ${desc || ''} ${valStr}`.toLowerCase().includes(q)) continue;
     }
-    
-    let trClass = '';
-    if (otherDict && files.length <= 1) {
-      const cmpEl = otherDict[tag];
-      if (cmpEl) trClass = elToString(cmpEl) === valStr ? 'cmp-match' : 'cmp-diff';
-    }
-    
+
     const tr = document.createElement('tr');
-    if (trClass) tr.classList.add(trClass);
     tr.innerHTML = `
-      <td>
-        <div class="tag-cell">
-          <span class="tag-cat" data-cat="${cat}"></span>
-          <span class="tag-code">${fmtTag(tag)}</span>
-        </div>
-      </td>
+      <td><div class="tag-cell"><span class="tag-cat" data-cat="${cat}"></span><span class="tag-code">${fmtTag(tag)}</span></div></td>
       <td><span class="${desc ? 'desc-cell' : 'desc-cell desc-unknown'}">${desc || 'Unknown tag'}</span></td>
       <td><span class="vr-badge">${vr}</span></td>
-      <td></td>
-    `;
-    
+      <td></td>`;
+
     const inp = document.createElement('input');
     inp.className = 'val-input' + (el.InlineBinary || isBinaryVR(vr) ? ' binary' : '');
     inp.value = valStr;
     inp.dataset.tag = tag;
-    const ro = isReadOnly(tag, vr) || !isPrimary;
-    inp.disabled = ro;
-    if (!ro) {
+    inp.disabled = isReadOnly(tag, vr);
+    if (!inp.disabled) {
       inp.addEventListener('input', () => {
         trackEditStart?.();
         pendingEdits.set(tag, { vr, valueString: inp.value });
-        // Keep W/L sliders in sync if WC or WW edited in the table
         if (tag === 'x00281050') { const v = parseFloat(inp.value); if (!isNaN(v) && wcSlider) { wcSlider.value = v; if (wcNum) wcNum.value = Math.round(v); if (wcDisplay) wcDisplay.textContent = Math.round(v); } }
-        if (tag === 'x00281051') { const v = parseFloat(inp.value); if (!isNaN(v) && wwSlider) { wwSlider.value = Math.max(1, v); if (wwNum) wwNum.value = Math.round(Math.max(1, v)); if (wwDisplay) wwDisplay.textContent = Math.round(Math.max(1, v)); } }
+        if (tag === 'x00281051') { const v = parseFloat(inp.value); if (!isNaN(v) && wwSlider) { wwSlider.value = Math.max(1,v); if (wwNum) wwNum.value = Math.round(Math.max(1,v)); if (wwDisplay) wwDisplay.textContent = Math.round(Math.max(1,v)); } }
         showDownload();
         if (files.length === 1 && dict) drawPreview(dict, currentFrame);
       });
@@ -2473,11 +2611,10 @@ function renderTable() {
     tr.lastElementChild.appendChild(inp);
     rows.push(tr);
   }
-  
+
   tagBody.replaceChildren(...rows);
   showDownload();
   detectUIDPattern();
-  updateCompare();
 }
 
 function showDownload() {
@@ -2519,24 +2656,6 @@ function rebuildBatch() {
   batchButtonsContainer.appendChild(btn);
 }
 
-function updateCompare() {
-  if (files.length <= 1) {
-    compareCard.classList.remove('disabled');
-    viewCompareRadio.disabled = !compareDict;
-    compareStatus.textContent = compareDict ? `Comparing: ${compareName}` : 'No compare file loaded';
-    if (!compareDict && activeView === 'compare') {
-      activeView = 'primary';
-      viewPrimaryRadio.checked = true;
-    }
-  } else {
-    compareCard.classList.add('disabled');
-    compareStatus.textContent = `Disabled (${files.length} files loaded)`;
-    compareDict = compareName = null;
-    activeView = 'primary';
-    viewPrimaryRadio.checked = true;
-    viewCompareRadio.disabled = true;
-  }
-}
 
 // ============ WALK & NORMALIZE ============
 function walkEls(node, fn) {
@@ -2634,6 +2753,25 @@ function collectEncapsulatedFrames(px) {
   return { jpeg, j2k };
 }
 
+// Module-level windowing — operates on a pre-computed Float32Array so WL can
+// be re-applied instantly from cached raw data without re-decoding the image.
+function applyWindowToFloats(raw, framePixels, wcVal, wwVal, mn, mx) {
+  let lo, hi;
+  if (wwVal != null && wcVal != null) {
+    lo = wcVal - 0.5 - (wwVal - 1) / 2;
+    hi = wcVal - 0.5 + (wwVal - 1) / 2;
+  } else { lo = mn; hi = mx; }
+  const range = (hi - lo) || 1;
+  const out = new Uint8ClampedArray(framePixels * 4);
+  for (let i = 0; i < framePixels; i++) {
+    const v = raw[i];
+    const g = v <= lo ? 0 : v >= hi ? 255 : Math.round(((v - lo) / range) * 255);
+    const p = i * 4;
+    out[p] = out[p+1] = out[p+2] = g; out[p+3] = 255;
+  }
+  return out;
+}
+
 // Lazy-load the JPEG Lossless decoder (ES module — must use dynamic import)
 const JPEG_LOSSLESS_CDN = 'https://cdn.jsdelivr.net/npm/jpeg-lossless-decoder-js@2.1.2/release/lossless-min.js';
 let _jpegLosslessDecoder = null;
@@ -2719,6 +2857,7 @@ async function decodeDicomPixels(d, frameIndex = 0, { meta = null, wcOvr, wwOvr 
   }
 
   // Shared windowing for monochrome data arrays (Int16/Uint16/Uint8)
+  // Returns { pixels, rawFloats, mn, mx } so the caller can cache rawFloats for instant WL re-draws.
   function applyMonochromeWindowing(data) {
     const mask  = bs < 16 ? (1 << bs) - 1 : 0xFFFF;
     const shift = hb - bs + 1;
@@ -2736,22 +2875,8 @@ async function decodeDicomPixels(d, frameIndex = 0, { meta = null, wcOvr, wwOvr 
       if (v < mn) mn = v;
       if (v > mx) mx = v;
     }
-    const wc_use = wcOvr ?? wc;
-    const ww_use = wwOvr ?? ww;
-    let lo, hi;
-    if (ww_use != null && wc_use != null) {
-      lo = wc_use - 0.5 - (ww_use - 1) / 2;
-      hi = wc_use - 0.5 + (ww_use - 1) / 2;
-    } else { lo = mn; hi = mx; }
-    const range = (hi - lo) || 1;
-    const out = new Uint8ClampedArray(framePixels * 4);
-    for (let i = 0; i < framePixels; i++) {
-      const v = raw[i];
-      const g = v <= lo ? 0 : v >= hi ? 255 : Math.round(((v - lo) / range) * 255);
-      const p = i * 4;
-      out[p] = out[p+1] = out[p+2] = g; out[p+3] = 255;
-    }
-    return out;
+    const pixels = applyWindowToFloats(raw, framePixels, wcOvr ?? wc, wwOvr ?? ww, mn, mx);
+    return { pixels, rawFloats: raw, mn, mx };
   }
 
   if (jpegFrames.length) {
@@ -2767,7 +2892,8 @@ async function decodeDicomPixels(d, frameIndex = 0, { meta = null, wcOvr, wwOvr 
         const data = ba === 16
           ? new (pr ? Int16Array : Uint16Array)(decoded.buffer, decoded.byteOffset, decoded.byteLength / 2)
           : new Uint8Array(decoded.buffer, decoded.byteOffset, decoded.byteLength);
-        return { pixels: applyMonochromeWindowing(data), rows, cols, numFrames };
+        const { pixels: pxL, rawFloats: rfL, mn: mnL, mx: mxL } = applyMonochromeWindowing(data);
+        return { pixels: pxL, rawFloats: rfL, mn: mnL, mx: mxL, wcTag: wc, wwTag: ww, rows, cols, numFrames };
       } catch (e) {
         return { error: `JPEG Lossless decode failed: ${e.message}`, numFrames };
       }
@@ -2837,7 +2963,8 @@ async function decodeDicomPixels(d, frameIndex = 0, { meta = null, wcOvr, wwOvr 
                ba === 8  ? new Uint8Array(pxBuf) : null;
   if (!data) return null;
 
-  return { pixels: applyMonochromeWindowing(data), rows, cols, numFrames };
+  const { pixels, rawFloats, mn, mx } = applyMonochromeWindowing(data);
+  return { pixels, rawFloats, mn, mx, wcTag: wc, wwTag: ww, rows, cols, numFrames };
 }
 
 function showPreviewError(msg, numFrames, frameIndex) {
@@ -2862,6 +2989,32 @@ function showPreviewError(msg, numFrames, frameIndex) {
   }
 }
 
+// Raw pixel cache — lets WL sliders re-window without re-decoding
+let previewRawData = null;
+
+function _paintPixels(pixels, rows, cols) {
+  previewCanvas.width = cols;
+  previewCanvas.height = rows;
+  const ctx = previewCanvas.getContext('2d');
+  const imgData = ctx.createImageData(cols, rows);
+  imgData.data.set(pixels);
+  ctx.putImageData(imgData, 0, 0);
+  previewImageData = { width: cols, height: rows, data: imgData };
+}
+
+// Synchronous WL re-draw from cache — no async, no image decode
+function redrawWL(wcOvr, wwOvr) {
+  if (!previewRawData) return false;
+  const { rawFloats, rows, cols, mn, mx, wcTag, wwTag } = previewRawData;
+  const pixels = applyWindowToFloats(
+    rawFloats, rows * cols,
+    wcOvr ?? wcTag, wwOvr ?? wwTag,
+    mn, mx
+  );
+  _paintPixels(pixels, rows, cols);
+  return true;
+}
+
 async function drawPreview(d, frameIndex = 0) {
   const wcPending = pendingEdits.get('x00281050');
   const wwPending = pendingEdits.get('x00281051');
@@ -2872,23 +3025,31 @@ async function drawPreview(d, frameIndex = 0) {
   if (!result) {
     previewCard.style.display = 'none';
     frameNav.classList.add('hidden');
+    previewRawData = null;
     return;
   }
   if (result.error) {
     showPreviewError(result.error, result.numFrames, frameIndex);
+    previewRawData = null;
     return;
   }
   const { pixels, rows, cols, numFrames } = result;
 
-  previewCanvas.width = cols;
-  previewCanvas.height = rows;
-  const ctx = previewCanvas.getContext('2d');
-  const imgData = ctx.createImageData(cols, rows);
-  imgData.data.set(pixels);
-  ctx.putImageData(imgData, 0, 0);
+  // Cache raw floats so WL sliders can re-window synchronously
+  if (result.rawFloats) {
+    previewRawData = {
+      rawFloats: result.rawFloats,
+      rows, cols,
+      mn: result.mn, mx: result.mx,
+      wcTag: result.wcTag, wwTag: result.wwTag,
+    };
+  } else {
+    previewRawData = null; // RGB / JPEG bitmap — no WL cache possible
+  }
 
-  previewImageData = { width: cols, height: rows, data: imgData };
+  _paintPixels(pixels, rows, cols);
   previewCard.style.display = 'block';
+  initWLSliders?.();   // safe to call here — pixel data confirmed, dict in scope
 
   totalFrames = numFrames;
   if (numFrames > 1) {
@@ -3072,11 +3233,9 @@ function syncToUI() {
       }
     });
   }
-  activeView = 'primary';
-  viewPrimaryRadio.checked = true;
   updateHistoryBtns?.();
   renderTable();
-  if (dict) drawPreview(dict, 0).then(() => { if (previewImageData) initWLSliders?.(); });
+  if (dict) drawPreview(dict, 0);
 }
 
 // ============ FILE HANDLING ============
@@ -3089,8 +3248,8 @@ async function handleFiles(list) {
   previewCard.style.display = 'none';
   logArea.textContent = '';
   logCard.style.display = 'none';
-  compareDict = compareName = null;
   previewImageData = null;
+  previewRawData   = null;
   currentFrame = 0;
   totalFrames = 1;
   errorBanner.className = 'hidden';
@@ -3141,26 +3300,6 @@ async function handleFiles(list) {
   syncToUI();
 }
 
-async function handleCompare(file) {
-  if (!file || !files.length) return;
-  if (files.length > 1) {
-    alert('Compare only available for single file.');
-    return;
-  }
-  try {
-    const buf = await file.arrayBuffer();
-    const msg = DicomMessage.readFile(buf);
-    compareDict = msg.dict;
-    compareName = file.name;
-    log(`Compare loaded: ${compareName}`);
-    compareStatus.textContent = `Comparing: ${compareName}`;
-    viewCompareRadio.disabled = false;
-    renderTable();
-  } catch (e) {
-    log(`Compare failed: ${e.message || e}`);
-    alert('Failed to load compare file.');
-  }
-}
 
 function downloadRange(start, end) {
   if (!files.length) return;
@@ -3241,26 +3380,6 @@ randomizeBtn.addEventListener('click', () => {
   toast?.('All files randomized');
 });
 
-compareDropZone.addEventListener('click', () => {
-  if (files.length > 1) { alert('Compare only for single file.'); return; }
-  compareFileInput.click();
-});
-compareFileInput.addEventListener('change', e => {
-  if (e.target.files?.[0]) handleCompare(e.target.files[0]);
-});
-compareDropZone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
-compareDropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  e.stopPropagation();
-  if (e.dataTransfer?.files?.[0]) handleCompare(e.dataTransfer.files[0]);
-});
-
-viewPrimaryRadio.addEventListener('change', () => {
-  if (viewPrimaryRadio.checked) { activeView = 'primary'; renderTable(); }
-});
-viewCompareRadio.addEventListener('change', () => {
-  if (viewCompareRadio.checked && compareDict) { activeView = 'compare'; renderTable(); }
-});
 
 searchInput.addEventListener('input', e => { searchQuery = e.target.value; renderTable(); });
 
@@ -3285,26 +3404,31 @@ frameSlider.addEventListener('input', () => {
 // ============ TAB SWITCHING ============
 let activeTab = 'editor';
 
-const editorTabBtn = document.getElementById('editorTabBtn');
-const createTabBtn = document.getElementById('createTabBtn');
+const editorTabBtn   = document.getElementById('editorTabBtn');
+const createTabBtn   = document.getElementById('createTabBtn');
 const extractorTabBtn = document.getElementById('extractorTabBtn');
-const editorTabPanel = document.getElementById('editorTab');
-const createTabPanel = document.getElementById('createTab');
+const compareTabBtn  = document.getElementById('compareTabBtn');
+const editorTabPanel   = document.getElementById('editorTab');
+const createTabPanel   = document.getElementById('createTab');
 const extractorTabPanel = document.getElementById('extractorTab');
+const compareTabPanel  = document.getElementById('compareTab');
 
 function switchTab(tab) {
   activeTab = tab;
-  editorTabBtn.classList.toggle('active', tab === 'editor');
-  createTabBtn.classList.toggle('active', tab === 'create');
-  extractorTabBtn.classList.toggle('active', tab === 'extractor');
-  editorTabPanel.style.display = tab === 'editor' ? 'grid' : 'none';
-  createTabPanel.style.display = tab === 'create' ? 'grid' : 'none';
-  extractorTabPanel.style.display = tab === 'extractor' ? 'grid' : 'none';
+  editorTabBtn.classList.toggle('active',   tab === 'editor');
+  createTabBtn.classList.toggle('active',   tab === 'create');
+  extractorTabBtn.classList.toggle('active',tab === 'extractor');
+  compareTabBtn.classList.toggle('active',  tab === 'compare');
+  editorTabPanel.style.display   = tab === 'editor'    ? 'grid' : 'none';
+  createTabPanel.style.display   = tab === 'create'    ? 'grid' : 'none';
+  extractorTabPanel.style.display= tab === 'extractor' ? 'grid' : 'none';
+  compareTabPanel.style.display  = tab === 'compare'   ? 'grid' : 'none';
 }
 
-editorTabBtn.addEventListener('click', () => switchTab('editor'));
-createTabBtn.addEventListener('click', () => switchTab('create'));
-extractorTabBtn.addEventListener('click', () => switchTab('extractor'));
+editorTabBtn.addEventListener('click',   () => switchTab('editor'));
+createTabBtn.addEventListener('click',   () => switchTab('create'));
+extractorTabBtn.addEventListener('click',() => switchTab('extractor'));
+compareTabBtn.addEventListener('click',  () => switchTab('compare'));
 
 // ============ EXTRACTOR ============
 let extractorFiles = [];
@@ -3808,6 +3932,335 @@ document.getElementById('addSeriesBtn').addEventListener('click', addSeries);
 renderSeriesPanel();
 
 // ================================================================
+// COMPARE TAB
+// ================================================================
+
+// ── State ────────────────────────────────────────────────────────
+let cmpA = null;      // { name, dict, meta, pending: Map }
+let cmpB = null;      // { name, dict, meta, pending: Map }
+let cmpDiffOnly  = false;
+let cmpSearchStr = '';
+
+// ── Element refs ─────────────────────────────────────────────────
+const cmpStatusPill  = document.getElementById('cmpStatusPill');
+const cmpEmptyState  = document.getElementById('cmpEmptyState');
+const cmpTableWrap   = document.getElementById('cmpTableWrap');
+const cmpBody        = document.getElementById('cmpBody');
+const cmpStatsCard   = document.getElementById('cmpStatsCard');
+const cmpExportCard  = document.getElementById('cmpExportCard');
+const cmpStatRow     = document.getElementById('cmpStatRow');
+const cmpPreviewA    = document.getElementById('cmpPreviewA');
+const cmpPreviewB    = document.getElementById('cmpPreviewB');
+const cmpCanvasA     = document.getElementById('cmpCanvasA');
+const cmpCanvasB     = document.getElementById('cmpCanvasB');
+const cmpBadgeA      = document.getElementById('cmpBadgeA');
+const cmpBadgeB      = document.getElementById('cmpBadgeB');
+const cmpClearA      = document.getElementById('cmpClearA');
+const cmpClearB      = document.getElementById('cmpClearB');
+
+// ── File loading ─────────────────────────────────────────────────
+async function cmpLoadFile(file, side) {
+  if (!file) return;
+  try {
+    showLoading(true, `Loading ${side === 'A' ? 'File A' : 'File B'}: ${file.name}`);
+    const buf = await file.arrayBuffer();
+    const msg = DicomMessage.readFile(buf);
+    normBin(msg.dict);
+    const obj = { name: file.name, dict: msg.dict, meta: msg.meta || {}, pending: new Map() };
+    if (side === 'A') cmpA = obj;
+    else              cmpB = obj;
+    await cmpRenderSidebar(side);
+    cmpRenderTable();
+  } catch (e) {
+    toast?.(`Failed to load ${file.name}: ${e.message}`);
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function cmpRenderSidebar(side) {
+  const obj     = side === 'A' ? cmpA : cmpB;
+  const preview = side === 'A' ? cmpPreviewA : cmpPreviewB;
+  const canvas  = side === 'A' ? cmpCanvasA  : cmpCanvasB;
+  const badge   = side === 'A' ? cmpBadgeA   : cmpBadgeB;
+  const clearBtn= side === 'A' ? cmpClearA   : cmpClearB;
+  const dropEl  = document.getElementById(side === 'A' ? 'cmpSideDropA' : 'cmpSideDropB');
+
+  if (!obj) {
+    preview.style.display = 'none';
+    badge.classList.add('hidden');
+    clearBtn.classList.add('hidden');
+    dropEl.textContent = 'Drop .dcm or click';
+    return;
+  }
+
+  badge.textContent = obj.name;
+  badge.classList.remove('hidden');
+  clearBtn.classList.remove('hidden');
+  dropEl.textContent = obj.name.length > 28 ? obj.name.slice(0, 26) + '…' : obj.name;
+
+  // Render mini preview
+  const result = await decodeDicomPixels(obj.dict, 0, { meta: obj.meta });
+  if (result && !result.error) {
+    const { pixels, rows, cols } = result;
+    canvas.width = cols; canvas.height = rows;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(cols, rows);
+    imgData.data.set(pixels);
+    ctx.putImageData(imgData, 0, 0);
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+// ── Table rendering ───────────────────────────────────────────────
+function cmpRenderTable() {
+  const bothLoaded = cmpA && cmpB;
+
+  // Empty state vs table
+  cmpEmptyState.classList.toggle('hidden', bothLoaded);
+  cmpTableWrap.classList.toggle('hidden', !bothLoaded);
+  cmpStatsCard.classList.toggle('hidden', !bothLoaded);
+  cmpExportCard.classList.toggle('hidden', !bothLoaded);
+
+  // Status pill
+  if (!cmpA && !cmpB)      cmpStatusPill.textContent = 'Load two files to compare';
+  else if (!cmpA)           cmpStatusPill.textContent = 'File B loaded — load File A';
+  else if (!cmpB)           cmpStatusPill.textContent = 'File A loaded — load File B';
+  else                      cmpStatusPill.textContent = `${cmpA.name}  vs  ${cmpB.name}`;
+
+  if (!bothLoaded) { cmpBody.innerHTML = ''; return; }
+
+  // Build union of all tags
+  const isTag = t => t.startsWith('x') || /^[0-9a-f]{8}$/i.test(t);
+  const tagSet = new Set([
+    ...Object.keys(cmpA.dict).filter(isTag),
+    ...Object.keys(cmpB.dict).filter(isTag),
+  ]);
+  const allTags = [...tagSet].sort();
+
+  const q = cmpSearchStr.toLowerCase();
+  const rows = [];
+  let nMatch = 0, nDiff = 0, nOnlyA = 0, nOnlyB = 0;
+
+  for (const tag of allTags) {
+    const elA = cmpA.dict[tag];
+    const elB = cmpB.dict[tag];
+    const vr  = (elA || elB)?.vr || '';
+    const desc = descFor(tag);
+    const cat  = catFor(tag, vr);
+
+    const valA = cmpA.pending.has(tag)
+      ? cmpA.pending.get(tag).valueString
+      : elA ? elToString(elA) : null;
+    const valB = cmpB.pending.has(tag)
+      ? cmpB.pending.get(tag).valueString
+      : elB ? elToString(elB) : null;
+
+    let cls = '';
+    if      (valA !== null && valB !== null && valA === valB) { cls = 'cmp-match'; nMatch++; }
+    else if (valA !== null && valB !== null)                  { cls = 'cmp-diff';  nDiff++; }
+    else if (valA !== null)                                   { cls = 'cmp-only-a'; nOnlyA++; }
+    else                                                      { cls = 'cmp-only-b'; nOnlyB++; }
+
+    if (cmpDiffOnly && cls === 'cmp-match') continue;
+
+    if (q && !`${fmtTag(tag)} ${desc || ''} ${valA || ''} ${valB || ''}`.toLowerCase().includes(q)) continue;
+
+    const tr = document.createElement('tr');
+    tr.className = cls;
+
+    // Tag | Desc | VR
+    tr.innerHTML = `
+      <td><div class="tag-cell"><span class="tag-cat" data-cat="${cat}"></span><span class="tag-code">${fmtTag(tag)}</span></div></td>
+      <td><span class="${desc ? 'desc-cell' : 'desc-cell desc-unknown'}">${desc || 'Unknown tag'}</span></td>
+      <td><span class="vr-badge">${vr}</span></td>
+      <td></td><td></td><td></td>`;
+
+    const binary = isBinaryVR(vr) || elA?.InlineBinary || elB?.InlineBinary;
+    const ro     = isReadOnly(tag, vr);
+
+    // File A input
+    const inpA = document.createElement('input');
+    inpA.className = 'val-input' + (binary ? ' binary' : '');
+    inpA.value = valA ?? '';
+    inpA.placeholder = valA === null ? '— not present —' : '';
+    inpA.disabled = ro || binary || !elA;
+    if (!inpA.disabled) {
+      inpA.addEventListener('change', () => {
+        cmpA.pending.set(tag, { vr, valueString: inpA.value });
+        cmpRenderTable();
+      });
+    }
+    tr.children[3].appendChild(inpA);
+
+    // File B input
+    const inpB = document.createElement('input');
+    inpB.className = 'val-input' + (binary ? ' binary' : '');
+    inpB.value = valB ?? '';
+    inpB.placeholder = valB === null ? '— not present —' : '';
+    inpB.disabled = ro || binary || !elB;
+    if (!inpB.disabled) {
+      inpB.addEventListener('change', () => {
+        cmpB.pending.set(tag, { vr, valueString: inpB.value });
+        cmpRenderTable();
+      });
+    }
+    tr.children[4].appendChild(inpB);
+
+    // Copy buttons (only for diff rows with editable values)
+    if (cls === 'cmp-diff' && !ro && !binary) {
+      const actionsTd = tr.children[5];
+      actionsTd.className = 'cmp-actions-cell';
+
+      if (elB && valA !== null) {
+        const btnAB = document.createElement('button');
+        btnAB.className = 'cmp-copy-btn';
+        btnAB.title = 'Copy A → B';
+        btnAB.textContent = '→';
+        btnAB.addEventListener('click', () => {
+          cmpB.pending.set(tag, { vr, valueString: valA });
+          cmpRenderTable();
+          toast?.(`${fmtTag(tag)}: A → B`);
+        });
+        actionsTd.appendChild(btnAB);
+      }
+      if (elA && valB !== null) {
+        const btnBA = document.createElement('button');
+        btnBA.className = 'cmp-copy-btn';
+        btnBA.title = 'Copy B → A';
+        btnBA.textContent = '←';
+        btnBA.addEventListener('click', () => {
+          cmpA.pending.set(tag, { vr, valueString: valB });
+          cmpRenderTable();
+          toast?.(`${fmtTag(tag)}: B → A`);
+        });
+        actionsTd.appendChild(btnBA);
+      }
+    }
+
+    rows.push(tr);
+  }
+
+  cmpBody.replaceChildren(...rows);
+
+  // Stats
+  cmpStatRow.innerHTML =
+    `<span class="cmp-stat s-match">✓ ${nMatch} match</span>` +
+    `<span class="cmp-stat s-diff">≠ ${nDiff} diff</span>` +
+    `<span class="cmp-stat s-only">+A ${nOnlyA}</span>` +
+    `<span class="cmp-stat s-only">+B ${nOnlyB}</span>`;
+}
+
+// ── Bulk apply ───────────────────────────────────────────────────
+function cmpApplyAllDiffs(from, to) {
+  // from/to are 'A' or 'B'
+  const src = from === 'A' ? cmpA : cmpB;
+  const dst = from === 'A' ? cmpB : cmpA;
+  if (!src || !dst) return;
+  const isTag = t => t.startsWith('x') || /^[0-9a-f]{8}$/i.test(t);
+  let count = 0;
+  for (const tag of Object.keys(src.dict).filter(isTag)) {
+    const elDst = dst.dict[tag];
+    if (!elDst) continue;
+    const vr = elDst.vr || src.dict[tag]?.vr || '';
+    if (isReadOnly(tag, vr) || isBinaryVR(vr)) continue;
+    const valSrc = src.pending.get(tag)?.valueString ?? elToString(src.dict[tag]);
+    const valDst = dst.pending.get(tag)?.valueString ?? elToString(elDst);
+    if (valSrc !== valDst) { dst.pending.set(tag, { vr, valueString: valSrc }); count++; }
+  }
+  cmpRenderTable();
+  toast?.(`Applied ${count} ${from}→${to} differences`);
+}
+
+// ── Download ─────────────────────────────────────────────────────
+function cmpDownload(side) {
+  const obj = side === 'A' ? cmpA : cmpB;
+  if (!obj) return;
+  try {
+    const d = typeof structuredClone === 'function'
+      ? structuredClone(obj.dict) : { ...obj.dict };
+    obj.pending.forEach(({ vr, valueString }, tag) => {
+      if (!isReadOnly(tag, vr)) d[tag] = { vr, Value: parseByVR(vr, valueString) };
+    });
+    Object.keys(d).forEach(t => {
+      const hex = (t.startsWith('x') ? t.slice(1) : t).toLowerCase();
+      if (hex.length === 8 && hex.slice(4) === '0000') delete d[t];
+    });
+    const m = ensureMeta(d, obj.meta);
+    normBin(d); normBin(m);
+    const dd = new DicomDict(m);
+    dd.dict = d;
+    const out = dd.write();
+    const blob = new Blob([out.buffer || out], { type: 'application/dicom' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = obj.name.replace(/\.[^.]+$/, '') + '.modified.dcm';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 0);
+    toast?.(`Downloaded modified ${side === 'A' ? 'File A' : 'File B'}`);
+  } catch (e) {
+    toast?.(`Download failed: ${e.message}`);
+  }
+}
+
+// ── Drop zone helpers ─────────────────────────────────────────────
+function cmpWireDropZone(el, fileInput, side) {
+  el.addEventListener('click', () => fileInput.click());
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
+  el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+  el.addEventListener('drop', e => {
+    e.preventDefault(); el.classList.remove('drag-over');
+    const f = e.dataTransfer?.files?.[0];
+    if (f) cmpLoadFile(f, side);
+  });
+  fileInput.addEventListener('change', e => {
+    if (e.target.files?.[0]) cmpLoadFile(e.target.files[0], side);
+    e.target.value = '';
+  });
+}
+
+// Main drop panes (empty state)
+cmpWireDropZone(document.getElementById('cmpDropPaneA'), document.getElementById('cmpFileInputA'), 'A');
+cmpWireDropZone(document.getElementById('cmpDropPaneB'), document.getElementById('cmpFileInputB'), 'B');
+
+// Sidebar drop zones (always visible)
+const cmpSideInputA = document.createElement('input');
+cmpSideInputA.type = 'file'; cmpSideInputA.accept = '.dcm,.dicom'; cmpSideInputA.hidden = true;
+document.body.appendChild(cmpSideInputA);
+cmpWireDropZone(document.getElementById('cmpSideDropA'), cmpSideInputA, 'A');
+
+const cmpSideInputB = document.createElement('input');
+cmpSideInputB.type = 'file'; cmpSideInputB.accept = '.dcm,.dicom'; cmpSideInputB.hidden = true;
+document.body.appendChild(cmpSideInputB);
+cmpWireDropZone(document.getElementById('cmpSideDropB'), cmpSideInputB, 'B');
+
+// Clear buttons
+cmpClearA.addEventListener('click', () => { cmpA = null; cmpRenderSidebar('A'); cmpRenderTable(); });
+cmpClearB.addEventListener('click', () => { cmpB = null; cmpRenderSidebar('B'); cmpRenderTable(); });
+document.getElementById('cmpClearAll').addEventListener('click', () => {
+  cmpA = cmpB = null;
+  cmpRenderSidebar('A'); cmpRenderSidebar('B'); cmpRenderTable();
+});
+
+// Filters
+document.getElementById('cmpDiffOnly').addEventListener('change', e => { cmpDiffOnly = e.target.checked; cmpRenderTable(); });
+document.getElementById('cmpSearch').addEventListener('input', e => { cmpSearchStr = e.target.value; cmpRenderTable(); });
+
+// Export
+document.getElementById('cmpApplyAtoB').addEventListener('click', () => cmpApplyAllDiffs('A', 'B'));
+document.getElementById('cmpApplyBtoA').addEventListener('click', () => cmpApplyAllDiffs('B', 'A'));
+document.getElementById('cmpDownloadA').addEventListener('click', () => cmpDownload('A'));
+document.getElementById('cmpDownloadB').addEventListener('click', () => cmpDownload('B'));
+
+// Also accept files dropped anywhere on the compare tab
+window.addEventListener('drop', e => {
+  if (activeTab !== 'compare') return;
+  // Already handled by individual pane listeners
+}, { capture: false });
+
+// ================================================================
 // NEW FEATURES
 // ================================================================
 
@@ -3921,6 +4374,7 @@ function switchFile(idx) {
   meta  = files[idx].meta;
   currentFrame = 0;
   previewImageData = null;
+  previewRawData   = null;
   renderFileBrowser();
   syncToUI();
 }
@@ -3935,16 +4389,15 @@ const wcDisplay    = document.getElementById('wcDisplay');
 const wwDisplay    = document.getElementById('wwDisplay');
 const wlPreset     = document.getElementById('wlPreset');
 const wlResetBtn   = document.getElementById('wlResetBtn');
-const wlDownloadBtn = document.getElementById('wlDownloadBtn');
 
 function initWLSliders() {
-  // Only show W/L if pixel data exists
-  const pxEl = dict?.['x7fe00010'] ?? dict?.['7fe00010'];
-  if (!pxEl) { wlSection.classList.add('hidden'); return; }
+  if (!wlSection) return;
+  // Use lookupTag so key case (x7FE00010 vs x7fe00010) doesn't matter
+  if (!lookupTag(dict, '7fe00010')) { wlSection.classList.add('hidden'); return; }
 
-  // Read original values from file dict (not pending edits)
-  wcOriginal = parseFloat(dict?.['x00281050']?.Value?.[0]) || null;
-  wwOriginal = parseFloat(dict?.['x00281051']?.Value?.[0]) || null;
+  // Read original values using lookupTag (consistent with decodeDicomPixels)
+  wcOriginal = parseFloat(lookupTag(dict, '00281050')?.Value?.[0]) || null;
+  wwOriginal = parseFloat(lookupTag(dict, '00281051')?.Value?.[0]) || null;
 
   // Prefer pending edits if WL was already changed this session
   const wc = parseFloat(pendingEdits.get('x00281050')?.valueString ?? wcOriginal ?? 40);
@@ -3982,25 +4435,28 @@ function setWL(wc, ww, updatePending = true) {
   }
 }
 
+function _applyWLInput(wc, ww) {
+  trackEditStart();
+  pendingEdits.set('x00281050', { vr: 'DS', valueString: String(wc) });
+  pendingEdits.set('x00281051', { vr: 'DS', valueString: String(ww) });
+  const wcInp = tagBody.querySelector('[data-tag="x00281050"]');
+  const wwInp = tagBody.querySelector('[data-tag="x00281051"]');
+  if (wcInp) wcInp.value = String(wc);
+  if (wwInp) wwInp.value = String(ww);
+  showDownload();
+  // Use cached raw data for instant synchronous re-draw; fall back to full decode only if no cache
+  if (!redrawWL(wc, ww) && dict) drawPreview(dict, currentFrame);
+}
+
 wcSlider.addEventListener('input', () => {
   const v = parseInt(wcSlider.value);
   wcNum.value = v; wcDisplay.textContent = v;
-  trackEditStart();
-  pendingEdits.set('x00281050', { vr: 'DS', valueString: String(v) });
-  const inp = tagBody.querySelector('[data-tag="x00281050"]');
-  if (inp) inp.value = String(v);
-  showDownload();
-  if (dict) drawPreview(dict, currentFrame);
+  _applyWLInput(v, parseInt(wwSlider.value));
 });
 wwSlider.addEventListener('input', () => {
   const v = Math.max(1, parseInt(wwSlider.value));
   wwNum.value = v; wwDisplay.textContent = v;
-  trackEditStart();
-  pendingEdits.set('x00281051', { vr: 'DS', valueString: String(v) });
-  const inp = tagBody.querySelector('[data-tag="x00281051"]');
-  if (inp) inp.value = String(v);
-  showDownload();
-  if (dict) drawPreview(dict, currentFrame);
+  _applyWLInput(parseInt(wcSlider.value), v);
 });
 wcNum.addEventListener('input', () => {
   const v = parseInt(wcNum.value);
@@ -4008,18 +4464,14 @@ wcNum.addEventListener('input', () => {
   if (v < parseInt(wcSlider.min)) wcSlider.min = v;
   if (v > parseInt(wcSlider.max)) wcSlider.max = v;
   wcSlider.value = v; wcDisplay.textContent = v;
-  trackEditStart();
-  pendingEdits.set('x00281050', { vr: 'DS', valueString: String(v) });
-  showDownload(); if (dict) drawPreview(dict, currentFrame);
+  _applyWLInput(v, parseInt(wwSlider.value));
 });
 wwNum.addEventListener('input', () => {
   const v = Math.max(1, parseInt(wwNum.value));
   if (isNaN(v)) return;
   if (v > parseInt(wwSlider.max)) wwSlider.max = v;
   wwSlider.value = v; wwDisplay.textContent = v;
-  trackEditStart();
-  pendingEdits.set('x00281051', { vr: 'DS', valueString: String(v) });
-  showDownload(); if (dict) drawPreview(dict, currentFrame);
+  _applyWLInput(parseInt(wcSlider.value), v);
 });
 wlPreset.addEventListener('change', () => {
   const val = wlPreset.value;
@@ -4035,7 +4487,6 @@ wlResetBtn.addEventListener('click', () => {
   setWL(wcOriginal ?? 40, wwOriginal ?? 400);
   toast('Window / Level reset to file values');
 });
-wlDownloadBtn.addEventListener('click', () => downloadRange(0, files.length));
 
 // ── Add Tag ──────────────────────────────────────────────────────
 const addTagBtn     = document.getElementById('addTagBtn');
