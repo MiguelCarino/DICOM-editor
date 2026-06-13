@@ -1029,6 +1029,109 @@
     .add-tag-row select:focus { outline: none; border-color: var(--accent); }
     .add-tag-row select option { background: var(--surface-solid); }
 
+    /* ─── TAB PANEL GRID PLACEMENT ─────────────
+       .app uses grid-template-rows: auto 1fr
+       The editor (.main) is the 2nd child → gets the 1fr row automatically.
+       Every other panel falls into implicit auto-height rows, killing internal
+       scroll. Force them all into row 2 so flex:1 / overflow-y:auto work. */
+    .create-panel, .extractor-panel, .compare-tab-panel,
+    .val-panel, .batch-panel, .macro-panel {
+      grid-row: 2;
+      overflow: hidden;
+    }
+
+    /* ─── VALIDATOR TAB ─────────────────────── */
+    .val-panel { display:grid; grid-template-columns:1fr 260px; gap:16px; padding:16px 20px; overflow:hidden; min-height:0; }
+    .val-left  { display:flex; flex-direction:column; gap:10px; min-height:0; overflow:hidden; }
+    .val-sidebar { display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
+    .val-summary { display:flex; gap:10px; flex-wrap:wrap; padding:10px 14px; background:var(--surface); border-radius:4px; border:1px solid var(--border); flex-shrink:0; }
+    .val-badge { display:flex; align-items:center; gap:6px; font:700 12px var(--mono); padding:4px 12px; border-radius:4px; cursor:pointer; border:1px solid transparent; transition:0.15s; }
+    .val-badge.error   { color:#f87171; background:rgba(248,113,113,0.12); }
+    .val-badge.warning { color:#fb923c; background:rgba(251,146,60,0.12); }
+    .val-badge.phi     { color:#facc15; background:rgba(250,204,21,0.12); }
+    .val-badge.info    { color:#a3a3a3; background:rgba(163,163,163,0.08); }
+    .val-badge.active, .val-badge:hover { border-color: currentColor; }
+    .val-results { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; min-height:0; }
+    .val-section { background:var(--surface); border-radius:4px; border:1px solid var(--border); overflow:hidden; }
+    .val-section-hdr { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; font:600 11px var(--mono); text-transform:uppercase; letter-spacing:0.05em; user-select:none; }
+    .val-section-hdr:hover { background:var(--surface-hover); }
+    .val-section-hdr .chev { margin-left:auto; transition:transform 0.2s; }
+    .val-section.collapsed .chev { transform:rotate(-90deg); }
+    .val-section.collapsed .val-issues { display:none; }
+    .val-issues { border-top:1px solid var(--border); }
+    .val-issue { display:flex; align-items:flex-start; gap:10px; padding:9px 12px; border-bottom:1px solid var(--border); font-size:12px; }
+    .val-issue:last-child { border-bottom:none; }
+    .val-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; margin-top:3px; }
+    .val-dot.error   { background:#f87171; box-shadow:0 0 5px #f87171; }
+    .val-dot.warning { background:#fb923c; box-shadow:0 0 5px #fb923c; }
+    .val-dot.phi     { background:#facc15; box-shadow:0 0 5px #facc15; }
+    .val-dot.info    { background:#a3a3a3; }
+    .val-issue-body { flex:1; min-width:0; }
+    .val-issue-tag  { font:600 11px var(--mono); color:var(--text-dim); }
+    .val-issue-msg  { color:var(--text); margin-top:2px; line-height:1.4; }
+    .val-issue-val  { font:10px var(--mono); color:var(--text-muted); margin-top:2px; word-break:break-all; }
+    .val-fix-btn    { flex-shrink:0; padding:3px 9px; font-size:10px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--accent); cursor:pointer; transition:0.15s; }
+    .val-fix-btn:hover { background:rgba(234,179,8,0.1); border-color:var(--accent); }
+    .val-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1; gap:8px; color:var(--text-muted); font:13px var(--mono); }
+    @media (max-width:1000px) { .val-panel { grid-template-columns:1fr; } .val-sidebar { display:none; } }
+
+    /* ─── BATCH TAB ──────────────────────────── */
+    .batch-panel { display:grid; grid-template-columns:1fr 280px; gap:16px; padding:16px 20px; overflow:hidden; min-height:0; }
+    .batch-left { display:flex; flex-direction:column; gap:10px; min-height:0; overflow:hidden; }
+    .batch-sidebar { display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
+    .batch-pipeline { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; min-height:0; }
+    .batch-step { background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:10px 12px; display:flex; flex-direction:column; gap:8px; }
+    .batch-step-hdr { display:flex; align-items:center; gap:8px; }
+    .batch-step-num { width:20px; height:20px; border-radius:50%; background:var(--surface-solid); border:1px solid var(--border); font:700 10px var(--mono); color:var(--text-muted); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+    .batch-step-type { flex:1; font:600 12px var(--font); color:var(--text); }
+    .batch-step-rm { width:20px; height:20px; border-radius:4px; border:1px solid transparent; background:transparent; color:var(--text-muted); cursor:pointer; font-size:13px; display:flex; align-items:center; justify-content:center; transition:0.15s; }
+    .batch-step-rm:hover { border-color:#f87171; color:#f87171; background:rgba(248,113,113,0.1); }
+    .batch-step-params { display:flex; flex-direction:column; gap:6px; padding-left:28px; }
+    .batch-param-row { display:flex; gap:6px; align-items:center; }
+    .batch-param-lbl { font:600 10px var(--mono); color:var(--text-muted); text-transform:uppercase; min-width:60px; }
+    .batch-param-input { flex:1; padding:5px 8px; background:rgba(0,0,0,0.3); border:1px solid var(--border); border-radius:4px; color:var(--text); font:12px var(--mono); }
+    .batch-param-input:focus { outline:none; border-color:var(--accent); }
+    .batch-param-select { flex:1; padding:5px 8px; background:var(--surface); border:1px solid var(--border); border-radius:4px; color:var(--text); font:12px var(--font); cursor:pointer; }
+    .batch-add-btn { width:100%; padding:8px; border:2px dashed var(--border); border-radius:4px; background:transparent; color:var(--text-muted); font:500 12px var(--font); cursor:pointer; transition:0.2s; }
+    .batch-add-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .batch-log { flex:1; min-height:60px; max-height:120px; overflow-y:auto; font:10px var(--mono); background:rgba(0,0,0,0.4); padding:8px; border-radius:4px; color:var(--text-muted); white-space:pre-wrap; }
+    @media (max-width:1000px) { .batch-panel { grid-template-columns:1fr; } .batch-sidebar { display:none; } }
+
+    /* ─── MACRO TAB ──────────────────────────── */
+    .macro-panel { display:grid; grid-template-columns:1fr 280px; gap:16px; padding:16px 20px; overflow:hidden; min-height:0; }
+    .macro-left { display:flex; flex-direction:column; gap:10px; min-height:0; overflow:hidden; }
+    .macro-sidebar { display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
+    .macro-editor-wrap { flex:1; min-height:0; display:flex; flex-direction:column; gap:0; border:1px solid var(--border); border-radius:4px; overflow:hidden; }
+    .macro-editor-bar { display:flex; align-items:center; gap:6px; padding:5px 10px; background:var(--surface-solid); border-bottom:1px solid var(--border); font:600 10px var(--mono); color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
+    #macroEditor { flex:1; min-height:0; width:100%; resize:none; background:rgba(0,0,0,0.35); border:none; color:var(--text); font:13px var(--mono); padding:12px; outline:none; line-height:1.6; }
+    .macro-output { height:130px; flex-shrink:0; overflow-y:auto; font:10px var(--mono); background:rgba(0,0,0,0.4); padding:8px 12px; color:var(--text-muted); white-space:pre-wrap; border-top:1px solid var(--border); }
+    .macro-example-item { padding:6px 8px; border-radius:4px; cursor:pointer; font:12px var(--mono); color:var(--text-dim); border:1px solid transparent; transition:0.15s; }
+    .macro-example-item:hover { border-color:var(--accent); color:var(--accent); background:rgba(234,179,8,0.05); }
+    @media (max-width:1000px) { .macro-panel { grid-template-columns:1fr; } .macro-sidebar { display:none; } }
+
+    /* ─── SR VIEWER ──────────────────────────── */
+    .sr-view { padding:4px 0; overflow-y:auto; font-size:12px; }
+    .sr-node { margin-left:0; }
+    .sr-node + .sr-node { margin-top:6px; }
+    .sr-container { border-left:2px solid var(--border); margin-left:8px; padding-left:10px; margin-top:4px; }
+    .sr-label { font:700 11px var(--mono); color:var(--text-muted); text-transform:uppercase; }
+    .sr-value { color:var(--text); margin-top:2px; line-height:1.5; }
+    .sr-value.num { color:var(--accent); font:13px var(--mono); }
+    .sr-value.code { color:var(--cat-patient); }
+    .sr-value.datetime { color:var(--cat-uid); font:11px var(--mono); }
+    .sr-section-title { font:700 13px 'Red Hat Display',sans-serif; color:var(--text); margin-bottom:6px; border-bottom:1px solid var(--border); padding-bottom:4px; }
+    .sr-toggle-btn { padding:4px 10px; font:600 10px var(--mono); text-transform:uppercase; letter-spacing:0.05em; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; transition:0.15s; }
+    .sr-toggle-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(234,179,8,0.08); }
+
+    /* ─── PREVIEW ENHANCEMENTS ───────────────── */
+    .px-hover { position:absolute; bottom:6px; left:6px; background:rgba(0,0,0,0.75); padding:3px 7px; border-radius:4px; font:10px var(--mono); color:#fff; pointer-events:none; opacity:0; transition:opacity 0.15s; }
+    .preview-box:hover .px-hover { opacity:1; }
+    .preview-nav { display:flex; align-items:center; justify-content:space-between; margin-top:6px; gap:6px; }
+    .preview-nav-btn { padding:4px 8px; border:1px solid var(--border); border-radius:4px; background:transparent; color:var(--text-muted); cursor:pointer; font:13px var(--font); transition:0.15s; }
+    .preview-nav-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+    .preview-nav-btn:disabled { opacity:0.3; cursor:default; }
+    .preview-nav-info { font:11px var(--mono); color:var(--text-muted); text-align:center; flex:1; }
+
     /* ─── TOAST ──────────────────────────────── */
     .toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--accent); border-radius: 4px; padding: 10px 18px; font: 600 13px var(--font); color: var(--text); z-index: 3000; pointer-events: none; animation: toast-slide 0.2s ease; }
     @keyframes toast-slide { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
@@ -1050,6 +1153,9 @@
         <button class="tab-btn" id="createTabBtn">Creator</button>
         <button class="tab-btn" id="extractorTabBtn">Extractor</button>
         <button class="tab-btn" id="compareTabBtn">Compare</button>
+        <button class="tab-btn" id="validatorTabBtn">Validator</button>
+        <button class="tab-btn" id="batchTabBtn">Batch</button>
+        <button class="tab-btn" id="macroTabBtn">Macro</button>
       </nav>
       <div class="header-spacer"></div>
         <div class="brand-links">
@@ -1160,9 +1266,19 @@
         </div>
 
         <div class="card" id="previewCard" style="display:none">
-          <div class="card-title">Preview</div>
-          <div class="preview-box visible" id="previewBox">
-            <canvas id="preview"></canvas>
+          <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+            <span>Preview</span>
+            <button class="sr-toggle-btn hidden" id="srToggleBtn">View Report</button>
+          </div>
+          <div class="preview-box visible" id="previewBox" style="aspect-ratio:unset;min-height:200px;max-height:280px">
+            <canvas id="preview" style="width:100%;height:100%;object-fit:contain"></canvas>
+            <div class="px-hover" id="pxHover">—</div>
+          </div>
+          <div id="srView" class="sr-view hidden"></div>
+          <div class="preview-nav hidden" id="previewNav">
+            <button class="preview-nav-btn" id="prevFileBtn" disabled>◀</button>
+            <span class="preview-nav-info" id="previewNavInfo"></span>
+            <button class="preview-nav-btn" id="nextFileBtn" disabled>▶</button>
           </div>
           <div class="frame-nav hidden" id="frameNav">
             <div class="frame-nav-row">
@@ -1444,6 +1560,151 @@
       </div>
     </div>
   </div>
+
+  <!-- ══ VALIDATOR TAB ══════════════════════════════════════════ -->
+  <div class="val-panel" id="validatorTab" style="display:none">
+    <div class="val-left">
+      <div class="top-bar">
+        <div class="pill" id="valFilePill">No file loaded</div>
+        <div style="flex:1"></div>
+        <button class="btn primary" id="valRunBtn">▶ Run Validation</button>
+        <button class="btn" id="valClearBtn">Clear</button>
+      </div>
+      <div class="val-summary" id="valSummary" style="display:none">
+        <div class="val-badge error"   id="valBadgeError">● 0 Errors</div>
+        <div class="val-badge warning" id="valBadgeWarn">● 0 Warnings</div>
+        <div class="val-badge phi"     id="valBadgePHI">● 0 PHI Flags</div>
+        <div class="val-badge info"    id="valBadgeInfo">● 0 Info</div>
+        <div style="flex:1"></div>
+        <button class="btn" id="valFixAllBtn" style="font-size:11px;padding:4px 12px">Fix All Auto-fixable</button>
+      </div>
+      <div class="val-results" id="valResults">
+        <div class="val-empty" id="valEmpty">
+          <span style="font-size:2rem;opacity:.3">✓</span>
+          Load a DICOM file and click "Run Validation"
+        </div>
+      </div>
+    </div>
+    <div class="val-sidebar">
+      <div class="card">
+        <div class="card-title">Load File</div>
+        <div class="compare-drop" id="valDropZone">Drop a .dcm file here</div>
+        <input type="file" id="valFileInput" accept=".dcm,.dicom" multiple hidden />
+        <button class="btn" id="valBrowseBtn" style="width:100%;margin-top:8px">Browse Files</button>
+      </div>
+      <div class="card hidden" id="valInfoCard">
+        <div class="card-title">File Info</div>
+        <div id="valFileInfo" style="font:11px var(--mono);color:var(--text-dim);line-height:1.8"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Open in Editor</div>
+        <button class="btn" id="valOpenEditorBtn" style="width:100%;font-size:11px">→ Send to Editor</button>
+        <p style="font-size:10px;color:var(--text-muted);margin-top:6px;line-height:1.5">Opens the validated file in the Editor tab with all fixes applied.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ BATCH TAB ══════════════════════════════════════════════ -->
+  <div class="batch-panel" id="batchTab" style="display:none">
+    <div class="batch-left">
+      <div class="top-bar">
+        <div class="pill" id="batchFilePill">0 files loaded</div>
+        <div style="flex:1"></div>
+        <label style="font:500 11px var(--mono);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px">
+          <input type="checkbox" id="batchDryRun" style="accent-color:var(--accent)" /> Dry run
+        </label>
+        <button class="btn primary" id="batchRunBtn">▶ Run Pipeline</button>
+      </div>
+      <div class="batch-pipeline" id="batchPipeline">
+        <div class="val-empty" id="batchEmpty" style="min-height:120px">
+          <span style="font-size:1.6rem;opacity:.3">⚙</span>
+          Add steps below to build your pipeline
+        </div>
+      </div>
+      <button class="batch-add-btn" id="batchAddStepBtn">+ Add Step</button>
+      <div class="batch-log hidden" id="batchLog"></div>
+    </div>
+    <div class="batch-sidebar">
+      <div class="card">
+        <div class="card-title">Load Files</div>
+        <div class="compare-drop" id="batchDropZone">Drop .dcm files here</div>
+        <input type="file" id="batchFileInput" accept=".dcm,.dicom" multiple hidden />
+        <button class="btn" style="width:100%;margin-top:8px" id="batchBrowseBtn">Browse Files</button>
+        <button class="btn" style="width:100%;margin-top:6px;font-size:11px" id="batchClearFilesBtn">Clear Files</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Output</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font:500 11px var(--mono);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px">
+            <input type="radio" name="batchOutput" value="zip" checked style="accent-color:var(--accent)" /> ZIP archive
+          </label>
+          <label style="font:500 11px var(--mono);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px">
+            <input type="radio" name="batchOutput" value="individual" style="accent-color:var(--accent)" /> Individual files
+          </label>
+          <div class="form-group" style="margin-top:4px">
+            <label class="form-label">Filename pattern</label>
+            <input class="form-input" id="batchFilenamePattern" placeholder="{PatientID}_{InstanceNumber}.dcm" style="font:11px var(--mono)" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MACRO TAB ══════════════════════════════════════════════ -->
+  <div class="macro-panel" id="macroTab" style="display:none">
+    <div class="macro-left">
+      <div class="top-bar">
+        <div class="pill" id="macroFilePill">0 files (shared with Batch)</div>
+        <div style="flex:1"></div>
+        <label style="font:500 11px var(--mono);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px">
+          <input type="checkbox" id="macroDryRun" style="accent-color:var(--accent)" /> Dry run
+        </label>
+        <button class="btn primary" id="macroRunBtn">▶ Run</button>
+      </div>
+      <div class="macro-editor-wrap">
+        <div class="macro-editor-bar">
+          Script (runs once per file)
+          <span style="margin-left:auto;font-weight:400;text-transform:none;color:var(--text-muted)">get · set · remove · has · skip · log</span>
+        </div>
+        <textarea id="macroEditor" spellcheck="false" placeholder="// Example: anonymize patient name
+set('(0010,0010)', 'ANON^PATIENT');
+set('(0010,0020)', 'ANON');
+remove('(0010,1040)');"></textarea>
+        <div class="macro-output hidden" id="macroOutput"></div>
+      </div>
+    </div>
+    <div class="macro-sidebar">
+      <div class="card">
+        <div class="card-title">API Reference</div>
+        <div style="font:10px var(--mono);color:var(--text-dim);line-height:2">
+          <div><span style="color:var(--accent)">get</span>('(GGGG,EEEE)') → string|null</div>
+          <div><span style="color:var(--accent)">set</span>('(GGGG,EEEE)', value)</div>
+          <div><span style="color:var(--accent)">remove</span>('(GGGG,EEEE)')</div>
+          <div><span style="color:var(--accent)">has</span>('(GGGG,EEEE)') → bool</div>
+          <div><span style="color:var(--accent)">modality</span>() → string</div>
+          <div><span style="color:var(--accent)">sopClass</span>() → string</div>
+          <div><span style="color:var(--accent)">skip</span>('reason') → exclude file</div>
+          <div><span style="color:var(--accent)">log</span>('message')</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Examples</div>
+        <div id="macroExamples" style="display:flex;flex-direction:column;gap:4px"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Output</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <label style="font:500 11px var(--mono);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px">
+            <input type="radio" name="macroOutput" value="zip" checked style="accent-color:var(--accent)" /> ZIP archive
+          </label>
+          <label style="font:500 11px var(--mono);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px">
+            <input type="radio" name="macroOutput" value="individual" style="accent-color:var(--accent)" /> Individual files
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
   </div><!-- end .app -->
 
   <div class="load-overlay" id="loadOverlay">
@@ -3236,6 +3497,14 @@ function syncToUI() {
   updateHistoryBtns?.();
   renderTable();
   if (dict) drawPreview(dict, 0);
+  // SR toggle visibility
+  if (typeof srToggleBtn !== 'undefined' && srToggleBtn) {
+    srMode = false;
+    srToggleBtn.classList.remove('active');
+    srView?.classList.add('hidden');
+    previewBox?.classList.remove('hidden');
+    srToggleBtn.classList.toggle('hidden', !detectSR?.(dict || {}));
+  }
 }
 
 // ============ FILE HANDLING ============
@@ -3404,31 +3673,40 @@ frameSlider.addEventListener('input', () => {
 // ============ TAB SWITCHING ============
 let activeTab = 'editor';
 
-const editorTabBtn   = document.getElementById('editorTabBtn');
-const createTabBtn   = document.getElementById('createTabBtn');
+const editorTabBtn    = document.getElementById('editorTabBtn');
+const createTabBtn    = document.getElementById('createTabBtn');
 const extractorTabBtn = document.getElementById('extractorTabBtn');
-const compareTabBtn  = document.getElementById('compareTabBtn');
-const editorTabPanel   = document.getElementById('editorTab');
-const createTabPanel   = document.getElementById('createTab');
+const compareTabBtn   = document.getElementById('compareTabBtn');
+const validatorTabBtn = document.getElementById('validatorTabBtn');
+const batchTabBtn     = document.getElementById('batchTabBtn');
+const macroTabBtn     = document.getElementById('macroTabBtn');
+const editorTabPanel    = document.getElementById('editorTab');
+const createTabPanel    = document.getElementById('createTab');
 const extractorTabPanel = document.getElementById('extractorTab');
-const compareTabPanel  = document.getElementById('compareTab');
+const compareTabPanel   = document.getElementById('compareTab');
+const validatorTabPanel = document.getElementById('validatorTab');
+const batchTabPanel     = document.getElementById('batchTab');
+const macroTabPanel     = document.getElementById('macroTab');
+
+const ALL_TABS = [
+  ['editor',    editorTabBtn,    editorTabPanel,    'grid'],
+  ['create',    createTabBtn,    createTabPanel,    'grid'],
+  ['extractor', extractorTabBtn, extractorTabPanel, 'grid'],
+  ['compare',   compareTabBtn,   compareTabPanel,   'grid'],
+  ['validator', validatorTabBtn, validatorTabPanel, 'grid'],
+  ['batch',     batchTabBtn,     batchTabPanel,     'grid'],
+  ['macro',     macroTabBtn,     macroTabPanel,     'grid'],
+];
 
 function switchTab(tab) {
   activeTab = tab;
-  editorTabBtn.classList.toggle('active',   tab === 'editor');
-  createTabBtn.classList.toggle('active',   tab === 'create');
-  extractorTabBtn.classList.toggle('active',tab === 'extractor');
-  compareTabBtn.classList.toggle('active',  tab === 'compare');
-  editorTabPanel.style.display   = tab === 'editor'    ? 'grid' : 'none';
-  createTabPanel.style.display   = tab === 'create'    ? 'grid' : 'none';
-  extractorTabPanel.style.display= tab === 'extractor' ? 'grid' : 'none';
-  compareTabPanel.style.display  = tab === 'compare'   ? 'grid' : 'none';
+  for (const [id, btn, panel, display] of ALL_TABS) {
+    btn.classList.toggle('active', id === tab);
+    panel.style.display = id === tab ? display : 'none';
+  }
 }
 
-editorTabBtn.addEventListener('click',   () => switchTab('editor'));
-createTabBtn.addEventListener('click',   () => switchTab('create'));
-extractorTabBtn.addEventListener('click',() => switchTab('extractor'));
-compareTabBtn.addEventListener('click',  () => switchTab('compare'));
+for (const [id, btn] of ALL_TABS) btn.addEventListener('click', () => switchTab(id));
 
 // ============ EXTRACTOR ============
 let extractorFiles = [];
@@ -4354,7 +4632,7 @@ const fileBrowserRow = document.getElementById('fileBrowserRow');
 
 function renderFileBrowser() {
   if (!fileBrowserRow) return;
-  if (files.length <= 1) { fileBrowserRow.classList.add('hidden'); return; }
+  if (files.length <= 1) { fileBrowserRow.classList.add('hidden'); updatePreviewNav?.(); return; }
   fileBrowserRow.classList.remove('hidden');
   fileBrowserRow.innerHTML = '';
   files.forEach((f, i) => {
@@ -4365,6 +4643,7 @@ function renderFileBrowser() {
     tab.addEventListener('click', () => switchFile(i));
     fileBrowserRow.appendChild(tab);
   });
+  updatePreviewNav?.();
 }
 
 function switchFile(idx) {
@@ -4632,6 +4911,1014 @@ createDicomBtn.addEventListener('click', async () => {
   createDicomBtn.disabled = false;
   createDicomBtn.textContent = '⬇ Create DICOM';
 });
+
+// ================================================================
+// VALIDATOR
+// ================================================================
+
+// ── VR rules ─────────────────────────────────────────────────────
+const VR_RULES = {
+  DA: { re: /^\d{8}$|^$/, maxLen: 8,  hint: 'YYYYMMDD' },
+  TM: { re: /^\d{2}(\d{2}(\d{2}(\.\d{1,6})?)?)?$|^$/, maxLen: 16, hint: 'HHMMSS.FFFFFF' },
+  DT: { re: /^\d{4,14}(\.\d{1,6})?([+-]\d{4})?$|^$/, maxLen: 26, hint: 'YYYYMMDDHHmmss.FFFFFF±HHMM' },
+  UI: { re: /^[0-9.]{0,64}$/, maxLen: 64, hint: 'max 64 chars, digits and dots only' },
+  CS: { re: /^[A-Z0-9 _]*$/, maxLen: 16, hint: 'uppercase, max 16 chars' },
+  LO: { maxLen: 64 },
+  SH: { maxLen: 16 },
+  ST: { maxLen: 1024 },
+  LT: { maxLen: 10240 },
+  DS: { re: /^[+\-]?\d*\.?\d+([Ee][+\-]?\d+)?$|^$/, maxLen: 16, hint: 'decimal string' },
+  IS: { re: /^[+\-]?\d+$|^$/, maxLen: 12, hint: 'integer string' },
+  AS: { re: /^\d{3}[DWMY]$|^$/, maxLen: 4, hint: 'nnnD, nnnW, nnnM, or nnnY' },
+};
+
+// ── Enumerated values for CS tags ────────────────────────────────
+const CS_ENUMS = {
+  'x00100040': new Set(['M','F','O','']),
+  'x00280103': new Set(['0','1']),
+  'x00280006': new Set(['0','1']),
+  'x00280004': new Set(['MONOCHROME1','MONOCHROME2','PALETTE COLOR','RGB','YBR_FULL',
+                         'YBR_FULL_422','YBR_PARTIAL_420','YBR_PARTIAL_422','YBR_ICT','YBR_RCT']),
+  'x00080060': new Set(['CR','CT','MR','US','OT','BI','CD','DD','DG','DX','ECG','EPS',
+                         'ES','GM','HC','HD','IO','IVUS','KER','KO','LEN','LS','MG','NM',
+                         'OAM','OCT','OP','OPM','OPR','OPT','OPV','OSS','PET','PF','PR',
+                         'PT','PX','REG','RESP','RF','RG','RTDOSE','RTIMAGE','RTPLAN',
+                         'RTRECORD','RTSTRUCT','RWV','SEG','SM','SMR','SR','SRF','STAIN',
+                         'TG','US','VA','XA','XC']),
+  'x00400a040': new Set(['TEXT','NUM','CODE','DATETIME','DATE','TIME','UIDREF','PNAME',
+                          'COMPOSITE','IMAGE','WAVEFORM','SCOORD','SCOORD3D','TCOORD','CONTAINER']),
+};
+
+// ── Known SOP Class UIDs ─────────────────────────────────────────
+const KNOWN_SOP_UIDS = new Set([
+  '1.2.840.10008.5.1.4.1.1.1','1.2.840.10008.5.1.4.1.1.1.1','1.2.840.10008.5.1.4.1.1.1.1.1',
+  '1.2.840.10008.5.1.4.1.1.1.2','1.2.840.10008.5.1.4.1.1.1.2.1',
+  '1.2.840.10008.5.1.4.1.1.2','1.2.840.10008.5.1.4.1.1.2.1','1.2.840.10008.5.1.4.1.1.2.2',
+  '1.2.840.10008.5.1.4.1.1.3.1','1.2.840.10008.5.1.4.1.1.4','1.2.840.10008.5.1.4.1.1.4.1',
+  '1.2.840.10008.5.1.4.1.1.4.2','1.2.840.10008.5.1.4.1.1.4.3','1.2.840.10008.5.1.4.1.1.4.4',
+  '1.2.840.10008.5.1.4.1.1.6.1','1.2.840.10008.5.1.4.1.1.6.2',
+  '1.2.840.10008.5.1.4.1.1.7','1.2.840.10008.5.1.4.1.1.7.1','1.2.840.10008.5.1.4.1.1.7.2',
+  '1.2.840.10008.5.1.4.1.1.7.3','1.2.840.10008.5.1.4.1.1.7.4',
+  '1.2.840.10008.5.1.4.1.1.9.1.1','1.2.840.10008.5.1.4.1.1.9.1.2','1.2.840.10008.5.1.4.1.1.9.1.3',
+  '1.2.840.10008.5.1.4.1.1.9.2.1','1.2.840.10008.5.1.4.1.1.9.3.1','1.2.840.10008.5.1.4.1.1.9.4.1',
+  '1.2.840.10008.5.1.4.1.1.11.1','1.2.840.10008.5.1.4.1.1.11.2','1.2.840.10008.5.1.4.1.1.11.3',
+  '1.2.840.10008.5.1.4.1.1.11.4','1.2.840.10008.5.1.4.1.1.11.5',
+  '1.2.840.10008.5.1.4.1.1.12.1','1.2.840.10008.5.1.4.1.1.12.1.1','1.2.840.10008.5.1.4.1.1.12.2',
+  '1.2.840.10008.5.1.4.1.1.12.2.1',
+  '1.2.840.10008.5.1.4.1.1.20','1.2.840.10008.5.1.4.1.1.66','1.2.840.10008.5.1.4.1.1.66.1',
+  '1.2.840.10008.5.1.4.1.1.66.2','1.2.840.10008.5.1.4.1.1.66.3','1.2.840.10008.5.1.4.1.1.66.4',
+  '1.2.840.10008.5.1.4.1.1.66.5',
+  '1.2.840.10008.5.1.4.1.1.77.1','1.2.840.10008.5.1.4.1.1.77.1.1','1.2.840.10008.5.1.4.1.1.77.1.2',
+  '1.2.840.10008.5.1.4.1.1.77.1.3','1.2.840.10008.5.1.4.1.1.77.1.4','1.2.840.10008.5.1.4.1.1.77.1.5',
+  '1.2.840.10008.5.1.4.1.1.77.1.6',
+  '1.2.840.10008.5.1.4.1.1.88.11','1.2.840.10008.5.1.4.1.1.88.22','1.2.840.10008.5.1.4.1.1.88.33',
+  '1.2.840.10008.5.1.4.1.1.88.34','1.2.840.10008.5.1.4.1.1.88.35','1.2.840.10008.5.1.4.1.1.88.50',
+  '1.2.840.10008.5.1.4.1.1.88.59','1.2.840.10008.5.1.4.1.1.88.65','1.2.840.10008.5.1.4.1.1.88.67',
+  '1.2.840.10008.5.1.4.1.1.88.68','1.2.840.10008.5.1.4.1.1.88.69','1.2.840.10008.5.1.4.1.1.88.70',
+  '1.2.840.10008.5.1.4.1.1.88.71','1.2.840.10008.5.1.4.1.1.88.72','1.2.840.10008.5.1.4.1.1.88.73',
+  '1.2.840.10008.5.1.4.1.1.128','1.2.840.10008.5.1.4.1.1.128.1','1.2.840.10008.5.1.4.1.1.130',
+  '1.2.840.10008.5.1.4.1.1.131',
+  '1.2.840.10008.5.1.4.1.1.481.1','1.2.840.10008.5.1.4.1.1.481.2','1.2.840.10008.5.1.4.1.1.481.3',
+  '1.2.840.10008.5.1.4.1.1.481.4','1.2.840.10008.5.1.4.1.1.481.5','1.2.840.10008.5.1.4.1.1.481.6',
+  '1.2.840.10008.5.1.4.1.1.481.7','1.2.840.10008.5.1.4.1.1.481.8','1.2.840.10008.5.1.4.1.1.481.9',
+]);
+
+// ── SOP-class attribute requirements ─────────────────────────────
+// Format: { tag: type } where type = 1 | 2 | '1C' | '2C'
+// 1 = mandatory non-empty, 2 = mandatory can-be-empty
+const COMMON_IMAGE_ATTRS = {
+  'x00080016':1,'x00080018':1,
+  'x00100010':2,'x00100020':2,'x00100030':2,'x00100040':2,
+  'x0020000d':1,'x00200010':2,'x00080020':2,'x00080030':2,'x00080050':2,'x00080090':2,
+  'x0020000e':1,'x00200011':2,'x00080060':1,
+  'x00200013':2,
+  'x00280002':1,'x00280004':1,'x00280010':1,'x00280011':1,
+  'x00280100':1,'x00280101':1,'x00280102':1,'x00280103':1,
+  'x7fe00010':1,
+};
+const CROSS_SECTIONAL_ATTRS = {
+  'x00200032':'1C','x00200037':'1C','x00200052':'1C','x00280030':'1C',
+};
+const SOP_ATTRS = {
+  // CT
+  '1.2.840.10008.5.1.4.1.1.2': {
+    name:'CT Image Storage',
+    attrs:{ ...COMMON_IMAGE_ATTRS, ...CROSS_SECTIONAL_ATTRS,
+      'x00180060':2,'x00180050':2,'x00181160':2,'x00181030':2 }
+  },
+  '1.2.840.10008.5.1.4.1.1.2.1': {
+    name:'Enhanced CT Image Storage',
+    attrs:{ ...COMMON_IMAGE_ATTRS, ...CROSS_SECTIONAL_ATTRS,
+      'x00180060':2,'x00180050':2,'x00280008':1 }
+  },
+  // MR
+  '1.2.840.10008.5.1.4.1.1.4': {
+    name:'MR Image Storage',
+    attrs:{ ...COMMON_IMAGE_ATTRS, ...CROSS_SECTIONAL_ATTRS,
+      'x00180020':1,'x00180021':1,'x00180023':2,'x00180080':'2C','x00180081':'2C' }
+  },
+  '1.2.840.10008.5.1.4.1.1.4.1': {
+    name:'Enhanced MR Image Storage',
+    attrs:{ ...COMMON_IMAGE_ATTRS, ...CROSS_SECTIONAL_ATTRS,
+      'x00180020':1,'x00180021':1,'x00280008':1 }
+  },
+  // CR
+  '1.2.840.10008.5.1.4.1.1.1': {
+    name:'Computed Radiography Image Storage',
+    attrs:{ ...COMMON_IMAGE_ATTRS,
+      'x00180015':2,'x00181030':2,'x00280030':'1C' }
+  },
+  // DX
+  '1.2.840.10008.5.1.4.1.1.1.1': {
+    name:'Digital X-Ray Image Storage (Presentation)',
+    attrs:{ ...COMMON_IMAGE_ATTRS,
+      'x00180015':2,'x00181030':2,'x00280030':1,'x00181164':1 }
+  },
+  '1.2.840.10008.5.1.4.1.1.1.1.1': {
+    name:'Digital X-Ray Image Storage (Processing)',
+    attrs:{ ...COMMON_IMAGE_ATTRS,
+      'x00180015':2,'x00280030':1,'x00181164':1 }
+  },
+  // Mammography
+  '1.2.840.10008.5.1.4.1.1.1.2': {
+    name:'Digital Mammography X-Ray (Presentation)',
+    attrs:{ ...COMMON_IMAGE_ATTRS,
+      'x00185101':1,'x00280030':1,'x00181164':1 }
+  },
+  // US
+  '1.2.840.10008.5.1.4.1.1.6.1': {
+    name:'Ultrasound Image Storage',
+    attrs:{ ...COMMON_IMAGE_ATTRS }
+  },
+  '1.2.840.10008.5.1.4.1.1.3.1': {
+    name:'Ultrasound Multiframe Image Storage',
+    attrs:{ ...COMMON_IMAGE_ATTRS, 'x00280008':1 }
+  },
+  // Secondary Capture
+  '1.2.840.10008.5.1.4.1.1.7': {
+    name:'Secondary Capture Image Storage',
+    attrs:{ ...COMMON_IMAGE_ATTRS }
+  },
+  // NM
+  '1.2.840.10008.5.1.4.1.1.20': {
+    name:'Nuclear Medicine Image Storage',
+    attrs:{ ...COMMON_IMAGE_ATTRS,
+      'x00540010':'1C','x00541001':2,'x00541002':2,'x00541102':2 }
+  },
+  // PET
+  '1.2.840.10008.5.1.4.1.1.128': {
+    name:'PET Image Storage',
+    attrs:{ ...COMMON_IMAGE_ATTRS,
+      'x00540013':2,'x00541001':2,'x00541002':2,'x00541300':2,'x00541321':2,'x00541322':2 }
+  },
+  // RT
+  '1.2.840.10008.5.1.4.1.1.481.2': {
+    name:'RT Dose Storage',
+    attrs:{ 'x00080016':1,'x00080018':1,'x0020000d':1,'x0020000e':1,'x00200013':2,
+      'x00100010':2,'x00100020':2,'x00080060':1,
+      'x30040002':1,'x30040004':1,'x3004000e':1,'x3004000c':'1C','x00280010':1,'x00280011':1 }
+  },
+  '1.2.840.10008.5.1.4.1.1.481.3': {
+    name:'RT Structure Set Storage',
+    attrs:{ 'x00080016':1,'x00080018':1,'x0020000d':1,'x0020000e':1,'x00200013':2,
+      'x00100010':2,'x00100020':2,'x00080060':1,
+      'x30060002':1,'x30060008':2,'x30060009':2,'x30060020':'1C','x30060039':'1C' }
+  },
+  '1.2.840.10008.5.1.4.1.1.481.5': {
+    name:'RT Plan Storage',
+    attrs:{ 'x00080016':1,'x00080018':1,'x0020000d':1,'x0020000e':1,'x00200013':2,
+      'x00100010':2,'x00100020':2,'x00080060':1,
+      'x300a0002':1,'x300a0006':2,'x300a0007':2 }
+  },
+  // SR
+  '1.2.840.10008.5.1.4.1.1.88.11': { name:'Basic Text SR', attrs:{ 'x00080016':1,'x00080018':1,'x0020000d':1,'x0020000e':1,'x00200013':2,'x00100010':2,'x00100020':2,'x00080060':1,'x0040a040':1,'x0040a050':1,'x0040a730':'1C' } },
+  '1.2.840.10008.5.1.4.1.1.88.22': { name:'Enhanced SR', attrs:{ 'x00080016':1,'x00080018':1,'x0020000d':1,'x0020000e':1,'x00200013':2,'x00100010':2,'x00100020':2,'x00080060':1,'x0040a040':1,'x0040a050':1,'x0040a730':'1C' } },
+  '1.2.840.10008.5.1.4.1.1.88.33': { name:'Comprehensive SR', attrs:{ 'x00080016':1,'x00080018':1,'x0020000d':1,'x0020000e':1,'x00200013':2,'x00100010':2,'x00100020':2,'x00080060':1,'x0040a040':1,'x0040a050':1,'x0040a730':'1C' } },
+};
+
+// ── PHI tags (for PHI audit) ─────────────────────────────────────
+const PHI_TAGS = new Set(PHI.map(t => t.replace(/^x/,'')));
+
+// ── Validation engine ────────────────────────────────────────────
+function validateDicom(d, meta) {
+  const issues = [];
+  const push = (sev, tag, msg, val, fix) =>
+    issues.push({ sev, tag, desc: descFor('x'+tag.toLowerCase()) || 'Unknown', msg, val: String(val ?? ''), fix });
+
+  const getVal = tag => {
+    const k = 'x' + tag.toLowerCase();
+    const el = d[k] ?? d[tag];
+    if (!el) return null;
+    if (el.InlineBinary) return '<binary>';
+    const v = el.Value;
+    if (!v?.length) return '';
+    return Array.isArray(v) ? v.map(x => typeof x === 'object' ? (x?.Alphabetic ?? '') : String(x ?? '')).join('\\') : String(v);
+  };
+  const getEl  = tag => { const k='x'+tag.toLowerCase(); return d[k]??d[tag]; };
+  const getVR  = tag => getEl(tag)?.vr || '';
+
+  // 1. SOP Class conformance
+  const sopUID = getVal('00080016')?.trim();
+  const sopDef = sopUID ? SOP_ATTRS[sopUID] : null;
+  if (!sopUID) {
+    push('error','00080016','SOP Class UID missing — cannot determine IOD conformance','',null);
+  } else if (!KNOWN_SOP_UIDS.has(sopUID)) {
+    push('warning','00080016',`Unknown SOP Class UID — may be proprietary or private`,sopUID,null);
+  }
+  if (sopDef) {
+    for (const [rawTag, type] of Object.entries(sopDef.attrs)) {
+      const tag = rawTag.startsWith('x') ? rawTag.slice(1) : rawTag;
+      const val = getVal(tag);
+      if (type === 1) {
+        if (val === null) push('error', tag, `Missing — Type 1 required for ${sopDef.name}`, '', null);
+        else if (val === '') push('error', tag, `Empty — Type 1 must have a value in ${sopDef.name}`, '', null);
+      } else if (type === 2) {
+        if (val === null) push('warning', tag, `Missing — Type 2 should be present in ${sopDef.name}`, '', null);
+      } else if (type === '1C') {
+        if (val === null) push('info', tag, `Conditionally required — verify if applicable for ${sopDef.name}`, '', null);
+      }
+    }
+  }
+
+  // 2. UID format validation
+  for (const uTag of ['00080016','00080018','0020000d','0020000e','00200052']) {
+    const val = getVal(uTag);
+    if (val === null || val === '') continue;
+    if (val.length > 64) push('error', uTag, `UID exceeds 64 characters (${val.length})`, val, () => { getEl(uTag).Value = [val.slice(0,64)]; });
+    if (!/^[0-9.]+$/.test(val)) push('error', uTag, 'UID contains invalid characters (only digits and dots allowed)', val, null);
+    if (/\.(0\d)/.test(val)) push('warning', uTag, 'UID component has leading zero (e.g. .01)', val, null);
+    if (val.endsWith('.')) push('error', uTag, 'UID must not end with a dot', val, () => { getEl(uTag).Value = [val.replace(/\.$/, '')]; });
+  }
+  if (sopUID && !KNOWN_SOP_UIDS.has(sopUID) && sopUID) {/* already reported */}
+
+  // 3. VR format validation
+  const isTag = t => t.startsWith('x') || /^[0-9a-f]{8}$/i.test(t);
+  for (const [rawTag, el] of Object.entries(d).filter(([t]) => isTag(t))) {
+    const tag = rawTag.startsWith('x') ? rawTag.slice(1) : rawTag;
+    const vr = el.vr || '';
+    if (!vr || el.InlineBinary || isBinaryVR(vr) || vr === 'SQ') continue;
+    const vals = Array.isArray(el.Value) ? el.Value : (el.Value != null ? [el.Value] : []);
+    for (const raw of vals) {
+      const v = typeof raw === 'object' ? (raw?.Alphabetic ?? '') : String(raw ?? '');
+      const rule = VR_RULES[vr];
+      if (!rule) continue;
+      if (rule.maxLen && v.length > rule.maxLen) {
+        push('error', tag, `${vr} value exceeds max length ${rule.maxLen} (got ${v.length})`, v,
+          () => { el.Value = el.Value.map(x => { const s=typeof x==='object'?(x?.Alphabetic??''):String(x??''); return s.slice(0,rule.maxLen); }); });
+      }
+      if (rule.re && v && !rule.re.test(v.trim())) {
+        push('warning', tag, `${vr} value "${v.trim()}" does not match expected format: ${rule.hint}`, v, null);
+      }
+    }
+    // Trailing spaces (common issue)
+    for (const raw of vals) {
+      const v = typeof raw === 'string' ? raw : null;
+      if (v && v !== v.trimEnd()) {
+        push('info', tag, 'Value has trailing whitespace', v,
+          () => { el.Value = el.Value.map(x => typeof x === 'string' ? x.trimEnd() : x); });
+        break;
+      }
+    }
+    // CS enumerated values
+    const k = 'x' + tag.toLowerCase();
+    if (vr === 'CS' && CS_ENUMS[k]) {
+      for (const raw of vals) {
+        const v = String(raw ?? '').trim();
+        if (v && !CS_ENUMS[k].has(v)) push('warning', tag, `"${v}" is not a defined value for this CS tag`, v, null);
+      }
+    }
+  }
+
+  // 4. Pixel data geometry (uncompressed only)
+  const tsEl = meta?.['00020010'] ?? meta?.TransferSyntaxUID;
+  const ts = (tsEl?.Value?.[0] ?? '').trim();
+  const UNCOMPRESSED = new Set(['','1.2.840.10008.1.2','1.2.840.10008.1.2.1','1.2.840.10008.1.2.1.99','1.2.840.10008.1.2.2']);
+  if (UNCOMPRESSED.has(ts)) {
+    const rows = Number(getVal('00280010')||0), cols = Number(getVal('00280011')||0);
+    const ba = Number(getVal('00280100')||0), spp = Number(getVal('00280002')||1);
+    const nf = Number(getVal('00280008')||1);
+    const px = lookupTag(d,'7fe00010');
+    if (rows && cols && ba && px?.Value?.[0]) {
+      let buf = px.Value[0];
+      if (ArrayBuffer.isView(buf)) buf = buf.buffer;
+      const expected = rows * cols * Math.ceil(ba/8) * spp * nf;
+      const actual   = buf instanceof ArrayBuffer ? buf.byteLength : 0;
+      if (actual && Math.abs(actual - expected) > 2) {
+        push('warning','7fe00010',
+          `Pixel buffer size mismatch — expected ${expected} bytes, got ${actual}`,
+          `${actual} vs ${expected}`, null);
+      }
+    }
+  }
+
+  // 5. PHI audit
+  for (const [rawTag, el] of Object.entries(d).filter(([t]) => isTag(t))) {
+    const tag = (rawTag.startsWith('x') ? rawTag.slice(1) : rawTag).toLowerCase();
+    if (!PHI_TAGS.has(tag)) continue;
+    if (el.InlineBinary || isBinaryVR(el.vr||'') || el.vr === 'SQ') continue;
+    const val = getVal(tag);
+    if (val && val !== '' && val !== 'ANON' && val !== 'ANONYMOUS' && val !== '000Y') {
+      push('phi', tag, 'Contains potentially identifying information', val, null);
+    }
+  }
+
+  return issues;
+}
+
+// ── Validator UI ─────────────────────────────────────────────────
+let valFiles = [];
+let valIssues = [];
+let valFilter = null; // null = all, or 'error'/'warning'/'phi'/'info'
+
+const valDropZone   = document.getElementById('valDropZone');
+const valFileInput  = document.getElementById('valFileInput');
+const valBrowseBtn  = document.getElementById('valBrowseBtn');
+const valRunBtn     = document.getElementById('valRunBtn');
+const valClearBtn   = document.getElementById('valClearBtn');
+const valFixAllBtn  = document.getElementById('valFixAllBtn');
+const valResults    = document.getElementById('valResults');
+const valEmpty      = document.getElementById('valEmpty');
+const valSummary    = document.getElementById('valSummary');
+const valFilePill   = document.getElementById('valFilePill');
+const valInfoCard   = document.getElementById('valInfoCard');
+const valFileInfo   = document.getElementById('valFileInfo');
+
+function valWireDropZone(el, inp) {
+  el.addEventListener('click', () => inp.click());
+  el.addEventListener('dragover', e => { e.preventDefault(); el.style.borderColor='var(--accent)'; });
+  el.addEventListener('dragleave', () => el.style.borderColor='');
+  el.addEventListener('drop', e => { e.preventDefault(); el.style.borderColor=''; valLoadFiles(e.dataTransfer.files); });
+  inp.addEventListener('change', e => { valLoadFiles(e.target.files); e.target.value=''; });
+}
+valWireDropZone(valDropZone, valFileInput);
+valBrowseBtn.addEventListener('click', () => valFileInput.click());
+
+async function valLoadFiles(list) {
+  const arr = Array.from(list||[]);
+  if (!arr.length) return;
+  showLoading(true, `Loading ${arr.length} file(s) for validation…`);
+  for (const f of arr) {
+    try {
+      const buf = await f.arrayBuffer();
+      const msg = DicomMessage.readFile(buf);
+      normBin(msg.dict);
+      valFiles.push({ name: f.name, dict: msg.dict, meta: msg.meta||{} });
+    } catch(e) { toast?.(`Failed to load ${f.name}`); }
+  }
+  showLoading(false);
+  valFilePill.textContent = `${valFiles.length} file(s)`;
+  valResults.innerHTML = '';
+  valResults.appendChild(valEmpty);
+  valEmpty.classList.remove('hidden');
+  valSummary.style.display = 'none';
+}
+
+valRunBtn.addEventListener('click', () => {
+  if (!valFiles.length) { toast?.('Load a DICOM file first'); return; }
+  valFilter = null;
+  runValidation();
+});
+
+function runValidation() {
+  valIssues = [];
+  for (const f of valFiles) valIssues.push(...validateDicom(f.dict, f.meta));
+  renderValResults();
+  updateValSummary();
+  if (valFiles.length === 1) updateValInfoCard(valFiles[0]);
+}
+
+function updateValSummary() {
+  const cnt = sev => valIssues.filter(i => i.sev === sev).length;
+  const e=cnt('error'),w=cnt('warning'),p=cnt('phi'),n=cnt('info');
+  document.getElementById('valBadgeError').textContent  = `● ${e} Error${e!==1?'s':''}`;
+  document.getElementById('valBadgeWarn').textContent   = `● ${w} Warning${w!==1?'s':''}`;
+  document.getElementById('valBadgePHI').textContent    = `● ${p} PHI Flag${p!==1?'s':''}`;
+  document.getElementById('valBadgeInfo').textContent   = `● ${n} Info`;
+  valSummary.style.display = '';
+  valEmpty.classList.add('hidden');
+  // badge filter click
+  ['error','warning','phi','info'].forEach((sev,i) => {
+    const b = valSummary.children[i];
+    b.onclick = () => { valFilter = valFilter===sev ? null : sev; renderValResults(); b.classList.toggle('active', valFilter===sev); };
+  });
+}
+
+function renderValResults() {
+  const filtered = valFilter ? valIssues.filter(i => i.sev === valFilter) : valIssues;
+  valResults.innerHTML = '';
+  if (!filtered.length) {
+    const msg = document.createElement('div');
+    msg.className = 'val-empty';
+    msg.innerHTML = `<span style="font-size:2rem;opacity:.5">✓</span>${valFilter ? 'No ' + valFilter + ' issues' : 'No issues found — file appears conformant'}`;
+    valResults.appendChild(msg);
+    return;
+  }
+  const groups = { error:[], warning:[], phi:[], info:[] };
+  for (const iss of filtered) (groups[iss.sev] || groups.info).push(iss);
+  const LABELS = { error:'Errors', warning:'Warnings', phi:'PHI Flags', info:'Info' };
+  for (const [sev, list] of Object.entries(groups)) {
+    if (!list.length) continue;
+    const sec = document.createElement('div');
+    sec.className = 'val-section';
+    const hdr = document.createElement('div');
+    hdr.className = 'val-section-hdr';
+    hdr.innerHTML = `<span class="val-dot ${sev}"></span>${LABELS[sev]} (${list.length})<span class="chev">▾</span>`;
+    hdr.onclick = () => sec.classList.toggle('collapsed');
+    sec.appendChild(hdr);
+    const issWrap = document.createElement('div');
+    issWrap.className = 'val-issues';
+    for (const iss of list) {
+      const row = document.createElement('div');
+      row.className = 'val-issue';
+      row.innerHTML = `<div class="val-dot ${iss.sev}" style="margin-top:5px"></div>
+        <div class="val-issue-body">
+          <div class="val-issue-tag">${fmtTag('x'+iss.tag.toLowerCase())} ${iss.desc}</div>
+          <div class="val-issue-msg">${iss.msg}</div>
+          ${iss.val ? `<div class="val-issue-val">Current: ${iss.val.slice(0,120)}${iss.val.length>120?'…':''}</div>` : ''}
+        </div>`;
+      if (iss.fix) {
+        const btn = document.createElement('button');
+        btn.className = 'val-fix-btn';
+        btn.textContent = 'Fix';
+        btn.onclick = () => { iss.fix(); iss.fix = null; btn.disabled = true; btn.textContent = '✓'; };
+        row.appendChild(btn);
+      }
+      issWrap.appendChild(row);
+    }
+    sec.appendChild(issWrap);
+    valResults.appendChild(sec);
+  }
+}
+
+function updateValInfoCard(f) {
+  const d = f.dict;
+  const g = tag => { const k='x'+tag; const el=d[k]??d[tag]; if(!el||(!el.Value?.length&&!el.InlineBinary)) return '—'; if(el.InlineBinary) return '<binary>'; return String(el.Value[0]??''); };
+  valFileInfo.innerHTML = [
+    ['SOP Class', g('00080016').slice(0,50)],
+    ['SOP Name',  (SOP_ATTRS[g('00080016')]?.name) || '—'],
+    ['Modality',  g('00080060')],
+    ['Transfer Syntax', g('00020010').slice(0,50)],
+    ['Rows × Cols', g('00280010')&&g('00280011') ? `${g('00280010')} × ${g('00280011')}` : '—'],
+    ['Bits', g('00280100') ? `${g('00280100')} alloc / ${g('00280101')} stored` : '—'],
+    ['Frames', g('00280008') || '1'],
+  ].map(([k,v]) => `<div><b style="color:var(--text-muted)">${k}:</b> ${v}</div>`).join('');
+  valInfoCard.classList.remove('hidden');
+}
+
+valFixAllBtn.addEventListener('click', () => {
+  let fixed = 0;
+  for (const iss of valIssues) { if (iss.fix) { iss.fix(); iss.fix = null; fixed++; } }
+  toast?.(`Applied ${fixed} auto-fix${fixed!==1?'es':''}`);
+  renderValResults();
+});
+
+valClearBtn.addEventListener('click', () => {
+  valFiles = []; valIssues = []; valFilter = null;
+  valFilePill.textContent = 'No file loaded';
+  valSummary.style.display = 'none';
+  valInfoCard.classList.add('hidden');
+  valResults.innerHTML = '';
+  valResults.appendChild(valEmpty);
+  valEmpty.classList.remove('hidden');
+});
+
+document.getElementById('valOpenEditorBtn').addEventListener('click', () => {
+  if (!valFiles.length) { toast?.('No file loaded in Validator'); return; }
+  const f = valFiles[0];
+  files = [f]; dict = f.dict; meta = f.meta; currentFileIdx = 0;
+  fileNamePill.textContent = f.name; fileCountPill.textContent = '1 file';
+  switchTab('editor'); syncToUI();
+});
+
+// ================================================================
+// BATCH PROCESSOR
+// ================================================================
+
+let batchFiles = []; // shared with Macro tab
+let batchSteps = [];
+
+const batchDropZone   = document.getElementById('batchDropZone');
+const batchFileInput  = document.getElementById('batchFileInput');
+const batchBrowseBtn  = document.getElementById('batchBrowseBtn');
+const batchFilePill   = document.getElementById('batchFilePill');
+const batchPipeline   = document.getElementById('batchPipeline');
+const batchEmpty      = document.getElementById('batchEmpty');
+const batchLog        = document.getElementById('batchLog');
+const batchAddStepBtn = document.getElementById('batchAddStepBtn');
+const batchRunBtn     = document.getElementById('batchRunBtn');
+
+function batchUpdatePill() {
+  const n = batchFiles.length;
+  batchFilePill.textContent = `${n} file${n!==1?'s':''} loaded`;
+  document.getElementById('macroFilePill').textContent = `${n} file${n!==1?'s':''} (shared with Batch)`;
+}
+
+function batchWireDropZone(el, inp) {
+  el.addEventListener('click', () => inp.click());
+  el.addEventListener('dragover', e => { e.preventDefault(); el.style.borderColor='var(--accent)'; });
+  el.addEventListener('dragleave', () => el.style.borderColor='');
+  el.addEventListener('drop', e => { e.preventDefault(); el.style.borderColor=''; batchLoadFiles(e.dataTransfer.files); });
+  inp.addEventListener('change', e => { batchLoadFiles(e.target.files); e.target.value=''; });
+}
+batchWireDropZone(batchDropZone, batchFileInput);
+batchBrowseBtn.addEventListener('click', () => batchFileInput.click());
+// Macro tab also loads to batchFiles
+const macroDropWrap = document.createElement('div'); // handled via macroSideInput below
+
+async function batchLoadFiles(list) {
+  const arr = Array.from(list||[]);
+  if (!arr.length) return;
+  showLoading(true, `Loading ${arr.length} file(s)…`);
+  for (let i=0; i<arr.length; i++) {
+    showLoading(true, `Loading ${i+1}/${arr.length}: ${arr[i].name}`);
+    try {
+      const buf = await arr[i].arrayBuffer();
+      const msg = DicomMessage.readFile(buf);
+      normBin(msg.dict);
+      batchFiles.push({ name: arr[i].name, dict: msg.dict, meta: msg.meta||{}, pending: new Map() });
+    } catch(e) { toast?.(`Failed: ${arr[i].name}`); }
+  }
+  showLoading(false);
+  batchUpdatePill();
+}
+
+document.getElementById('batchClearFilesBtn').addEventListener('click', () => { batchFiles=[]; batchUpdatePill(); });
+
+// Step definitions
+const STEP_DEFS = {
+  'set-tag':    { label:'Set Tag', params:['tag','value'] },
+  'delete-tag': { label:'Delete Tag', params:['tag'] },
+  'date-shift': { label:'Shift All Dates', params:['days'] },
+  'uid-remap':  { label:'Remap All UIDs', params:[] },
+  'remove-private': { label:'Remove Private Tags', params:[] },
+  'find-replace':   { label:'Find & Replace (in tag)', params:['tag','find','replace'] },
+  'anonymize':  { label:'Anonymize (Basic)', params:[] },
+  'validate':   { label:'Validate & Skip Invalid', params:['severity'] },
+};
+
+function batchAddStep(type) {
+  const id = Date.now();
+  batchSteps.push({ id, type });
+  batchRenderPipeline();
+}
+
+function batchRemoveStep(id) {
+  batchSteps = batchSteps.filter(s => s.id !== id);
+  batchRenderPipeline();
+}
+
+function batchRenderPipeline() {
+  batchPipeline.innerHTML = '';
+  if (!batchSteps.length) { batchPipeline.appendChild(batchEmpty); batchEmpty.classList.remove('hidden'); return; }
+  batchEmpty.classList.add('hidden');
+  batchSteps.forEach((step, i) => {
+    const def = STEP_DEFS[step.type];
+    const card = document.createElement('div');
+    card.className = 'batch-step';
+    card.innerHTML = `
+      <div class="batch-step-hdr">
+        <div class="batch-step-num">${i+1}</div>
+        <div class="batch-step-type">${def.label}</div>
+        <button class="batch-step-rm" title="Remove step">✕</button>
+      </div>
+      <div class="batch-step-params" id="bsp-${step.id}"></div>`;
+    card.querySelector('.batch-step-rm').onclick = () => batchRemoveStep(step.id);
+    const params = card.querySelector(`#bsp-${step.id}`);
+    for (const p of def.params) {
+      const row = document.createElement('div');
+      row.className = 'batch-param-row';
+      const lbl = document.createElement('span');
+      lbl.className = 'batch-param-lbl';
+      lbl.textContent = p;
+      row.appendChild(lbl);
+      if (p === 'severity') {
+        const sel = document.createElement('select');
+        sel.className = 'batch-param-select';
+        ['error','warning'].forEach(v => { const o=document.createElement('option'); o.value=o.textContent=v; sel.appendChild(o); });
+        sel.value = step[p] || 'error';
+        sel.onchange = () => { step[p] = sel.value; };
+        row.appendChild(sel);
+      } else {
+        const inp = document.createElement('input');
+        inp.className = 'batch-param-input';
+        inp.placeholder = p === 'tag' ? '(0010,0010)' : p === 'days' ? '-30' : '';
+        inp.value = step[p] || '';
+        inp.oninput = () => { step[p] = inp.value; };
+        row.appendChild(inp);
+      }
+      params.appendChild(row);
+    }
+    batchPipeline.appendChild(card);
+  });
+}
+
+batchAddStepBtn.addEventListener('click', () => {
+  const types = Object.keys(STEP_DEFS);
+  const opts = types.map(t => `<option value="${t}">${STEP_DEFS[t].label}</option>`).join('');
+  const sel = document.createElement('select');
+  sel.className = 'batch-param-select';
+  sel.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+  sel.innerHTML = opts;
+  document.body.appendChild(sel);
+  const choose = prompt('Choose step:\n' + types.map((t,i)=>`${i+1}. ${STEP_DEFS[t].label}`).join('\n'));
+  sel.remove();
+  const idx = parseInt(choose) - 1;
+  if (idx >= 0 && idx < types.length) batchAddStep(types[idx]);
+});
+
+function batchApplyStep(step, f) {
+  const d = f.dict;
+  const pending = f.pending;
+  const rawTag = tag => tag.replace(/[()]/g,'').replace(',','').toLowerCase();
+  const key = tag => 'x' + rawTag(tag);
+
+  switch (step.type) {
+    case 'set-tag': {
+      const k = key(step.tag||''); if (!k||k==='x') break;
+      const el = d[k]||d[Object.keys(d).find(t=>t.toLowerCase()===k)||''];
+      const vr = el?.vr || 'LO';
+      pending.set(k, { vr, valueString: step.value||'' });
+      break;
+    }
+    case 'delete-tag': {
+      const k = key(step.tag||'');
+      delete d[k];
+      pending.delete(k);
+      break;
+    }
+    case 'date-shift': {
+      const days = parseInt(step.days) || 0;
+      const shiftDA = v => {
+        if (!v || v.length !== 8) return v;
+        const d = new Date(v.slice(0,4)+'-'+v.slice(4,6)+'-'+v.slice(6,8));
+        d.setDate(d.getDate() + days);
+        return d.getFullYear().toString() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+      };
+      for (const [t, el] of Object.entries(d)) {
+        if (el?.vr !== 'DA' || !el.Value) continue;
+        el.Value = el.Value.map(v => typeof v === 'string' ? shiftDA(v) : v);
+        pending.set(t, { vr:'DA', valueString: el.Value.join('\\') });
+      }
+      break;
+    }
+    case 'uid-remap': {
+      const map = new Map();
+      walkEls(d, (t, el) => {
+        if (el.vr !== 'UI' || !el.Value) return;
+        el.Value = el.Value.map(v => { const s=String(v||'').trim(); if(!s)return s; if(!map.has(s))map.set(s,newUID()); return map.get(s); });
+      });
+      break;
+    }
+    case 'remove-private': remPrivate(d); break;
+    case 'find-replace': {
+      const k = key(step.tag||''); if (!k||k==='x') break;
+      const el = d[k]; if (!el?.Value) break;
+      el.Value = el.Value.map(v => typeof v==='string' ? v.replaceAll(step.find||'', step.replace||'') : v);
+      pending.set(k, { vr:el.vr, valueString: el.Value.join('\\') });
+      break;
+    }
+    case 'anonymize': anonymize(d); break;
+    case 'validate': {
+      const issues = validateDicom(d, f.meta);
+      const threshold = step.severity === 'warning' ? ['error','warning'] : ['error'];
+      if (issues.some(i => threshold.includes(i.sev))) return 'skip';
+      break;
+    }
+  }
+  return 'ok';
+}
+
+batchRunBtn.addEventListener('click', async () => {
+  if (!batchFiles.length) { toast?.('Load files first'); return; }
+  if (!batchSteps.length) { toast?.('Add at least one step'); return; }
+  const dry = document.getElementById('batchDryRun').checked;
+  const outputMode = document.querySelector('input[name="batchOutput"]:checked')?.value || 'zip';
+  const pattern = document.getElementById('batchFilenamePattern').value.trim();
+
+  batchLog.classList.remove('hidden');
+  batchLog.textContent = '';
+  const bLog = msg => { batchLog.textContent += msg + '\n'; batchLog.scrollTop = batchLog.scrollHeight; };
+
+  showLoading(true, 'Running batch pipeline…');
+  let ok=0, skipped=0, errors=0;
+  const outputs = [];
+
+  for (let i=0; i<batchFiles.length; i++) {
+    const f = JSON.parse(JSON.stringify({ name:batchFiles[i].name }));
+    const workDict = typeof structuredClone==='function' ? structuredClone(batchFiles[i].dict) : {...batchFiles[i].dict};
+    const workFile = { name:batchFiles[i].name, dict:workDict, meta:batchFiles[i].meta, pending:new Map() };
+
+    showLoading(true, `Processing ${i+1}/${batchFiles.length}: ${workFile.name}`);
+    let stepResult = 'ok';
+    for (const step of batchSteps) {
+      try { stepResult = batchApplyStep(step, workFile); } catch(e) { bLog(`✗ ${workFile.name}: step "${STEP_DEFS[step.type].label}" error — ${e.message}`); errors++; stepResult='skip'; }
+      if (stepResult === 'skip') break;
+    }
+    if (stepResult === 'skip') { bLog(`⤼ ${workFile.name}: skipped by validation step`); skipped++; continue; }
+    if (!dry) outputs.push(workFile);
+    bLog(`✓ ${workFile.name}`);
+    ok++;
+  }
+
+  showLoading(false);
+  bLog(`\nDone: ${ok} processed, ${skipped} skipped, ${errors} errors${dry?' (DRY RUN — no files written)':''}`);
+
+  if (!dry && outputs.length) await batchDownload(outputs, outputMode, pattern);
+});
+
+async function batchDownload(files, mode, pattern) {
+  const outFiles = [];
+  for (const f of files) {
+    try {
+      const d = f.dict;
+      f.pending.forEach(({vr,valueString},tag) => { if(!isReadOnly(tag,vr)) d[tag]={vr,Value:parseByVR(vr,valueString)}; });
+      Object.keys(d).forEach(t => { const h=(t.startsWith('x')?t.slice(1):t).toLowerCase(); if(h.length===8&&h.slice(4)==='0000')delete d[t]; });
+      const m = ensureMeta(d, f.meta); normBin(d); normBin(m);
+      const dd = new DicomDict(m); dd.dict=d;
+      const out = dd.write();
+      let fname = f.name.replace(/\.[^.]+$/,'')+'.modified.dcm';
+      if (pattern) {
+        const g = tag => { const k='x'+tag; const el=d[k]??d[tag]; if(!el?.Value?.length)return''; return String(el.Value[0]??''); };
+        fname = pattern.replace(/\{(\w+)\}/g, (_,n) => {
+          const MAP = {PatientID:g('00100020'),PatientName:g('00100010'),StudyDate:g('00080020'),SeriesNumber:g('00200011'),InstanceNumber:g('00200013'),Modality:g('00080060')};
+          return MAP[n]||'';
+        });
+      }
+      outFiles.push({ name:fname, buf:out.buffer||out });
+    } catch(e) { toast?.(`Download error: ${f.name} — ${e.message}`); }
+  }
+
+  if (mode === 'zip') {
+    // Simple ZIP: use JSZip if available, else individual
+    if (typeof JSZip !== 'undefined') {
+      const zip = new JSZip();
+      outFiles.forEach(({name,buf}) => zip.file(name, buf));
+      const blob = await zip.generateAsync({type:'blob',compression:'DEFLATE'});
+      const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='batch_output.zip'; a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),0);
+    } else {
+      // fallback: individual
+      for (const {name,buf} of outFiles) {
+        const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([buf],{type:'application/dicom'})); a.download=name; a.click();
+        await new Promise(r=>setTimeout(r,50));
+      }
+      toast?.('JSZip not loaded — downloaded files individually');
+    }
+  } else {
+    for (const {name,buf} of outFiles) {
+      const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([buf],{type:'application/dicom'})); a.download=name; a.click();
+      await new Promise(r=>setTimeout(r,50));
+    }
+  }
+  toast?.(`Downloaded ${outFiles.length} file${outFiles.length!==1?'s':''}`);
+}
+
+// ================================================================
+// MACRO TAB
+// ================================================================
+
+const macroEditor  = document.getElementById('macroEditor');
+const macroOutput  = document.getElementById('macroOutput');
+const macroRunBtn  = document.getElementById('macroRunBtn');
+
+const MACRO_EXAMPLES = [
+  { label:'Anonymize patient',
+    code:`set('(0010,0010)', 'ANON^PATIENT');\nset('(0010,0020)', 'ANON-' + Math.random().toString(36).slice(2,8).toUpperCase());\nset('(0010,0030)', '');\nset('(0010,0040)', 'O');` },
+  { label:'Skip non-CT files',
+    code:`if (modality() !== 'CT') skip('not CT');` },
+  { label:'Shift dates by -30 days',
+    code:`// Shift all DA tags 30 days back\nconst shiftDA = v => {\n  if (!v || v.length!==8) return v;\n  const d=new Date(v.slice(0,4)+'-'+v.slice(4,6)+'-'+v.slice(6,8));\n  d.setDate(d.getDate()-30);\n  return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');\n};\n['(0008,0020)','(0008,0021)','(0008,0022)','(0008,0023)'].forEach(t => {\n  const v=get(t); if(v) set(t, shiftDA(v));\n});` },
+  { label:'Remove private tags + log',
+    code:`const before = Object.keys(_dict).length;\n_removePrivate();\nlog('Removed ' + (before - Object.keys(_dict).length) + ' private tags');` },
+  { label:'Add institution name',
+    code:`set('(0008,0080)', 'MY INSTITUTION');\nset('(0008,0081)', '123 Medical Drive, City, Country');` },
+];
+
+const macroExamplesEl = document.getElementById('macroExamples');
+MACRO_EXAMPLES.forEach(ex => {
+  const el = document.createElement('div');
+  el.className = 'macro-example-item';
+  el.textContent = ex.label;
+  el.title = ex.code;
+  el.addEventListener('click', () => { macroEditor.value = ex.code; });
+  macroExamplesEl.appendChild(el);
+});
+
+// Macro file input (uses batchFiles pool)
+const macroFileInput = document.createElement('input');
+macroFileInput.type='file'; macroFileInput.accept='.dcm,.dicom'; macroFileInput.multiple=true; macroFileInput.hidden=true;
+document.body.appendChild(macroFileInput);
+macroFileInput.addEventListener('change', e => { batchLoadFiles(e.target.files); e.target.value=''; });
+
+macroRunBtn.addEventListener('click', async () => {
+  if (!batchFiles.length) { toast?.('Load files first (shared with Batch tab)'); return; }
+  const code = macroEditor.value.trim();
+  if (!code) { toast?.('Write a script first'); return; }
+  const dry = document.getElementById('macroDryRun').checked;
+  const outputMode = document.querySelector('input[name="macroOutput"]:checked')?.value || 'zip';
+
+  macroOutput.classList.remove('hidden');
+  macroOutput.textContent = '';
+  const mLog = msg => { macroOutput.textContent += msg + '\n'; macroOutput.scrollTop = macroOutput.scrollHeight; };
+
+  showLoading(true, 'Running macro…');
+  let ok=0, skipped=0, errors=0;
+  const outputs = [];
+
+  for (let i=0; i<batchFiles.length; i++) {
+    const f = batchFiles[i];
+    const workDict = typeof structuredClone==='function' ? structuredClone(f.dict) : {...f.dict};
+    const workFile = { name:f.name, dict:workDict, meta:f.meta };
+    let skipReason = null;
+    const logs = [];
+
+    const api = {
+      get: tag => { const k='x'+tag.replace(/[()]/g,'').replace(',','').toLowerCase(); const el=workDict[k]??workDict[k.slice(1)]; if(!el?.Value?.length)return null; return String(el.Value[0]??''); },
+      set: (tag, val) => { const k='x'+tag.replace(/[()]/g,'').replace(',','').toLowerCase(); const el=workDict[k]; const vr=el?.vr||'LO'; workDict[k]={vr,Value:parseByVR(vr,String(val))}; },
+      remove: tag => { const k='x'+tag.replace(/[()]/g,'').replace(',','').toLowerCase(); delete workDict[k]; },
+      has: tag => { const k='x'+tag.replace(/[()]/g,'').replace(',','').toLowerCase(); return !!(workDict[k]??workDict[k.slice(1)]); },
+      modality: () => { const el=lookupTag(workDict,'00080060'); return el?.Value?.[0]||''; },
+      sopClass: () => { const el=lookupTag(workDict,'00080016'); return el?.Value?.[0]||''; },
+      skip: reason => { skipReason=reason||'skipped'; },
+      log: msg => logs.push(String(msg)),
+      _dict: workDict,
+      _removePrivate: () => remPrivate(workDict),
+    };
+
+    showLoading(true, `Running macro on ${i+1}/${batchFiles.length}: ${f.name}`);
+    try {
+      // eslint-disable-next-line no-new-func
+      new Function('get','set','remove','has','modality','sopClass','skip','log','_dict','_removePrivate', code)(
+        api.get, api.set, api.remove, api.has, api.modality, api.sopClass, api.skip, api.log, workDict, api._removePrivate
+      );
+    } catch(e) { mLog(`✗ ${f.name}: ${e.message}`); errors++; continue; }
+
+    logs.forEach(l => mLog(`  ${f.name}: ${l}`));
+    if (skipReason) { mLog(`⤼ ${f.name}: ${skipReason}`); skipped++; continue; }
+    if (!dry) outputs.push(workFile);
+    mLog(`✓ ${f.name}`);
+    ok++;
+  }
+
+  showLoading(false);
+  mLog(`\nDone: ${ok} processed, ${skipped} skipped, ${errors} errors${dry?' (DRY RUN)':''}`);
+  if (!dry && outputs.length) await batchDownload(outputs, outputMode, '');
+});
+
+// ================================================================
+// SR VIEWER
+// ================================================================
+
+const SR_SOP_UIDS = new Set([
+  '1.2.840.10008.5.1.4.1.1.88.11','1.2.840.10008.5.1.4.1.1.88.22',
+  '1.2.840.10008.5.1.4.1.1.88.33','1.2.840.10008.5.1.4.1.1.88.34',
+  '1.2.840.10008.5.1.4.1.1.88.35','1.2.840.10008.5.1.4.1.1.88.50',
+  '1.2.840.10008.5.1.4.1.1.88.59','1.2.840.10008.5.1.4.1.1.88.65',
+  '1.2.840.10008.5.1.4.1.1.88.67','1.2.840.10008.5.1.4.1.1.88.68',
+  '1.2.840.10008.5.1.4.1.1.88.69','1.2.840.10008.5.1.4.1.1.88.70',
+  '1.2.840.10008.5.1.4.1.1.88.72','1.2.840.10008.5.1.4.1.1.88.73',
+]);
+
+const srToggleBtn = document.getElementById('srToggleBtn');
+const srView      = document.getElementById('srView');
+let   srMode      = false;
+
+function detectSR(d) {
+  const sopUID = lookupTag(d,'00080016')?.Value?.[0]||'';
+  return SR_SOP_UIDS.has(sopUID);
+}
+
+function renderSRNode(item, depth=0) {
+  const el = document.createElement('div');
+  el.className = 'sr-node';
+  const vt  = item['0040a040']?.Value?.[0] || item.ValueType?.Value?.[0] || '';
+  const cnSeq = item['0040a043']?.Value || item.ConceptNameCodeSequence?.Value || [];
+  const label = cnSeq[0]?.['00080104']?.Value?.[0] || cnSeq[0]?.CodeMeaning?.Value?.[0] || '';
+
+  const lEl = document.createElement('div');
+  lEl.className = 'sr-label';
+  lEl.textContent = label || vt;
+  el.appendChild(lEl);
+
+  const vEl = document.createElement('div');
+  vEl.className = 'sr-value';
+
+  switch (vt.toUpperCase()) {
+    case 'TEXT': {
+      const v = item['0040a160']?.Value?.[0] || item.TextValue?.Value?.[0] || '';
+      vEl.textContent = v; break;
+    }
+    case 'NUM': {
+      const ms = item['0040a300']?.Value || item.MeasuredValueSequence?.Value || [];
+      const mv = ms[0]; const val = mv?.['0040a30a']?.Value?.[0]??mv?.NumericValue?.Value?.[0]??'';
+      const unit = mv?.['004008ea']?.Value?.[0]?.['00080104']?.Value?.[0] || '';
+      vEl.className = 'sr-value num'; vEl.textContent = val + (unit ? ' ' + unit : ''); break;
+    }
+    case 'CODE': {
+      const cs = item['0040a168']?.Value || item.ConceptCodeSequence?.Value || [];
+      const cv = cs[0]?.['00080104']?.Value?.[0] || cs[0]?.CodeMeaning?.Value?.[0] || '';
+      vEl.className = 'sr-value code'; vEl.textContent = cv; break;
+    }
+    case 'DATETIME': case 'DATE': case 'TIME': {
+      const v = item['0040a120']?.Value?.[0] || item['0040a121']?.Value?.[0] || item['0040a122']?.Value?.[0] || '';
+      vEl.className = 'sr-value datetime'; vEl.textContent = v; break;
+    }
+    case 'PNAME': {
+      const pn = item['0040a123']?.Value?.[0] || item.PersonName?.Value?.[0] || {};
+      vEl.textContent = typeof pn==='object' ? (pn.Alphabetic||'') : String(pn||''); break;
+    }
+    case 'CONTAINER': vEl.remove(); break;
+    default: break;
+  }
+
+  if (vEl.parentElement || vt.toUpperCase()!=='CONTAINER') el.appendChild(vEl);
+
+  const children = item['0040a730']?.Value || item.ContentSequence?.Value || [];
+  if (children.length) {
+    const cont = document.createElement('div');
+    cont.className = 'sr-container';
+    children.forEach(child => cont.appendChild(renderSRNode(child, depth+1)));
+    el.appendChild(cont);
+  }
+  return el;
+}
+
+function renderSR(d) {
+  srView.innerHTML = '';
+  const title = document.createElement('div');
+  title.className = 'sr-section-title';
+  const sopUID = lookupTag(d,'00080016')?.Value?.[0]||'';
+  const sopName = SOP_ATTRS[sopUID]?.name || 'Structured Report';
+  title.textContent = sopName;
+  srView.appendChild(title);
+
+  const root = lookupTag(d,'0040a730')?.Value || [];
+  if (!root.length) {
+    const msg = document.createElement('p');
+    msg.style.cssText='color:var(--text-muted);font-size:12px;margin-top:8px';
+    msg.textContent='No content items found in Content Sequence.';
+    srView.appendChild(msg);
+    return;
+  }
+  root.forEach(item => srView.appendChild(renderSRNode(item)));
+}
+
+srToggleBtn?.addEventListener('click', () => {
+  srMode = !srMode;
+  srToggleBtn.classList.toggle('active', srMode);
+  srView.classList.toggle('hidden', !srMode);
+  previewBox.classList.toggle('hidden', srMode);
+  if (srMode && dict) renderSR(dict);
+});
+
+
+// ================================================================
+// PREVIEW ENHANCEMENTS — pixel hover + file nav
+// ================================================================
+
+const pxHover     = document.getElementById('pxHover');
+const previewNav  = document.getElementById('previewNav');
+const prevFileBtn = document.getElementById('prevFileBtn');
+const nextFileBtn = document.getElementById('nextFileBtn');
+const previewNavInfo = document.getElementById('previewNavInfo');
+
+// Pixel value on hover
+previewBox?.addEventListener('mousemove', e => {
+  if (!previewImageData || !pxHover) return;
+  const rect = previewCanvas.getBoundingClientRect();
+  const scaleX = previewImageData.width  / rect.width;
+  const scaleY = previewImageData.height / rect.height;
+  const px = Math.floor((e.clientX - rect.left) * scaleX);
+  const py = Math.floor((e.clientY - rect.top)  * scaleY);
+  if (px < 0 || py < 0 || px >= previewImageData.width || py >= previewImageData.height) return;
+  const idx = (py * previewImageData.width + px) * 4;
+  const r = previewImageData.data.data[idx];
+  pxHover.textContent = `(${px}, ${py})  val: ${r}`;
+});
+previewBox?.addEventListener('mouseleave', () => { if(pxHover) pxHover.textContent='—'; });
+
+// File navigation (prev/next through loaded files)
+function updatePreviewNav() {
+  if (!previewNav) return;
+  const multi = files.length > 1;
+  previewNav.classList.toggle('hidden', !multi);
+  if (!multi) return;
+  prevFileBtn.disabled = currentFileIdx <= 0;
+  nextFileBtn.disabled = currentFileIdx >= files.length - 1;
+  previewNavInfo.textContent = `${currentFileIdx + 1} / ${files.length}`;
+}
+
+prevFileBtn?.addEventListener('click', () => { if (currentFileIdx > 0) switchFile(currentFileIdx - 1); });
+nextFileBtn?.addEventListener('click', () => { if (currentFileIdx < files.length - 1) switchFile(currentFileIdx + 1); });
+
+// Keyboard navigation
+document.addEventListener('keydown', e => {
+  if (activeTab !== 'editor' || !files.length) return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'ArrowLeft'  && currentFileIdx > 0)               switchFile(currentFileIdx - 1);
+  if (e.key === 'ArrowRight' && currentFileIdx < files.length - 1) switchFile(currentFileIdx + 1);
+});
+
 </script>
 </body>
 </html>
