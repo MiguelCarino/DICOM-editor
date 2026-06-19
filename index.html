@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DICOM Tag Editor — Carino Systems</title>
   <script src="https://cdn.jsdelivr.net/npm/dcmjs@0.29.8/build/dcmjs.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=IBM+Plex+Sans:wght@300;400;500;700&family=Red+Hat+Display:wght@700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500;700;900&display=swap" rel="stylesheet">
   <style>
     :root {
       --surface: #012d54;
@@ -14,8 +14,8 @@
       --border: #262626;
       --border-glow: rgba(234,179,8,0.3);
       --text: #ffffff;
-      --text-dim: #a3a3a3;
-      --text-muted: #666666;
+      --text-dim: #b8b8b8;
+      --text-muted: #8a8a8a;
 
       /* Vibrant category colors */
       --cat-patient: #22d3ee;
@@ -44,13 +44,33 @@
       --font: 'IBM Plex Sans', sans-serif;
       --mono: 'IBM Plex Mono', monospace;
       --radius: 4px;
+
+      /* Radius scale */
+      --r-sm: 4px;
+      --r-md: 8px;
+      --r-full: 999px;
+      /* Spacing scale */
+      --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
+      /* Semantic status colors */
+      --ok: #4ade80; --warn: #fb923c; --err: #f87171; --info: #22d3ee;
+      /* Depth */
+      --glow: 0 0 16px var(--accent-glow);
+      --elev: 0 2px 8px rgba(0,0,0,0.4);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    *:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
     html, body { height: 100%; overflow: hidden; }
     body {
       font-family: var(--font);
-      background: linear-gradient(135deg, #000000 0%, #000000 100%);
-      background-attachment: fixed;
+      background: #000000;
       color: var(--text);
       line-height: 1.5;
     }
@@ -74,7 +94,7 @@
       z-index: 100;
     }
     .logo {
-      font-family: 'Red Hat Display', sans-serif;
+      font-family: var(--font);
       font-weight: 900;
       font-size: 18px;
       background: linear-gradient(130deg, #fef08a 0%, #eab308 50%, #b45309 100%);
@@ -113,27 +133,30 @@
       filter: brightness(1.1);
       box-shadow: 0 4px 12px var(--accent-glow);
     }
+    .btn.danger { background: rgba(248,113,113,0.12); border-color: var(--err); color: var(--err); }
+    .btn.danger:hover { background: var(--err); border-color: var(--err); color: #0a0a0a; box-shadow: 0 0 16px rgba(248,113,113,0.3); }
     
     /* Main Content */
     .main {
       display: grid;
-      grid-template-columns: 1fr 280px;
+      grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
       gap: 16px;
       padding: 16px 20px;
       overflow: hidden;
       min-height: 0;
     }
     @media (max-width: 1000px) {
-      .main { grid-template-columns: 1fr; }
+      .main { grid-template-columns: minmax(0, 1fr); }
       .sidebar { display: none; }
     }
-    
+
     /* Left Panel */
     .left-panel {
       display: flex;
       flex-direction: column;
       gap: 12px;
       min-height: 0;
+      min-width: 0;
       overflow: hidden;
     }
     
@@ -277,11 +300,12 @@
       flex: 1;
       min-height: 0;
       overflow-y: auto;
+      overflow-x: auto;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
     }
-    table { width: 100%; border-collapse: collapse; }
+    table { width: 100%; min-width: 640px; border-collapse: collapse; }
     thead { position: sticky; top: 0; z-index: 5; }
     thead th {
       background: var(--surface-solid);
@@ -438,6 +462,9 @@
       font-size: 11px;
       color: var(--text-muted);
     }
+    .drop-zone.compact { padding: 8px 12px; }
+    .drop-zone.compact h4 { font-size: 12px; margin-bottom: 0; }
+    .drop-zone.compact p { display: none; }
     
     /* Image Preview */
     .preview-box {
@@ -575,7 +602,7 @@
     
     .social-btn {
       width: 40px; height: 40px; align-items: center; justify-content: center;
-      background: rgba(125,125,125,0.1); border-radius: 10px; color: var(--fg-secondary);
+      background: rgba(125,125,125,0.1); border-radius: var(--r-md); color: var(--text-dim);
       border: 1px solid transparent; transition: 0.2s; margin: 6px ;
     }
 
@@ -584,10 +611,13 @@
     .hidden { display: none !important; }
 
     /* Tab Navigation */
-    .tab-nav { display: flex; gap: 4px; }
+    .tab-nav { display: flex; gap: 4px; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+    .tab-nav::-webkit-scrollbar { display: none; }
     .tab-btn {
       padding: 6px 16px;
-      border-radius: 8px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      border-radius: var(--r-md);
       border: 1px solid var(--border);
       background: transparent;
       color: var(--text-muted);
@@ -607,7 +637,7 @@
     #createTab { grid-row: 2; }
     .create-panel {
       display: grid;
-      grid-template-columns: 1fr 280px;
+      grid-template-columns: 1fr minmax(240px, 300px);
       gap: 16px;
       padding: 16px 20px;
       overflow: hidden;
@@ -781,7 +811,7 @@
     #extractorTab { grid-row: 2; }
     .extractor-panel {
       display: grid;
-      grid-template-columns: 1fr 280px;
+      grid-template-columns: 1fr minmax(240px, 300px);
       gap: 16px;
       padding: 16px 20px;
       overflow: hidden;
@@ -932,7 +962,7 @@
     /* ─── COMPARE TAB ───────────────────────── */
     .compare-tab-panel {
       display: grid;
-      grid-template-columns: 1fr 280px;
+      grid-template-columns: 1fr minmax(240px, 300px);
       gap: 16px;
       padding: 16px 20px;
       overflow: hidden;
@@ -980,11 +1010,12 @@
       background: rgba(234,179,8,0.04);
     }
     .cmp-pane-label {
-      font: 900 3rem 'Red Hat Display', sans-serif;
+      font: 900 3rem var(--font);
       color: var(--accent);
       line-height: 1;
     }
     .cmp-pane-sub { font: 13px var(--mono); color: var(--text-muted); text-align: center; }
+    @media (max-width: 700px) { .cmp-empty-state { grid-template-columns: 1fr; } }
     /* Mini preview in sidebar */
     .cmp-preview-mini {
       width: 100%; aspect-ratio: 1;
@@ -1041,7 +1072,7 @@
     }
 
     /* ─── VALIDATOR TAB ─────────────────────── */
-    .val-panel { display:grid; grid-template-columns:1fr 260px; gap:16px; padding:16px 20px; overflow:hidden; min-height:0; }
+    .val-panel { display:grid; grid-template-columns:1fr minmax(240px,300px); gap:16px; padding:16px 20px; overflow:hidden; min-height:0; }
     .val-left  { display:flex; flex-direction:column; gap:10px; min-height:0; overflow:hidden; }
     .val-sidebar { display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
     .val-summary { display:flex; gap:10px; flex-wrap:wrap; padding:10px 14px; background:var(--surface); border-radius:4px; border:1px solid var(--border); flex-shrink:0; }
@@ -1076,7 +1107,7 @@
     @media (max-width:1000px) { .val-panel { grid-template-columns:1fr; } .val-sidebar { display:none; } }
 
     /* ─── BATCH TAB ──────────────────────────── */
-    .batch-panel { display:grid; grid-template-columns:1fr 280px; gap:16px; padding:16px 20px; overflow:hidden; min-height:0; }
+    .batch-panel { display:grid; grid-template-columns:1fr minmax(240px,300px); gap:16px; padding:16px 20px; overflow:hidden; min-height:0; }
     .batch-left { display:flex; flex-direction:column; gap:10px; min-height:0; overflow:hidden; }
     .batch-sidebar { display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
     .batch-pipeline { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; min-height:0; }
@@ -1098,7 +1129,7 @@
     @media (max-width:1000px) { .batch-panel { grid-template-columns:1fr; } .batch-sidebar { display:none; } }
 
     /* ─── MACRO TAB ──────────────────────────── */
-    .macro-panel { display:grid; grid-template-columns:1fr 280px; gap:16px; padding:16px 20px; overflow:hidden; min-height:0; }
+    .macro-panel { display:grid; grid-template-columns:1fr minmax(240px,300px); gap:16px; padding:16px 20px; overflow:hidden; min-height:0; }
     .macro-left { display:flex; flex-direction:column; gap:10px; min-height:0; overflow:hidden; }
     .macro-sidebar { display:flex; flex-direction:column; gap:12px; overflow-y:auto; }
     .macro-editor-wrap { flex:1; min-height:0; display:flex; flex-direction:column; gap:0; border:1px solid var(--border); border-radius:4px; overflow:hidden; }
@@ -1108,6 +1139,13 @@
     .macro-example-item { padding:6px 8px; border-radius:4px; cursor:pointer; font:12px var(--mono); color:var(--text-dim); border:1px solid transparent; transition:0.15s; }
     .macro-example-item:hover { border-color:var(--accent); color:var(--accent); background:rgba(234,179,8,0.05); }
     @media (max-width:1000px) { .macro-panel { grid-template-columns:1fr; } .macro-sidebar { display:none; } }
+
+    /* ─── RUN TAB (Batch + Macro merged) ─────── */
+    .run-body { flex:1; min-height:0; display:flex; flex-direction:column; gap:10px; overflow:hidden; }
+    .run-mode-toggle { display:flex; gap:4px; }
+    .run-mode-btn { padding:5px 14px; font:600 11px var(--mono); text-transform:uppercase; letter-spacing:0.05em; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; transition:0.15s; }
+    .run-mode-btn:hover { color:var(--text-dim); border-color:var(--text-muted); }
+    .run-mode-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(234,179,8,0.08); }
 
     /* ─── SR VIEWER ──────────────────────────── */
     .sr-view { padding:4px 0; overflow-y:auto; font-size:12px; }
@@ -1119,7 +1157,7 @@
     .sr-value.num { color:var(--accent); font:13px var(--mono); }
     .sr-value.code { color:var(--cat-patient); }
     .sr-value.datetime { color:var(--cat-uid); font:11px var(--mono); }
-    .sr-section-title { font:700 13px 'Red Hat Display',sans-serif; color:var(--text); margin-bottom:6px; border-bottom:1px solid var(--border); padding-bottom:4px; }
+    .sr-section-title { font:700 13px var(--font); color:var(--text); margin-bottom:6px; border-bottom:1px solid var(--border); padding-bottom:4px; }
     .sr-toggle-btn { padding:4px 10px; font:600 10px var(--mono); text-transform:uppercase; letter-spacing:0.05em; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--text-muted); cursor:pointer; transition:0.15s; }
     .sr-toggle-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(234,179,8,0.08); }
 
@@ -1142,6 +1180,13 @@
     .load-spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .load-text { font: 600 13px var(--mono); color: var(--text); text-align: center; max-width: 320px; }
+
+    /* ─── CONFIRM DIALOG ─────────────────────── */
+    .confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: none; align-items: center; justify-content: center; z-index: 2500; }
+    .confirm-overlay.visible { display: flex; }
+    .confirm-box { background: var(--surface-solid); border: 1px solid var(--border); border-radius: var(--r-md); padding: 20px; width: 90%; max-width: 360px; box-shadow: var(--elev); }
+    .confirm-msg { font: 500 14px var(--font); color: var(--text); margin-bottom: 18px; line-height: 1.5; }
+    .confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
   </style>
 </head>
 <body>
@@ -1154,8 +1199,7 @@
         <button class="tab-btn" id="extractorTabBtn">Extractor</button>
         <button class="tab-btn" id="compareTabBtn">Compare</button>
         <button class="tab-btn" id="validatorTabBtn">Validator</button>
-        <button class="tab-btn" id="batchTabBtn">Batch</button>
-        <button class="tab-btn" id="macroTabBtn">Macro</button>
+        <button class="tab-btn" id="runTabBtn">Run</button>
       </nav>
       <div class="header-spacer"></div>
         <div class="brand-links">
@@ -1605,24 +1649,45 @@
   </div>
 
   <!-- ══ BATCH TAB ══════════════════════════════════════════════ -->
-  <div class="batch-panel" id="batchTab" style="display:none">
+  <div class="batch-panel" id="runTab" style="display:none">
     <div class="batch-left">
       <div class="top-bar">
-        <div class="pill" id="batchFilePill">0 files loaded</div>
+        <div class="pill" id="runFilePill">0 files loaded</div>
+        <div class="run-mode-toggle">
+          <button class="run-mode-btn active" id="runModeVisualBtn">Visual</button>
+          <button class="run-mode-btn" id="runModeScriptBtn">Script</button>
+        </div>
         <div style="flex:1"></div>
         <label style="font:500 11px var(--mono);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px">
-          <input type="checkbox" id="batchDryRun" style="accent-color:var(--accent)" /> Dry run
+          <input type="checkbox" id="runDryRun" style="accent-color:var(--accent)" /> Dry run
         </label>
-        <button class="btn primary" id="batchRunBtn">▶ Run Pipeline</button>
+        <button class="btn primary" id="runRunBtn">▶ Run</button>
       </div>
-      <div class="batch-pipeline" id="batchPipeline">
-        <div class="val-empty" id="batchEmpty" style="min-height:120px">
-          <span style="font-size:1.6rem;opacity:.3">⚙</span>
-          Add steps below to build your pipeline
+
+      <div class="run-body" id="runVisualBody">
+        <div class="batch-pipeline" id="batchPipeline">
+          <div class="val-empty" id="batchEmpty" style="min-height:120px">
+            <span style="font-size:1.6rem;opacity:.3">⚙</span>
+            Add steps below to build your pipeline
+          </div>
+        </div>
+        <button class="batch-add-btn" id="batchAddStepBtn">+ Add Step</button>
+      </div>
+
+      <div class="run-body hidden" id="runScriptBody">
+        <div class="macro-editor-wrap">
+          <div class="macro-editor-bar">
+            Script (runs once per file)
+            <span style="margin-left:auto;font-weight:400;text-transform:none;color:var(--text-muted)">get · set · remove · has · skip · log</span>
+          </div>
+          <textarea id="macroEditor" spellcheck="false" placeholder="// Example: anonymize patient name
+set('(0010,0010)', 'ANON^PATIENT');
+set('(0010,0020)', 'ANON');
+remove('(0010,1040)');"></textarea>
         </div>
       </div>
-      <button class="batch-add-btn" id="batchAddStepBtn">+ Add Step</button>
-      <div class="batch-log hidden" id="batchLog"></div>
+
+      <div class="batch-log hidden" id="runLog"></div>
     </div>
     <div class="batch-sidebar">
       <div class="card">
@@ -1632,49 +1697,8 @@
         <button class="btn" style="width:100%;margin-top:8px" id="batchBrowseBtn">Browse Files</button>
         <button class="btn" style="width:100%;margin-top:6px;font-size:11px" id="batchClearFilesBtn">Clear Files</button>
       </div>
-      <div class="card">
-        <div class="card-title">Output</div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <label style="font:500 11px var(--mono);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px">
-            <input type="radio" name="batchOutput" value="zip" checked style="accent-color:var(--accent)" /> ZIP archive
-          </label>
-          <label style="font:500 11px var(--mono);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px">
-            <input type="radio" name="batchOutput" value="individual" style="accent-color:var(--accent)" /> Individual files
-          </label>
-          <div class="form-group" style="margin-top:4px">
-            <label class="form-label">Filename pattern</label>
-            <input class="form-input" id="batchFilenamePattern" placeholder="{PatientID}_{InstanceNumber}.dcm" style="font:11px var(--mono)" />
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <!-- ══ MACRO TAB ══════════════════════════════════════════════ -->
-  <div class="macro-panel" id="macroTab" style="display:none">
-    <div class="macro-left">
-      <div class="top-bar">
-        <div class="pill" id="macroFilePill">0 files (shared with Batch)</div>
-        <div style="flex:1"></div>
-        <label style="font:500 11px var(--mono);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px">
-          <input type="checkbox" id="macroDryRun" style="accent-color:var(--accent)" /> Dry run
-        </label>
-        <button class="btn primary" id="macroRunBtn">▶ Run</button>
-      </div>
-      <div class="macro-editor-wrap">
-        <div class="macro-editor-bar">
-          Script (runs once per file)
-          <span style="margin-left:auto;font-weight:400;text-transform:none;color:var(--text-muted)">get · set · remove · has · skip · log</span>
-        </div>
-        <textarea id="macroEditor" spellcheck="false" placeholder="// Example: anonymize patient name
-set('(0010,0010)', 'ANON^PATIENT');
-set('(0010,0020)', 'ANON');
-remove('(0010,1040)');"></textarea>
-        <div class="macro-output hidden" id="macroOutput"></div>
-      </div>
-    </div>
-    <div class="macro-sidebar">
-      <div class="card">
+      <div class="card hidden" id="runScriptHelp">
         <div class="card-title">API Reference</div>
         <div style="font:10px var(--mono);color:var(--text-dim);line-height:2">
           <div><span style="color:var(--accent)">get</span>('(GGGG,EEEE)') → string|null</div>
@@ -1686,20 +1710,23 @@ remove('(0010,1040)');"></textarea>
           <div><span style="color:var(--accent)">skip</span>('reason') → exclude file</div>
           <div><span style="color:var(--accent)">log</span>('message')</div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Examples</div>
+        <div class="card-title" style="margin-top:12px">Examples</div>
         <div id="macroExamples" style="display:flex;flex-direction:column;gap:4px"></div>
       </div>
+
       <div class="card">
         <div class="card-title">Output</div>
         <div style="display:flex;flex-direction:column;gap:6px">
           <label style="font:500 11px var(--mono);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px">
-            <input type="radio" name="macroOutput" value="zip" checked style="accent-color:var(--accent)" /> ZIP archive
+            <input type="radio" name="runOutput" value="zip" checked style="accent-color:var(--accent)" /> ZIP archive
           </label>
           <label style="font:500 11px var(--mono);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px">
-            <input type="radio" name="macroOutput" value="individual" style="accent-color:var(--accent)" /> Individual files
+            <input type="radio" name="runOutput" value="individual" style="accent-color:var(--accent)" /> Individual files
           </label>
+          <div class="form-group" style="margin-top:4px">
+            <label class="form-label">Filename pattern</label>
+            <input class="form-input" id="runFilenamePattern" placeholder="{PatientID}_{InstanceNumber}.dcm" style="font:11px var(--mono)" />
+          </div>
         </div>
       </div>
     </div>
@@ -1710,6 +1737,16 @@ remove('(0010,1040)');"></textarea>
   <div class="load-overlay" id="loadOverlay">
     <div class="load-spinner"></div>
     <div class="load-text" id="loadText">Loading…</div>
+  </div>
+
+  <div class="confirm-overlay" id="confirmOverlay">
+    <div class="confirm-box">
+      <div class="confirm-msg" id="confirmMsg"></div>
+      <div class="confirm-actions">
+        <button class="btn" id="confirmCancel">Cancel</button>
+        <button class="btn danger" id="confirmOk">Confirm</button>
+      </div>
+    </div>
   </div>
 
   <div class="fullscreen-overlay" id="fullscreenOverlay">
@@ -3524,6 +3561,7 @@ async function handleFiles(list) {
   errorBanner.className = 'hidden';
   editHistory = [];
   editFuture  = [];
+  dropZone.classList.remove('compact');
 
   const arr = Array.from(list || []);
   if (!arr.length) return;
@@ -3564,6 +3602,7 @@ async function handleFiles(list) {
 
   fileNamePill.textContent = files.length === 1 ? files[0].name : `${files[0].name} (+${files.length - 1})`;
   fileCountPill.textContent = `${files.length} file${files.length > 1 ? 's' : ''}`;
+  dropZone.classList.add('compact');
 
   renderFileBrowser?.();
   syncToUI();
@@ -3631,22 +3670,26 @@ applyPrefixBtn.addEventListener('click', () => {
 
 anonymizeBtn.addEventListener('click', () => {
   if (!files.length) return;
-  pushHistory?.();
-  files.forEach(f => anonymize(f.dict));
-  remapUIDs();
-  syncToUI();
-  log('Anonymized all files');
-  toast?.('All files anonymized');
+  confirmDanger(`Anonymize all ${files.length} loaded file${files.length>1?'s':''}? This overwrites patient identifiers and remaps UIDs.`, () => {
+    pushHistory?.();
+    files.forEach(f => anonymize(f.dict));
+    remapUIDs();
+    syncToUI();
+    log('Anonymized all files');
+    toast?.('All files anonymized');
+  }, 'Anonymize');
 });
 
 randomizeBtn.addEventListener('click', () => {
   if (!files.length) return;
-  pushHistory?.();
-  files.forEach(f => randomize(f.dict));
-  remapUIDs();
-  syncToUI();
-  log('Randomized all files');
-  toast?.('All files randomized');
+  confirmDanger(`Randomize all ${files.length} loaded file${files.length>1?'s':''}? This replaces identifying tags with random values.`, () => {
+    pushHistory?.();
+    files.forEach(f => randomize(f.dict));
+    remapUIDs();
+    syncToUI();
+    log('Randomized all files');
+    toast?.('All files randomized');
+  }, 'Randomize');
 });
 
 
@@ -3678,15 +3721,13 @@ const createTabBtn    = document.getElementById('createTabBtn');
 const extractorTabBtn = document.getElementById('extractorTabBtn');
 const compareTabBtn   = document.getElementById('compareTabBtn');
 const validatorTabBtn = document.getElementById('validatorTabBtn');
-const batchTabBtn     = document.getElementById('batchTabBtn');
-const macroTabBtn     = document.getElementById('macroTabBtn');
+const runTabBtn       = document.getElementById('runTabBtn');
 const editorTabPanel    = document.getElementById('editorTab');
 const createTabPanel    = document.getElementById('createTab');
 const extractorTabPanel = document.getElementById('extractorTab');
 const compareTabPanel   = document.getElementById('compareTab');
 const validatorTabPanel = document.getElementById('validatorTab');
-const batchTabPanel     = document.getElementById('batchTab');
-const macroTabPanel     = document.getElementById('macroTab');
+const runTabPanel       = document.getElementById('runTab');
 
 const ALL_TABS = [
   ['editor',    editorTabBtn,    editorTabPanel,    'grid'],
@@ -3694,8 +3735,7 @@ const ALL_TABS = [
   ['extractor', extractorTabBtn, extractorTabPanel, 'grid'],
   ['compare',   compareTabBtn,   compareTabPanel,   'grid'],
   ['validator', validatorTabBtn, validatorTabPanel, 'grid'],
-  ['batch',     batchTabBtn,     batchTabPanel,     'grid'],
-  ['macro',     macroTabBtn,     macroTabPanel,     'grid'],
+  ['run',       runTabBtn,       runTabPanel,       'grid'],
 ];
 
 function switchTab(tab) {
@@ -3738,6 +3778,7 @@ clearExtractorBtn.addEventListener('click', () => {
   extractorLogCard.style.display = 'none';
   extractorLogArea.textContent = '';
   renderExtractorGrid();
+  toast?.('Cleared all files');
 });
 
 // Sidebar drop zone
@@ -4090,6 +4131,7 @@ clearCreateBtn.addEventListener('click', () => {
   nextSeriesId = 2;
   renderCreateGrid();
   renderSeriesPanel();
+  toast?.('Cleared all images');
 });
 
 createSideDropZone.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); });
@@ -4520,6 +4562,7 @@ cmpClearB.addEventListener('click', () => { cmpB = null; cmpRenderSidebar('B'); 
 document.getElementById('cmpClearAll').addEventListener('click', () => {
   cmpA = cmpB = null;
   cmpRenderSidebar('A'); cmpRenderSidebar('B'); cmpRenderTable();
+  toast?.('Comparison cleared');
 });
 
 // Filters
@@ -4527,8 +4570,14 @@ document.getElementById('cmpDiffOnly').addEventListener('change', e => { cmpDiff
 document.getElementById('cmpSearch').addEventListener('input', e => { cmpSearchStr = e.target.value; cmpRenderTable(); });
 
 // Export
-document.getElementById('cmpApplyAtoB').addEventListener('click', () => cmpApplyAllDiffs('A', 'B'));
-document.getElementById('cmpApplyBtoA').addEventListener('click', () => cmpApplyAllDiffs('B', 'A'));
+document.getElementById('cmpApplyAtoB').addEventListener('click', () => {
+  if (!cmpA || !cmpB) return;
+  confirmDanger('Apply all differing tag values from A onto B? This overwrites B’s values.', () => cmpApplyAllDiffs('A', 'B'), 'Apply A→B');
+});
+document.getElementById('cmpApplyBtoA').addEventListener('click', () => {
+  if (!cmpA || !cmpB) return;
+  confirmDanger('Apply all differing tag values from B onto A? This overwrites A’s values.', () => cmpApplyAllDiffs('B', 'A'), 'Apply B→A');
+});
 document.getElementById('cmpDownloadA').addEventListener('click', () => cmpDownload('A'));
 document.getElementById('cmpDownloadB').addEventListener('click', () => cmpDownload('B'));
 
@@ -4557,6 +4606,29 @@ const loadText    = document.getElementById('loadText');
 function showLoading(visible, text = 'Loading…') {
   loadOverlay.classList.toggle('visible', visible);
   if (text) loadText.textContent = text;
+}
+
+// ── Confirm dialog for destructive actions ───────────────────────
+function confirmDanger(message, onConfirm, confirmLabel = 'Confirm') {
+  const ov = document.getElementById('confirmOverlay');
+  const ok = document.getElementById('confirmOk');
+  const cancel = document.getElementById('confirmCancel');
+  document.getElementById('confirmMsg').textContent = message;
+  ok.textContent = confirmLabel;
+  const close = () => {
+    ov.classList.remove('visible');
+    ok.onclick = null; cancel.onclick = null;
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = e => {
+    if (e.key === 'Escape') close();
+    else if (e.key === 'Enter') { close(); onConfirm(); }
+  };
+  ok.onclick = () => { close(); onConfirm(); };
+  cancel.onclick = close;
+  document.addEventListener('keydown', onKey);
+  ov.classList.add('visible');
+  ok.focus();
 }
 
 // ── Toast ────────────────────────────────────────────────────────
@@ -5380,6 +5452,7 @@ valClearBtn.addEventListener('click', () => {
   valResults.innerHTML = '';
   valResults.appendChild(valEmpty);
   valEmpty.classList.remove('hidden');
+  toast?.('Cleared');
 });
 
 document.getElementById('valOpenEditorBtn').addEventListener('click', () => {
@@ -5394,24 +5467,40 @@ document.getElementById('valOpenEditorBtn').addEventListener('click', () => {
 // BATCH PROCESSOR
 // ================================================================
 
-let batchFiles = []; // shared with Macro tab
+let batchFiles = []; // shared by both Run modes (Visual pipeline + Script)
 let batchSteps = [];
+let runMode = 'visual';
 
 const batchDropZone   = document.getElementById('batchDropZone');
 const batchFileInput  = document.getElementById('batchFileInput');
 const batchBrowseBtn  = document.getElementById('batchBrowseBtn');
-const batchFilePill   = document.getElementById('batchFilePill');
+const runFilePill     = document.getElementById('runFilePill');
 const batchPipeline   = document.getElementById('batchPipeline');
 const batchEmpty      = document.getElementById('batchEmpty');
-const batchLog        = document.getElementById('batchLog');
+const runLog          = document.getElementById('runLog');
 const batchAddStepBtn = document.getElementById('batchAddStepBtn');
-const batchRunBtn     = document.getElementById('batchRunBtn');
+const runRunBtn       = document.getElementById('runRunBtn');
 
 function batchUpdatePill() {
   const n = batchFiles.length;
-  batchFilePill.textContent = `${n} file${n!==1?'s':''} loaded`;
-  document.getElementById('macroFilePill').textContent = `${n} file${n!==1?'s':''} (shared with Batch)`;
+  runFilePill.textContent = `${n} file${n!==1?'s':''} loaded`;
 }
+
+// ── Run mode toggle (Visual pipeline ⇄ Script) ──
+const runVisualBody = document.getElementById('runVisualBody');
+const runScriptBody = document.getElementById('runScriptBody');
+const runScriptHelp = document.getElementById('runScriptHelp');
+function setRunMode(mode) {
+  runMode = mode;
+  const script = mode === 'script';
+  runVisualBody.classList.toggle('hidden', script);
+  runScriptBody.classList.toggle('hidden', !script);
+  runScriptHelp.classList.toggle('hidden', !script);
+  document.getElementById('runModeVisualBtn').classList.toggle('active', !script);
+  document.getElementById('runModeScriptBtn').classList.toggle('active', script);
+}
+document.getElementById('runModeVisualBtn').addEventListener('click', () => setRunMode('visual'));
+document.getElementById('runModeScriptBtn').addEventListener('click', () => setRunMode('script'));
 
 function batchWireDropZone(el, inp) {
   el.addEventListener('click', () => inp.click());
@@ -5422,8 +5511,6 @@ function batchWireDropZone(el, inp) {
 }
 batchWireDropZone(batchDropZone, batchFileInput);
 batchBrowseBtn.addEventListener('click', () => batchFileInput.click());
-// Macro tab also loads to batchFiles
-const macroDropWrap = document.createElement('div'); // handled via macroSideInput below
 
 async function batchLoadFiles(list) {
   const arr = Array.from(list||[]);
@@ -5442,7 +5529,7 @@ async function batchLoadFiles(list) {
   batchUpdatePill();
 }
 
-document.getElementById('batchClearFilesBtn').addEventListener('click', () => { batchFiles=[]; batchUpdatePill(); });
+document.getElementById('batchClearFilesBtn').addEventListener('click', () => { batchFiles=[]; batchUpdatePill(); toast?.('Cleared all files'); });
 
 // Step definitions
 const STEP_DEFS = {
@@ -5588,43 +5675,32 @@ function batchApplyStep(step, f) {
   return 'ok';
 }
 
-batchRunBtn.addEventListener('click', async () => {
-  if (!batchFiles.length) { toast?.('Load files first'); return; }
-  if (!batchSteps.length) { toast?.('Add at least one step'); return; }
-  const dry = document.getElementById('batchDryRun').checked;
-  const outputMode = document.querySelector('input[name="batchOutput"]:checked')?.value || 'zip';
-  const pattern = document.getElementById('batchFilenamePattern').value.trim();
-
-  batchLog.classList.remove('hidden');
-  batchLog.textContent = '';
-  const bLog = msg => { batchLog.textContent += msg + '\n'; batchLog.scrollTop = batchLog.scrollHeight; };
-
+async function runBatchPipeline({ dry, outputMode, pattern, log }) {
   showLoading(true, 'Running batch pipeline…');
   let ok=0, skipped=0, errors=0;
   const outputs = [];
 
   for (let i=0; i<batchFiles.length; i++) {
-    const f = JSON.parse(JSON.stringify({ name:batchFiles[i].name }));
     const workDict = typeof structuredClone==='function' ? structuredClone(batchFiles[i].dict) : {...batchFiles[i].dict};
     const workFile = { name:batchFiles[i].name, dict:workDict, meta:batchFiles[i].meta, pending:new Map() };
 
     showLoading(true, `Processing ${i+1}/${batchFiles.length}: ${workFile.name}`);
     let stepResult = 'ok';
     for (const step of batchSteps) {
-      try { stepResult = batchApplyStep(step, workFile); } catch(e) { bLog(`✗ ${workFile.name}: step "${STEP_DEFS[step.type].label}" error — ${e.message}`); errors++; stepResult='skip'; }
+      try { stepResult = batchApplyStep(step, workFile); } catch(e) { log(`✗ ${workFile.name}: step "${STEP_DEFS[step.type].label}" error — ${e.message}`); errors++; stepResult='skip'; }
       if (stepResult === 'skip') break;
     }
-    if (stepResult === 'skip') { bLog(`⤼ ${workFile.name}: skipped by validation step`); skipped++; continue; }
+    if (stepResult === 'skip') { log(`⤼ ${workFile.name}: skipped by validation step`); skipped++; continue; }
     if (!dry) outputs.push(workFile);
-    bLog(`✓ ${workFile.name}`);
+    log(`✓ ${workFile.name}`);
     ok++;
   }
 
   showLoading(false);
-  bLog(`\nDone: ${ok} processed, ${skipped} skipped, ${errors} errors${dry?' (DRY RUN — no files written)':''}`);
+  log(`\nDone: ${ok} processed, ${skipped} skipped, ${errors} errors${dry?' (DRY RUN — no files written)':''}`);
 
   if (!dry && outputs.length) await batchDownload(outputs, outputMode, pattern);
-});
+}
 
 async function batchDownload(files, mode, pattern) {
   const outFiles = [];
@@ -5678,8 +5754,6 @@ async function batchDownload(files, mode, pattern) {
 // ================================================================
 
 const macroEditor  = document.getElementById('macroEditor');
-const macroOutput  = document.getElementById('macroOutput');
-const macroRunBtn  = document.getElementById('macroRunBtn');
 
 const MACRO_EXAMPLES = [
   { label:'Anonymize patient',
@@ -5700,26 +5774,13 @@ MACRO_EXAMPLES.forEach(ex => {
   el.className = 'macro-example-item';
   el.textContent = ex.label;
   el.title = ex.code;
-  el.addEventListener('click', () => { macroEditor.value = ex.code; });
+  el.addEventListener('click', () => { macroEditor.value = ex.code; setRunMode('script'); });
   macroExamplesEl.appendChild(el);
 });
 
-// Macro file input (uses batchFiles pool)
-const macroFileInput = document.createElement('input');
-macroFileInput.type='file'; macroFileInput.accept='.dcm,.dicom'; macroFileInput.multiple=true; macroFileInput.hidden=true;
-document.body.appendChild(macroFileInput);
-macroFileInput.addEventListener('change', e => { batchLoadFiles(e.target.files); e.target.value=''; });
-
-macroRunBtn.addEventListener('click', async () => {
-  if (!batchFiles.length) { toast?.('Load files first (shared with Batch tab)'); return; }
+async function runMacro({ dry, outputMode, pattern, log }) {
   const code = macroEditor.value.trim();
-  if (!code) { toast?.('Write a script first'); return; }
-  const dry = document.getElementById('macroDryRun').checked;
-  const outputMode = document.querySelector('input[name="macroOutput"]:checked')?.value || 'zip';
-
-  macroOutput.classList.remove('hidden');
-  macroOutput.textContent = '';
-  const mLog = msg => { macroOutput.textContent += msg + '\n'; macroOutput.scrollTop = macroOutput.scrollHeight; };
+  const mLog = log;
 
   showLoading(true, 'Running macro…');
   let ok=0, skipped=0, errors=0;
@@ -5762,7 +5823,28 @@ macroRunBtn.addEventListener('click', async () => {
 
   showLoading(false);
   mLog(`\nDone: ${ok} processed, ${skipped} skipped, ${errors} errors${dry?' (DRY RUN)':''}`);
-  if (!dry && outputs.length) await batchDownload(outputs, outputMode, '');
+  if (!dry && outputs.length) await batchDownload(outputs, outputMode, pattern);
+}
+
+// ── Single Run button dispatches to the active mode ──
+runRunBtn.addEventListener('click', async () => {
+  if (!batchFiles.length) { toast?.('Load files first'); return; }
+  if (runMode === 'script') {
+    if (!macroEditor.value.trim()) { toast?.('Write a script first'); return; }
+  } else if (!batchSteps.length) {
+    toast?.('Add at least one step'); return;
+  }
+
+  const dry = document.getElementById('runDryRun').checked;
+  const outputMode = document.querySelector('input[name="runOutput"]:checked')?.value || 'zip';
+  const pattern = document.getElementById('runFilenamePattern').value.trim();
+
+  runLog.classList.remove('hidden');
+  runLog.textContent = '';
+  const log = msg => { runLog.textContent += msg + '\n'; runLog.scrollTop = runLog.scrollHeight; };
+
+  if (runMode === 'script') await runMacro({ dry, outputMode, pattern, log });
+  else await runBatchPipeline({ dry, outputMode, pattern, log });
 });
 
 // ================================================================
