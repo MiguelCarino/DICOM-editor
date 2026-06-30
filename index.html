@@ -3374,25 +3374,46 @@ function hideFullscreen() {
 }
 
 // ============ ANONYMIZE & RANDOMIZE ============
+// Identity / PHI attributes, following the DICOM PS3.15 Basic Application Level
+// Confidentiality Profile (Annex E, Table E.1-1). Sequence VRs in this list are
+// dropped wholesale; date/time/numeric VRs are emptied; everything else is
+// replaced with "ANON". Not exhaustive — deeply nested SR content needs its own
+// recursion — but it covers the identity, contact and free-text comment
+// attributes that hold the overwhelming majority of PHI.
 const PHI = [
-  // Patient demographics
-  'x00100010','x00100020','x00100021','x00100030','x00100032','x00100040',
-  'x00101000','x00101001','x00101002','x00101005',
-  'x00101010','x00101020','x00101030','x00101040','x00101060','x00101080','x00101090',
+  // ---- Patient identity & demographics (group 0010) ----
+  'x00100010','x00100020','x00100021','x00100024','x00100030','x00100032',
+  'x00100040','x00100050','x00100101','x00100102',
+  'x00101000','x00101001','x00101002','x00101005','x00101010','x00101020',
+  'x00101030','x00101040','x00101060','x00101080','x00101081','x00101090',
   'x00102000','x00102110','x00102150','x00102160','x00102180',
   'x001021a0','x001021b0','x001021c0','x001021d0','x001021f0',
-  'x00102297','x00102298','x00102299','x00104000',
-  // Study / encounter
-  'x00080050','x00080080','x00080081','x00080090','x00080092','x00080094',
-  'x00081010','x00081030','x0008103e','x00081040','x00081048','x00081050',
-  'x00081060','x00081070','x00081080','x00081090',
-  // Equipment / institution
-  'x00181000','x00181020','x00181030',
-  // Procedure / visit
-  'x00200010','x00321060','x00380010','x00380300','x00400253','x00401001',
+  'x00102201','x00102203','x00102297','x00102298','x00102299','x00104000',
+  // ---- Study / referring physician / institution (group 0008) ----
+  'x00080050','x00080080','x00080081','x00080082','x00080090','x00080092',
+  'x00080094','x00080096','x00081010','x00081030','x0008103e','x00081040',
+  'x00081048','x00081049','x00081050','x00081052','x00081060','x00081062',
+  'x00081070','x00081072','x00081080','x00081084','x00081090',
+  // ---- Equipment identifiers (group 0018) ----
+  'x00181000','x00181002','x00181004','x00181005','x00181007','x00181008',
+  'x00181030',
+  // ---- Relationship / image comments (group 0020) ----
+  'x00200010','x00204000',
+  // ---- Procedure / visit / scheduling (groups 0032, 0038, 0040) ----
+  'x00321032','x00321033','x00321060','x00324000',
+  'x00380010','x00380011','x00380050','x00380060','x00380062','x00380300',
+  'x00380400','x00380500','x00384000',
+  'x00400006','x00400241','x00400242','x00400243','x00400253','x00400254',
+  'x00401001','x00401002','x00401004','x00401005','x00401400','x00402008',
+  'x00402009','x00402010','x00402400','x0040a073','x0040a075','x0040a078',
+  'x0040a123','x0040a730',
+  // ---- Content creator (group 0070) ----
+  'x00700084',
 ];
-const DATES = ['x00080020','x00080021','x00080022','x00080023'];
-const TIMES = ['x00080030','x00080031','x00080032','x00080033'];
+const DATES = ['x00080012','x00080020','x00080021','x00080022','x00080023',
+               'x00400244','x00400250'];
+const TIMES = ['x00080013','x00080030','x00080031','x00080032','x00080033',
+               'x00400245','x00400251'];
 
 function nowDA() { const t = new Date(); return `${t.getFullYear()}${String(t.getMonth()+1).padStart(2,'0')}${String(t.getDate()).padStart(2,'0')}`; }
 function nowTM() { const t = new Date(); return `${String(t.getHours()).padStart(2,'0')}${String(t.getMinutes()).padStart(2,'0')}${String(t.getSeconds()).padStart(2,'0')}`; }
@@ -3460,7 +3481,21 @@ function randAnonName() {
   const culture = CULTURES[randFrom(CULTURE_KEYS)];
   return culture.anon_f;
 }
-function setTag(d, t, vr, val) { d[t] = { vr, Value: Array.isArray(val) ? val : [val] }; }
+// dcmjs dict keys are 8-char UPPERCASE hex with no 'x' prefix (e.g. "00100010",
+// "0008103E"). Tag.fromString does parseInt(key.slice(0,4),16), which yields NaN
+// when an 'x' prefix is present — so an 'x'-prefixed key is silently dropped on
+// write while the original survives. Always normalize to the canonical form and
+// remove every stale variant so a write never keeps a duplicate of the original.
+function canonTag(t) { return (t[0] === 'x' ? t.slice(1) : t).toUpperCase(); }
+function tagVariants(t) { const h = canonTag(t); return [h, h.toLowerCase(), 'x' + h, 'x' + h.toLowerCase()]; }
+function findTagKey(d, t) { for (const k of tagVariants(t)) if (k in d) return k; return null; }
+function getTag(d, t) { const k = findTagKey(d, t); return k ? d[k] : undefined; }
+function delTag(d, t) { for (const k of tagVariants(t)) delete d[k]; }
+function setTag(d, t, vr, val) {
+  const canon = canonTag(t);
+  for (const k of tagVariants(t)) if (k !== canon) delete d[k]; // kill duplicate variants
+  d[canon] = { vr, Value: Array.isArray(val) ? val : [val] };
+}
 function remPrivate(node) {
   walkEls(node, (t, el, parent) => {
     const g = parseInt((t.startsWith('x') ? t.slice(1) : t).slice(0,4), 16);
@@ -3478,18 +3513,27 @@ function newUID() {
 }
 
 function anonymize(d) {
-  // Read sex before clearing PHI
-  const sex = String(d['x00100040']?.Value?.[0] || '').toUpperCase();
+  // Read sex before clearing PHI (resolve the key in whatever format the dict uses)
+  const sex = String(getTag(d, 'x00100040')?.Value?.[0] || '').toUpperCase();
   remPrivate(d);
-  for (const t of PHI) if (d[t]) setTag(d, t, d[t].vr || 'LO', 'ANON');
+  for (const t of PHI) {
+    const el = getTag(d, t);
+    if (!el) continue;
+    const vr = el.vr || 'LO';
+    if (vr === 'SQ') { delTag(d, t); continue; }   // drop PHI-bearing sequences entirely
+    if (vr === 'UI') continue;                      // UIDs are remapped by remapUIDs()
+    // Empty out structured VRs (dates/times/numbers) — "ANON" is not a valid value there
+    const blank = /^(DA|DT|TM|IS|DS|AS|US|UL|SS|SL|FL|FD)$/.test(vr) ? '' : 'ANON';
+    setTag(d, t, vr, blank);
+  }
   const culture = CULTURES[randFrom(CULTURE_KEYS)];
   const anonName = sex === 'M' ? culture.anon_m : culture.anon_f;
-  setTag(d, 'x00100010', 'PN', anonName);
-  setTag(d, 'x00100020', 'LO', 'ANON');
-  setTag(d, 'x00100040', 'CS', sex || 'O');
-  setTag(d, 'x00101010', 'AS', '000Y');
-  for (const t of DATES) if (d[t]) setTag(d, t, 'DA', nowDA());
-  for (const t of TIMES) if (d[t]) setTag(d, t, 'TM', nowTM());
+  setTag(d, '00100010', 'PN', anonName);
+  setTag(d, '00100020', 'LO', 'ANON');
+  setTag(d, '00100040', 'CS', sex || 'O');
+  setTag(d, '00101010', 'AS', '000Y');
+  for (const t of DATES) if (getTag(d, t)) setTag(d, t, 'DA', nowDA());
+  for (const t of TIMES) if (getTag(d, t)) setTag(d, t, 'TM', nowTM());
 }
 
 function randomize(d) {
@@ -3513,6 +3557,10 @@ function remapUIDs() {
       el.Value = el.Value.map(v => {
         const s = String(v || '').trim();
         if (!s) return s;
+        // Never remap standard UIDs (SOP Class, Transfer Syntax, coding schemes).
+        // They live under the DICOM root 1.2.840.10008 and are NOT patient data —
+        // remapping them corrupts the file's type. Only instance UIDs get remapped.
+        if (s.startsWith('1.2.840.10008')) return s;
         if (!map.has(s)) map.set(s, newUID());
         return map.get(s);
       });
@@ -5794,10 +5842,10 @@ async function runMacro({ dry, outputMode, pattern, log }) {
     const logs = [];
 
     const api = {
-      get: tag => { const k='x'+tag.replace(/[()]/g,'').replace(',','').toLowerCase(); const el=workDict[k]??workDict[k.slice(1)]; if(!el?.Value?.length)return null; return String(el.Value[0]??''); },
-      set: (tag, val) => { const k='x'+tag.replace(/[()]/g,'').replace(',','').toLowerCase(); const el=workDict[k]; const vr=el?.vr||'LO'; workDict[k]={vr,Value:parseByVR(vr,String(val))}; },
-      remove: tag => { const k='x'+tag.replace(/[()]/g,'').replace(',','').toLowerCase(); delete workDict[k]; },
-      has: tag => { const k='x'+tag.replace(/[()]/g,'').replace(',','').toLowerCase(); return !!(workDict[k]??workDict[k.slice(1)]); },
+      get: tag => { const el=getTag(workDict, tag.replace(/[()]/g,'').replace(/,/g,'')); if(!el?.Value?.length)return null; return String(el.Value[0]??''); },
+      set: (tag, val) => { const t=tag.replace(/[()]/g,'').replace(/,/g,''); const vr=getTag(workDict,t)?.vr||'LO'; setTag(workDict,t,vr,parseByVR(vr,String(val))); },
+      remove: tag => { delTag(workDict, tag.replace(/[()]/g,'').replace(/,/g,'')); },
+      has: tag => !!getTag(workDict, tag.replace(/[()]/g,'').replace(/,/g,'')),
       modality: () => { const el=lookupTag(workDict,'00080060'); return el?.Value?.[0]||''; },
       sopClass: () => { const el=lookupTag(workDict,'00080016'); return el?.Value?.[0]||''; },
       skip: reason => { skipReason=reason||'skipped'; },
