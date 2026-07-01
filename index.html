@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DICOM Tag Editor — Carino Systems</title>
   <script src="https://cdn.jsdelivr.net/npm/dcmjs@0.29.8/build/dcmjs.min.js"></script>
+  <script src="deid-profile.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500;700;900&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -3512,28 +3513,85 @@ function newUID() {
   return `2.25.${n.toString(10)}`;
 }
 
-function anonymize(d) {
-  // Read sex before clearing PHI (resolve the key in whatever format the dict uses)
-  const sex = String(getTag(d, 'x00100040')?.Value?.[0] || '').toUpperCase();
-  remPrivate(d);
-  for (const t of PHI) {
-    const el = getTag(d, t);
-    if (!el) continue;
-    const vr = el.vr || 'LO';
-    if (vr === 'SQ') { delTag(d, t); continue; }   // drop PHI-bearing sequences entirely
-    if (vr === 'UI') continue;                      // UIDs are remapped by remapUIDs()
-    // Empty out structured VRs (dates/times/numbers) — "ANON" is not a valid value there
-    const blank = /^(DA|DT|TM|IS|DS|AS|US|UL|SS|SL|FL|FD)$/.test(vr) ? '' : 'ANON';
-    setTag(d, t, vr, blank);
+// ============ FULL DICOM PS3.15 BASIC CONFIDENTIALITY PROFILE ============
+// Driven by window.DEID_PROFILE (deid-profile.js), the machine-readable
+// PS3.15 Table E.1-1. Applied recursively so PHI nested inside sequences
+// (Request Attributes, Original Attributes, SR content, etc.) is cleaned too.
+
+// A non-zero dummy value appropriate to the VR (for actions D / X/D).
+function dummyFor(vr) {
+  if (/^(DA|DT|TM)$/.test(vr)) return '';                              // never fabricate temporal data
+  if (/^(IS|DS|US|UL|SS|SL|FL|FD|SV|UV|OB|OW|OF|OD|UN)$/.test(vr)) return ''; // numeric/binary → empty
+  if (vr === 'PN') return 'ANON^ANON';
+  if (vr === 'SQ') return [];                                          // empty sequence
+  return 'ANONYMIZED';
+}
+// Apply one Basic-Profile action code to element `el` (key `key`) in `node`.
+// Returns true if the element was removed (caller then stops recursing into it).
+function applyAction(node, key, el, action) {
+  const vr = el.vr || 'LO';
+  switch (action) {
+    case 'X':                                   // remove
+      delete node[key]; return true;
+    case 'U':                                   // UID → remapped later by remapUIDs()
+    case 'X/Z/U*':                              // keep so nested UIDs remap, preserving references
+      return false;
+    case 'D': case 'X/D':                       // dummy value
+      setTag(node, key, vr, dummyFor(vr)); return false;
+    case 'Z': case 'Z/D': case 'X/Z': case 'X/Z/D':  // zero-length (never drops a maybe-required attr)
+      setTag(node, key, vr, []); return false;
+    default:
+      return false;
   }
+}
+// Walk every element, applying the profile and descending into sequences.
+function applyProfile(node) {
+  if (!node || typeof node !== 'object') return;
+  for (const key of Object.keys(node)) {
+    const el = node[key];
+    if (!el || typeof el !== 'object') continue;
+    const tag = canonTag(key);                             // 8-char UPPERCASE hex
+    const group = parseInt(tag.slice(0, 4), 16);
+    const elem  = tag.slice(4);
+    // Repeating-group attributes not in the flat table:
+    if (group >= 0x5000 && group <= 0x50ff) { delete node[key]; continue; }   // Curve Data (retired)
+    if (group >= 0x6000 && group <= 0x60ff && (elem === '3000' || elem === '4000')) {
+      delete node[key]; continue;                          // Overlay Data / Overlay Comments
+    }
+    const action = window.DEID_PROFILE && window.DEID_PROFILE[tag];
+    const removed = action ? applyAction(node, key, el, action) : false;
+    if (!removed && el.vr === 'SQ' && Array.isArray(el.Value)) {
+      el.Value.forEach(item => applyProfile(item));        // clean nested attributes
+    }
+  }
+}
+// Assert the object as de-identified, per PS3.15 (0012,0062/0063/0064).
+function addDeidMeta(d) {
+  setTag(d, '00120062', 'CS', 'YES');                      // Patient Identity Removed
+  setTag(d, '00120063', 'LO', 'Carino DICOM-editor — DICOM PS3.15 Basic Profile');
+  delTag(d, '00120064');
+  d['00120064'] = { vr: 'SQ', Value: [ {                   // De-identification Method Code Sequence
+    '00080100': { vr: 'SH', Value: ['113100'] },           // Code Value
+    '00080102': { vr: 'SH', Value: ['DCM'] },              // Coding Scheme Designator
+    '00080104': { vr: 'LO', Value: ['Basic Application Confidentiality Profile'] }, // Code Meaning
+  } ] };
+}
+
+function anonymize(d) {
+  // Keep a few characteristics for clinical usability (PS3.15 "Retain Patient
+  // Characteristics" option): original sex, a readable dummy name, a dummy age.
+  const sex = String(getTag(d, '00100040')?.Value?.[0] || '').toUpperCase();
+
+  remPrivate(d);       // remove all private (odd-group) attributes, recursively
+  applyProfile(d);     // full PS3.15 Basic Profile, recursively (UIDs remapped by remapUIDs())
+
+  // Usability layer, applied on top of the compliant pass:
   const culture = CULTURES[randFrom(CULTURE_KEYS)];
-  const anonName = sex === 'M' ? culture.anon_m : culture.anon_f;
-  setTag(d, '00100010', 'PN', anonName);
-  setTag(d, '00100020', 'LO', 'ANON');
+  setTag(d, '00100010', 'PN', sex === 'M' ? culture.anon_m : culture.anon_f);
   setTag(d, '00100040', 'CS', sex || 'O');
   setTag(d, '00101010', 'AS', '000Y');
-  for (const t of DATES) if (getTag(d, t)) setTag(d, t, 'DA', nowDA());
-  for (const t of TIMES) if (getTag(d, t)) setTag(d, t, 'TM', nowTM());
+
+  addDeidMeta(d);
 }
 
 function randomize(d) {
@@ -3720,10 +3778,15 @@ anonymizeBtn.addEventListener('click', () => {
   if (!files.length) return;
   confirmDanger(`Anonymize all ${files.length} loaded file${files.length>1?'s':''}? This overwrites patient identifiers and remaps UIDs.`, () => {
     pushHistory?.();
+    if (!window.DEID_PROFILE) log('⚠ deid-profile.js failed to load — only private tags and core identifiers will be removed.');
     files.forEach(f => anonymize(f.dict));
     remapUIDs();
     syncToUI();
-    log('Anonymized all files');
+    // Warn about identity that lives in the pixels, which a tag editor cannot remove.
+    const burned = files.filter(f => /^YES/i.test(String(getTag(f.dict, '00280301')?.Value?.[0] || '')));
+    if (burned.length) log(`⚠ ${burned.length} file(s) have Burned In Annotation = YES: identity may remain in the image pixels (not removable by tag editing).`);
+    const n = window.DEID_PROFILE_META?.attributes || 0;
+    log(`Anonymized all files — DICOM PS3.15 Basic Profile${n ? ` (${n} attributes)` : ''}`);
     toast?.('All files anonymized');
   }, 'Anonymize');
 });
