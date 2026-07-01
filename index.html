@@ -6,6 +6,7 @@
   <title>DICOM Tag Editor — Carino Systems</title>
   <script src="https://cdn.jsdelivr.net/npm/dcmjs@0.29.8/build/dcmjs.min.js"></script>
   <script src="deid-profile.js"></script>
+  <script src="dicom-dictionary.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=IBM+Plex+Sans:wght@400;500;700;900&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -2737,26 +2738,36 @@ function parseByVR(vr, str) {
 }
 
 // Improved Description Lookup
-function descFor(tag) {
-  // Normalize tag: 'x00100010'
-  const t = tag.startsWith('x') ? tag.slice(1) : tag;
-  const k = 'x' + t.toLowerCase();
-  
-  // 1. Manual Dictionary
-  if (TAG_DICT[k]) return TAG_DICT[k].desc;
-  
-  // 2. dcmjs Dictionary Fallback
-  // Try to find the tag in the library's internal dictionary
-  // dcmjs keys are typically '00100010' (no 'x', lowercase)
-  const entry = DicomMetaDictionary.dictionary[t.toLowerCase()];
-  
-  if (entry && entry.name) {
-    // Convert 'PatientName' -> 'Patient Name'
-    return entry.name.replace(/([A-Z])/g, ' $1').trim();
+// Repeating-group masks (50xx, 60xx, 7Fxx, 1000, 1010, 0028,04x0 …) compiled once.
+let _dictMaskRe = null;
+function dictMasks() {
+  if (!_dictMaskRe) {
+    _dictMaskRe = (window.DICOM_DICT_MASKS || []).map(
+      ([mid, name, vr]) => [new RegExp('^' + mid.replace(/X/g, '[0-9A-F]') + '$'), name, vr]
+    );
   }
-  
+  return _dictMaskRe;
+}
+// Look up [name, vr] for a tag across every source. Returns null if truly unknown.
+function dictEntry(tag) {
+  const t = (tag.startsWith('x') ? tag.slice(1) : tag).toUpperCase();   // 8-char UPPERCASE hex
+  // 1. Author's manual overrides (curated short labels / custom tags)
+  const k = 'x' + t.toLowerCase();
+  if (TAG_DICT[k]) return [TAG_DICT[k].desc, TAG_DICT[k].vr || ''];
+  // 2. Complete bundled PS3.6 dictionary (5000+ standard tags, incl. retired)
+  const d = window.DICOM_DICT && window.DICOM_DICT[t];
+  if (d) return d;
+  // 3. Repeating-group masks
+  for (const [re, name, vr] of dictMasks()) if (re.test(t)) return [name, vr];
+  // 4. dcmjs fallback — its dictionary is keyed "(gggg,eeee)", not plain hex
+  const entry = DicomMetaDictionary.dictionary['(' + t.slice(0, 4) + ',' + t.slice(4) + ')'];
+  if (entry && entry.name) return [entry.name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').trim(), entry.vr || ''];
+  // 5. Private (odd group) tags that aren't individually registered
+  if (parseInt(t.slice(0, 4), 16) % 2 === 1) return ['Private Tag', ''];
   return null;
 }
+function descFor(tag) { const e = dictEntry(tag); return e ? e[0] : null; }
+function vrForTag(tag) { const e = dictEntry(tag); return e ? e[1] : ''; }
 
 function catFor(tag, vr) {
   const t = tag.startsWith('x') ? tag.slice(1) : tag;

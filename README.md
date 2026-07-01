@@ -4,6 +4,23 @@ A browser-based DICOM file metadata editor (single static `index.html`, uses
 [dcmjs](https://github.com/dcmjs-org/dcmjs)). View, edit, create, compare, validate and
 **de-identify** DICOM objects entirely client-side — no upload, no server.
 
+## Tag dictionary
+
+Tag names/VRs come from a **complete bundled DICOM PS3.6 Data Dictionary**
+([`dicom-dictionary.js`](dicom-dictionary.js) — 5041 attributes + 88 repeating-group
+masks), generated from the [Innolitics `dicom-standard`](https://github.com/innolitics/dicom-standard)
+`attributes.json`. Lookup (`descFor` / `vrForTag`) is layered: author overrides → bundled
+dictionary → repeating-group masks (`50xx`/`60xx`/`7Fxx`/`1000`/`1010`/`0028,04x0`…) →
+dcmjs → generic "Private Tag". Every tag in the NEMA standard resolves — no more "Unknown
+tag" for standard attributes (including retired ones).
+
+To regenerate:
+
+```bash
+curl -sL https://raw.githubusercontent.com/innolitics/dicom-standard/master/standard/attributes.json -o attributes.json
+# map each entry's { id, name, valueRepresentation } into window.DICOM_DICT / window.DICOM_DICT_MASKS
+```
+
 ## De-identification
 
 The **Anonymize** action implements the **DICOM PS3.15 Annex E, Table E.1‑1 — Basic
