@@ -20,7 +20,7 @@
    60xx,4000) are removed; Private Attributes (odd groups) are removed by remPrivate().
    ===================================================================== */
 window.DEID_PROFILE = {
-  "00001000":"X", "00001001":"U", "00020003":"U", "00041511":"U", "00080012":"X/D",
+  "00001000":"X", "00001001":"U", "00020003":"U", "00020013":"D", "00041511":"U", "00080012":"X/D",
   "00080013":"X/Z/D", "00080014":"U", "00080015":"X", "00080017":"U", "00080018":"U",
   "00080019":"U", "00080020":"Z", "00080021":"X/D", "00080022":"X/Z", "00080023":"Z/D",
   "00080024":"X", "00080025":"X", "0008002A":"X/Z/D", "00080030":"Z", "00080031":"X/D",
@@ -145,4 +145,4 @@ window.DEID_PROFILE = {
   "4008011A":"X", "40080200":"X", "40080202":"X", "40080300":"X", "40084000":"X",
   "FFFAFFFA":"X", "FFFCFFFC":"X"
 };
-window.DEID_PROFILE_META = { attributes: 617, standard: "DICOM PS3.15 Table E.1-1 (Basic Profile)" };
+window.DEID_PROFILE_META = { attributes: 618, standard: "DICOM PS3.15 Table E.1-1 (Basic Profile)" };

@@ -105,7 +105,147 @@
       background-clip: text;
     }
     .header-spacer { flex: 1; }
-    
+
+    /* ---- Carino navbar (ported from StreamMultiviewer) ---- */
+    .header.top-header { position: relative; justify-content: space-between; }
+    .header-left  { display: flex; align-items: center; gap: 18px; min-width: 0; flex-shrink: 0; }
+    .header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .brand-name {
+      font-family: var(--font); font-weight: 900; font-size: 1.5rem; line-height: 1;
+      background: linear-gradient(130deg, #fef08a 0%, #eab308 50%, #b45309 100%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      text-decoration: none; white-space: nowrap; cursor: pointer;
+    }
+    .brand-name .app-tag {
+      -webkit-text-fill-color: var(--accent); color: var(--accent);
+      font-family: var(--mono); font-size: .6rem; font-weight: 700; letter-spacing: .14em;
+      text-transform: uppercase; border: 1px solid var(--border); border-radius: 4px;
+      padding: 3px 6px; margin-left: 10px; vertical-align: middle;
+    }
+    .header-clock { display: flex; align-items: baseline; gap: 8px; border-left: 1px solid var(--border); padding-left: 18px; }
+    .clock-time { font-family: var(--mono); font-size: 1.05rem; font-weight: 700; }
+    .clock-tz { font-family: var(--mono); font-size: .58rem; font-weight: 700; color: #050505; background: var(--accent); padding: 2px 5px; border-radius: 3px; }
+    .brand-greeting { font-family: var(--mono); font-size: .68rem; color: var(--text-muted); }
+    .header.top-header .tab-nav { margin: 0 auto; }
+    .social-row { display: flex; gap: 8px; }
+    .icon-btn {
+      width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 4px;
+      display: flex; align-items: center; justify-content: center; color: var(--text-muted);
+      transition: .2s; text-decoration: none; background: transparent; cursor: pointer;
+    }
+    .icon-btn:hover { border-color: var(--accent); color: #050505; background: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px var(--accent-glow); }
+    .icon-btn svg { width: 15px; height: 15px; }
+    .status-toggle {
+      display: flex; align-items: center; gap: 8px; background: transparent; border: 1px solid var(--border);
+      color: var(--text-muted); font-family: var(--mono); font-size: .7rem; text-transform: uppercase;
+      letter-spacing: .1em; padding: 0 12px; height: 32px; border-radius: 4px; cursor: pointer; transition: .2s;
+    }
+    .status-toggle:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-faint); }
+    .pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse-glow 2s ease-in-out infinite; }
+    @keyframes pulse-glow { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+    .diag-dropdown {
+      position: absolute; top: calc(100% - 4px); right: 16px; width: 280px; background: #111;
+      border: 1px solid var(--border); border-radius: 8px; padding: 16px; box-shadow: 0 18px 40px rgba(0,0,0,.6);
+      opacity: 0; visibility: hidden; transform: translateY(-8px); transition: .18s; z-index: 210;
+    }
+    .diag-dropdown.open { opacity: 1; visibility: visible; transform: translateY(0); }
+    .diag-section { font-family: var(--mono); font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); margin: 12px 0 6px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+    .diag-section:first-child { margin-top: 0; }
+    .diag-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: .78rem; padding: 3px 0; }
+    .diag-lbl { color: var(--text-muted); flex-shrink: 0; }
+    .diag-val { font-family: var(--mono); color: var(--text); text-align: right; word-break: break-all; }
+    @media (max-width: 1150px) { .header-clock { display: none; } }
+    @media (max-width: 820px) { .brand-name .app-tag, .status-toggle span { display: none; } }
+
+    /* ============================ Overview tab ============================ */
+    .ov-main { min-height: 0; overflow-y: auto; padding: 24px; background: #000; }
+    .ov-main::-webkit-scrollbar { width: 10px; }
+    .ov-main::-webkit-scrollbar-thumb { background: #1c1c1c; border-radius: 6px; }
+
+    /* Empty state */
+    .ov-empty { min-height: 100%; display: flex; align-items: center; justify-content: center; }
+    .ov-drop {
+      width: min(560px, 90%); padding: 56px 32px; text-align: center; cursor: pointer;
+      border: 2px dashed var(--border); border-radius: 16px; background: linear-gradient(180deg,#0d0d0d,#080808);
+      transition: .2s;
+    }
+    .ov-drop:hover, .ov-drop.drag { border-color: var(--accent); box-shadow: 0 0 32px var(--accent-glow); transform: translateY(-2px); }
+    .ov-drop-icon { font-size: 52px; line-height: 1; margin-bottom: 12px; }
+    .ov-drop h2 { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+    .ov-drop p { color: var(--text-muted); font-size: 14px; }
+    .ov-drop code { font-family: var(--mono); color: var(--accent); }
+
+    /* Content shell */
+    .ov-content { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+    .ov-studybar { display: flex; align-items: center; gap: 12px; background: #0d0d0d; border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; }
+    .ov-nav-btn { width: 34px; height: 34px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); border-radius: 6px; cursor: pointer; font-size: 14px; transition: .15s; flex-shrink: 0; }
+    .ov-nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .ov-nav-btn:disabled { opacity: .3; cursor: default; }
+    .ov-studyinfo { flex: 1; text-align: left; min-width: 0; }
+    .ov-study-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ov-study-idx { font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-left: 8px; }
+    .ov-open-btn { padding: 7px 14px; border: 1px solid var(--accent); background: var(--accent-faint); color: var(--accent); border-radius: 6px; cursor: pointer; font: 600 12px var(--font); white-space: nowrap; transition: .15s; flex-shrink: 0; }
+    .ov-open-btn:hover { background: var(--accent); color: #050505; }
+    .ov-content.ov-dragover { outline: 2px dashed var(--accent); outline-offset: 8px; border-radius: 14px; }
+
+    .ov-grid { display: grid; grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); gap: 18px; }
+    @media (max-width: 900px) { .ov-grid { grid-template-columns: 1fr; } }
+
+    .ov-card { background: #0d0d0d; border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    .ov-card-h { font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; display: flex; align-items: baseline; gap: 8px; }
+    .ov-card-sub { color: var(--text-muted); letter-spacing: .04em; font-size: 10px; }
+
+    /* Image viewer */
+    .ov-viewer-card { display: flex; flex-direction: column; }
+    .ov-viewer { position: relative; flex: 1; min-height: 320px; background: #000; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: grab; }
+    .ov-viewer.panning { cursor: grabbing; }
+    .ov-viewer canvas { max-width: 100%; max-height: 460px; object-fit: contain; image-rendering: pixelated; transform-origin: center center; will-change: transform; }
+    .ov-noimg { position: absolute; color: var(--text-muted); font-size: 13px; padding: 20px; text-align: center; }
+    .ov-frame { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--text-muted); }
+    .ov-frame input { flex: 1; accent-color: var(--accent); }
+    .ov-frame-label { font-family: var(--mono); }
+    .ov-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .ov-tool { padding: 6px 12px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); border-radius: 6px; cursor: pointer; font: 500 12px var(--font); transition: .15s; }
+    .ov-tool:hover { border-color: var(--accent); color: var(--accent); }
+    .ov-tool.active { background: var(--accent-faint); border-color: var(--accent); color: var(--accent); }
+    .ov-sel { padding: 6px 8px; border: 1px solid var(--border); background: #0a0a0a; color: var(--text-dim); border-radius: 6px; font: 500 12px var(--font); cursor: pointer; }
+    .ov-wl { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .ov-wl-row { display: flex; align-items: center; gap: 10px; }
+    .ov-wl-row label { font-size: 12px; color: var(--text-muted); width: 74px; flex-shrink: 0; }
+    .ov-wl-row label b { color: var(--text); font-family: var(--mono); }
+    .ov-wl-row input { flex: 1; accent-color: var(--accent); }
+    .ov-hint { margin-top: 8px; font-size: 11px; color: var(--text-muted); text-align: center; }
+
+    /* Key / value lists */
+    .ov-kv { display: flex; flex-direction: column; gap: 2px; }
+    .ov-kv-row { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .ov-kv-row:last-child { border-bottom: none; }
+    .ov-kv-k { color: var(--text-muted); font-size: 12.5px; flex-shrink: 0; }
+    .ov-kv-v { color: var(--text); font-family: var(--mono); font-size: 12.5px; text-align: right; word-break: break-all; }
+    .ov-kv-v.empty { color: #555; font-style: italic; }
+    .ov-kv-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+    @media (max-width: 640px) { .ov-kv-2col { grid-template-columns: 1fr; } }
+    .ov-kv-v.hidden-val { letter-spacing: 2px; }
+    .ov-reveal { margin-left: 8px; padding: 1px 8px; font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; border: 1px solid var(--border); background: transparent; color: var(--text-muted); border-radius: 4px; cursor: pointer; transition: .15s; vertical-align: middle; }
+    .ov-reveal:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Manufacturer */
+    .ov-mfr { display: flex; gap: 18px; align-items: stretch; }
+    @media (max-width: 640px) { .ov-mfr { flex-direction: column; } }
+    .ov-mfr-imgwrap { width: 180px; flex-shrink: 0; background: #060606; border: 1px solid var(--border); border-radius: 10px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    @media (max-width: 640px) { .ov-mfr-imgwrap { width: 100%; height: 160px; } }
+    .ov-mfr-img { max-width: 100%; max-height: 200px; object-fit: contain; display: block; }
+    .ov-mfr-body { flex: 1; min-width: 0; }
+    .ov-mfr-brand { font-size: 20px; font-weight: 800; margin-bottom: 2px; }
+    .ov-mfr-model { color: var(--accent); font-family: var(--mono); font-size: 13px; margin-bottom: 12px; }
+
+    /* Action launcher */
+    .ov-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 4px; margin-bottom: 8px; }
+    .ov-act { text-align: left; padding: 16px; background: #0d0d0d; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; transition: .18s; display: flex; flex-direction: column; gap: 4px; }
+    .ov-act:hover { border-color: var(--accent); background: var(--accent-faint); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+    .ov-act b { font-size: 15px; color: var(--text); }
+    .ov-act span { font-size: 12px; color: var(--text-muted); }
+
     /* Buttons */
     .btn {
       display: inline-flex;
@@ -400,6 +540,8 @@
       color: var(--text-muted);
       cursor: not-allowed;
     }
+    .readonly-row .tag-code,
+    .readonly-row .desc-cell { color: var(--text-muted); }
     .val-input.binary {
       font-style: italic;
       color: var(--text-muted);
@@ -1193,31 +1335,172 @@
 </head>
 <body>
   <div class="app">
-    <header class="header">
-      <div class="logo">DICOM</div>
-      <nav class="tab-nav">
-        <button class="tab-btn active" id="editorTabBtn">Editor</button>
-        <button class="tab-btn" id="createTabBtn">Creator</button>
-        <button class="tab-btn" id="extractorTabBtn">Extractor</button>
-        <button class="tab-btn" id="compareTabBtn">Compare</button>
-        <button class="tab-btn" id="validatorTabBtn">Validator</button>
-        <button class="tab-btn" id="runTabBtn">Run</button>
-      </nav>
-      <div class="header-spacer"></div>
-        <div class="brand-links">
-          <a href="https://github.com/MiguelCarino/DICOM-editor" target="_blank" class="social-btn" aria-label="GitHub">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
-          </a>
-          <a href="https://www.linkedin.com/in/miguelcarino94/" target="_blank" class="social-btn" aria-label="LinkedIn">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>
-          </a>
-          <!--<a href="https://youtube.com" target="_blank" class="social-btn" aria-label="YouTube">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"></path><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"></polygon></svg>
-          </a>-->
+    <header class="header top-header">
+      <div class="header-left">
+        <a class="brand-name" href="https://carino.systems/" title="Carino Systems — back to hub">
+          Carino<span class="app-tag">DICOM</span>
+        </a>
+        <div class="header-clock" aria-hidden="true">
+          <span class="clock-time" id="clockLocal">00:00:00</span>
+          <span class="clock-tz" id="tzName">LOCAL</span>
+          <span class="brand-greeting" id="greeting">Ready.</span>
         </div>
+      </div>
+
+      <nav class="tab-nav">
+        <button class="tab-btn active" id="overviewTabBtn">Overview</button>
+        <button class="tab-btn" id="editorTabBtn">Edit</button>
+        <button class="tab-btn" id="compareTabBtn">Compare</button>
+        <button class="tab-btn" id="extractorTabBtn">Extract</button>
+        <button class="tab-btn" id="createTabBtn">Create</button>
+        <button class="tab-btn" id="validatorTabBtn">Validate</button>
+        <button class="tab-btn" id="runTabBtn">Pipeline</button>
+      </nav>
+
+      <div class="header-right">
+        <div class="social-row">
+          <a href="https://github.com/MiguelCarino/DICOM-editor" target="_blank" rel="noopener" class="icon-btn" title="GitHub" aria-label="GitHub">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+          </a>
+          <a href="https://www.linkedin.com/in/miguelcarino94/" target="_blank" rel="noopener" class="icon-btn" title="LinkedIn" aria-label="LinkedIn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>
+          </a>
+        </div>
+        <button class="status-toggle" id="diagToggle" title="File info" aria-label="File info" aria-haspopup="true" aria-expanded="false" aria-controls="diagBox">
+          <span>Info</span><div class="pulse-dot"></div>
+        </button>
+      </div>
+
+      <!-- Diagnostics dropdown -->
+      <div class="diag-dropdown" id="diagBox">
+        <div class="diag-section">File</div>
+        <div class="diag-row"><span class="diag-lbl">Loaded</span><span class="diag-val" id="diagCount">0</span></div>
+        <div class="diag-row"><span class="diag-lbl">Current</span><span class="diag-val" id="diagName">—</span></div>
+        <div class="diag-section">Image</div>
+        <div class="diag-row"><span class="diag-lbl">Modality</span><span class="diag-val" id="diagModality">—</span></div>
+        <div class="diag-row"><span class="diag-lbl">Dimensions</span><span class="diag-val" id="diagDims">—</span></div>
+        <div class="diag-row"><span class="diag-lbl">Frames</span><span class="diag-val" id="diagFrames">—</span></div>
+        <div class="diag-row"><span class="diag-lbl">Transfer syntax</span><span class="diag-val" id="diagTs">—</span></div>
+        <div class="diag-section">Session</div>
+        <div class="diag-row"><span class="diag-lbl">Local time</span><span class="diag-val" id="diagClock">--:--:--</span></div>
+      </div>
     </header>
 
-    <div class="main" id="editorTab">
+    <!-- ============================ Overview Tab ============================ -->
+    <div class="ov-main" id="overviewTab">
+      <!-- Empty state -->
+      <div class="ov-empty" id="ovEmpty">
+        <div class="ov-drop" id="ovDrop" tabindex="0" role="button" aria-label="Open a DICOM file">
+          <div class="ov-drop-icon">🩻</div>
+          <h2>Open a DICOM file</h2>
+          <p>Drag &amp; drop a <code>.dcm</code> here, or click to browse.<br>You can load several studies at once.</p>
+        </div>
+      </div>
+
+      <!-- Loaded content -->
+      <div class="ov-content hidden" id="ovContent">
+        <!-- Top bar: current file, study switcher, open-another -->
+        <div class="ov-studybar" id="ovStudyBar">
+          <div class="ov-studyinfo">
+            <span class="ov-study-name" id="ovStudyName">—</span>
+            <span class="ov-study-idx" id="ovStudyIdx"></span>
+          </div>
+          <button class="ov-nav-btn hidden" id="ovPrevStudy" title="Previous study">◀</button>
+          <button class="ov-nav-btn hidden" id="ovNextStudy" title="Next study">▶</button>
+          <button class="ov-open-btn" id="ovOpenBtn" title="Open another DICOM file">＋ Open</button>
+        </div>
+
+        <div class="ov-grid">
+          <!-- Image viewer -->
+          <section class="ov-card ov-viewer-card">
+            <div class="ov-card-h">Image</div>
+            <div class="ov-viewer" id="ovViewer">
+              <canvas id="ovCanvas"></canvas>
+              <div class="ov-noimg hidden" id="ovNoImg">No renderable pixel data in this file.</div>
+            </div>
+            <div class="ov-frame hidden" id="ovFrameNav">
+              <span>Frame</span>
+              <input type="range" id="ovFrame" min="0" max="0" value="0">
+              <span class="ov-frame-label" id="ovFrameLabel">1/1</span>
+            </div>
+            <div class="ov-tools" id="ovTools">
+              <button class="ov-tool" id="ovInvert" title="Invert grayscale">Invert</button>
+              <select class="ov-sel" id="ovColormap" title="Colormap">
+                <option value="gray">Gray</option>
+                <option value="hot">Hot</option>
+                <option value="jet">Jet</option>
+                <option value="bone">Bone</option>
+              </select>
+              <button class="ov-tool" id="ovRotate" title="Rotate 90°">⟳</button>
+              <button class="ov-tool" id="ovFlipH" title="Flip horizontal">⇋</button>
+              <button class="ov-tool" id="ovFlipV" title="Flip vertical">⇅</button>
+              <button class="ov-tool" id="ovResetView" title="Reset zoom / pan / rotation">Reset view</button>
+            </div>
+            <div class="ov-wl hidden" id="ovWL">
+              <select id="ovPreset" class="ov-sel">
+                <option value="">— CT preset —</option>
+                <option value="40,400">Soft Tissue</option>
+                <option value="40,80">Brain</option>
+                <option value="400,1800">Bone</option>
+                <option value="-600,1500">Lung</option>
+                <option value="50,350">Liver</option>
+                <option value="60,360">Abdomen</option>
+              </select>
+              <div class="ov-wl-row">
+                <label>WC <b id="ovWCval">—</b></label>
+                <input type="range" id="ovWC" min="-4096" max="4096" step="1" value="40">
+              </div>
+              <div class="ov-wl-row">
+                <label>WW <b id="ovWWval">—</b></label>
+                <input type="range" id="ovWW" min="1" max="8192" step="1" value="400">
+              </div>
+            </div>
+            <div class="ov-hint">Scroll to zoom · drag to pan</div>
+          </section>
+
+          <!-- Info column -->
+          <div class="ov-info">
+            <section class="ov-card">
+              <div class="ov-card-h">Featured <span class="ov-card-sub">clinical</span></div>
+              <div class="ov-kv" id="ovCore"></div>
+            </section>
+            <section class="ov-card">
+              <div class="ov-card-h">Technical</div>
+              <div class="ov-kv" id="ovTech"></div>
+            </section>
+          </div>
+        </div>
+
+        <!-- RIS / workflow -->
+        <section class="ov-card">
+          <div class="ov-card-h">RIS / Workflow <span class="ov-card-sub">order &amp; scheduling</span></div>
+          <div class="ov-kv ov-kv-2col" id="ovRis"></div>
+        </section>
+
+        <!-- Manufacturer / equipment -->
+        <section class="ov-card ov-mfr" id="ovMfrCard">
+          <div class="ov-mfr-imgwrap"><img class="ov-mfr-img" id="ovMfrImg" alt="Equipment model"></div>
+          <div class="ov-mfr-body">
+            <div class="ov-card-h">Equipment</div>
+            <div class="ov-mfr-brand" id="ovMfrBrand">—</div>
+            <div class="ov-mfr-model" id="ovMfrModel"></div>
+            <div class="ov-kv ov-mfr-kv" id="ovMfrExtra"></div>
+          </div>
+        </section>
+
+        <!-- Action launcher -->
+        <section class="ov-actions">
+          <button class="ov-act" data-tab="editor"><b>✎ Edit tags</b><span>Browse &amp; edit every DICOM tag</span></button>
+          <button class="ov-act" data-tab="compare"><b>⇄ Compare</b><span>Diff two files side by side</span></button>
+          <button class="ov-act" data-tab="extractor"><b>⤓ Extract image</b><span>Export frames as PNG / JPEG</span></button>
+          <button class="ov-act" data-tab="create"><b>＋ Create DICOM</b><span>Build a new file from scratch</span></button>
+          <button class="ov-act" data-tab="validator"><b>✓ Validate</b><span>Check DICOM conformance</span></button>
+          <button class="ov-act" data-tab="run"><b>⚙ Pipeline</b><span>Batch / scripted operations</span></button>
+        </section>
+      </div>
+    </div>
+
+    <div class="main" id="editorTab" style="display:none">
       <div class="left-panel">
         <div class="top-bar" id="topBar">
           <div class="pill" id="fileNamePill">No file loaded</div>
@@ -2695,6 +2978,8 @@ let totalFrames = 1;
 function isBinaryVR(vr) { return ['OB','OW','OF','UN','OD','OL'].includes(vr); }
 function isReadOnly(tag, vr) {
   const t = String(tag).toLowerCase();
+  const hex = t.startsWith('x') ? t.slice(1) : t;
+  if (hex.startsWith('0002')) return true;   // File Meta Information — shown for reference, not editable via dataset save
   if (t === 'x7fe00010' || t === '7fe00010') return true;
   if (vr === 'SQ') return true;
   return isBinaryVR(vr);
@@ -2874,8 +3159,9 @@ function applyPrefixToAll(newP) {
 function renderTable() {
   if (!dict) { tagBody.innerHTML = ''; return; }
 
-  const entries = Object.entries(dict)
-    .filter(([t]) => t.startsWith('x') || /^[0-9a-f]{8}$/i.test(t));
+  const isHex = t => t.startsWith('x') || /^[0-9a-f]{8}$/i.test(t);
+  const metaEntries = Object.entries(meta || {}).filter(([t]) => isHex(t));
+  const entries = [...metaEntries, ...Object.entries(dict)].filter(([t]) => isHex(t));
   entries.sort(([a], [b]) => a.localeCompare(b));
 
   const q = searchQuery.toLowerCase();
@@ -2897,6 +3183,7 @@ function renderTable() {
     }
 
     const tr = document.createElement('tr');
+    if (isReadOnly(tag, vr)) tr.className = 'readonly-row';
     tr.innerHTML = `
       <td><div class="tag-cell"><span class="tag-cat" data-cat="${cat}"></span><span class="tag-code">${fmtTag(tag)}</span></div></td>
       <td><span class="${desc ? 'desc-cell' : 'desc-cell desc-unknown'}">${desc || 'Unknown tag'}</span></td>
@@ -3651,6 +3938,8 @@ function syncToUI() {
   updateHistoryBtns?.();
   renderTable();
   if (dict) drawPreview(dict, 0);
+  if (typeof renderOverview === 'function') renderOverview();
+  if (typeof updateDiag === 'function') updateDiag();
   // SR toggle visibility
   if (typeof srToggleBtn !== 'undefined' && srToggleBtn) {
     srMode = false;
@@ -3836,7 +4125,7 @@ frameSlider.addEventListener('input', () => {
 });
 
 // ============ TAB SWITCHING ============
-let activeTab = 'editor';
+let activeTab = 'overview';   // Overview is the default landing tab (see static HTML + ALL_TABS)
 
 const editorTabBtn    = document.getElementById('editorTabBtn');
 const createTabBtn    = document.getElementById('createTabBtn');
@@ -3850,8 +4139,11 @@ const extractorTabPanel = document.getElementById('extractorTab');
 const compareTabPanel   = document.getElementById('compareTab');
 const validatorTabPanel = document.getElementById('validatorTab');
 const runTabPanel       = document.getElementById('runTab');
+const overviewTabBtn    = document.getElementById('overviewTabBtn');
+const overviewTabPanel  = document.getElementById('overviewTab');
 
 const ALL_TABS = [
+  ['overview',  overviewTabBtn,  overviewTabPanel,  'block'],
   ['editor',    editorTabBtn,    editorTabPanel,    'grid'],
   ['create',    createTabBtn,    createTabPanel,    'grid'],
   ['extractor', extractorTabBtn, extractorTabPanel, 'grid'],
@@ -3866,6 +4158,8 @@ function switchTab(tab) {
     btn.classList.toggle('active', id === tab);
     panel.style.display = id === tab ? display : 'none';
   }
+  // First time Overview is opened with a file already loaded but not yet rendered, populate it.
+  if (tab === 'overview' && dict && typeof ovEnsureRendered === 'function') ovEnsureRendered();
 }
 
 for (const [id, btn] of ALL_TABS) btn.addEventListener('click', () => switchTab(id));
@@ -6122,6 +6416,315 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft'  && currentFileIdx > 0)               switchFile(currentFileIdx - 1);
   if (e.key === 'ArrowRight' && currentFileIdx < files.length - 1) switchFile(currentFileIdx + 1);
 });
+
+// ================================================================
+//  Overview tab — navbar clock/diagnostics, guided summary,
+//  image viewer (WW/WC + invert/colormap/zoom/pan/rotate/flip),
+//  equipment card, and action launcher.
+// ================================================================
+(function () {
+  const $ = id => document.getElementById(id);
+
+  // ---------- Navbar clock ----------
+  function tick() {
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    const t = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+    const cl = $('clockLocal'); if (cl) cl.textContent = t;
+    const dc = $('diagClock');  if (dc) dc.textContent = t;
+    const tz = $('tzName'); if (tz) { try { tz.textContent = Intl.DateTimeFormat().resolvedOptions().timeZone.split('/').pop() || 'LOCAL'; } catch (e) { tz.textContent = 'LOCAL'; } }
+    const g = $('greeting'); if (g) { const h = d.getHours(); g.textContent = h < 5 ? 'Late shift.' : h < 12 ? 'Good morning.' : h < 18 ? 'Good afternoon.' : 'Good evening.'; }
+  }
+  tick(); setInterval(tick, 1000);
+
+  // ---------- Diagnostics dropdown ----------
+  const diagToggle = $('diagToggle'), diagBox = $('diagBox');
+  if (diagToggle && diagBox) {
+    diagToggle.addEventListener('click', e => { e.stopPropagation(); diagBox.classList.toggle('open'); diagToggle.setAttribute('aria-expanded', diagBox.classList.contains('open') ? 'true' : 'false'); });
+    document.addEventListener('click', e => { if (diagBox.classList.contains('open') && !diagBox.contains(e.target) && !diagToggle.contains(e.target)) { diagBox.classList.remove('open'); diagToggle.setAttribute('aria-expanded', 'false'); } });
+  }
+
+  // ---------- tag readers ----------
+  function txt(tag8)     { try { const e = getTag(dict, tag8); return e ? elToString(e).trim() : ''; } catch (_) { return ''; } }
+  function metaTxt(tag8) { const e = meta && (meta[tag8] || meta[tag8.toUpperCase()]); return e && e.Value ? String(e.Value[0] ?? '').trim() : ''; }
+  function fmtDate(s)    { s = (s || '').trim(); return /^\d{8}$/.test(s) ? `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}` : s; }
+  function esc(s)        { return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
+
+  window.updateDiag = function () {
+    const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+    set('diagCount', files.length);
+    set('diagName', dict ? (files[currentFileIdx]?.name || '—') : '—');
+    if (!dict) { ['diagModality','diagDims','diagFrames','diagTs'].forEach(i => set(i, '—')); return; }
+    set('diagModality', txt('00080060') || '—');
+    const r = lookupTag(dict,'00280010')?.Value?.[0], c = lookupTag(dict,'00280011')?.Value?.[0];
+    set('diagDims', r && c ? `${c}×${r}` : '—');
+    set('diagFrames', lookupTag(dict,'00280008')?.Value?.[0] || '1');
+    set('diagTs', metaTxt('00020010') || '—');
+  };
+
+  // ---------- key/value rows ----------
+  function kvRow(k, v) {
+    const empty = !v;
+    return `<div class="ov-kv-row"><span class="ov-kv-k">${esc(k)}</span><span class="ov-kv-v${empty ? ' empty' : ''}">${empty ? '—' : esc(v)}</span></div>`;
+  }
+
+  // Patient-name visibility persists across reloads / site updates.
+  const PN_KEY = 'dicom-ov-show-patient';
+  const patientShown = () => localStorage.getItem(PN_KEY) === '1';
+
+  function renderCore() {
+    const core = $('ovCore'); if (!core) return;
+    const name = txt('00100010'), shown = patientShown();
+    let nameCell;
+    if (!name) {
+      nameCell = `<span class="ov-kv-v empty">—</span>`;
+    } else {
+      const val = shown ? esc(name) : '••••••••';
+      nameCell = `<span class="ov-kv-v${shown ? '' : ' hidden-val'}">${val}<button class="ov-reveal" id="ovPnToggle">${shown ? 'Hide' : 'Show'}</button></span>`;
+    }
+    core.innerHTML =
+      `<div class="ov-kv-row"><span class="ov-kv-k">Patient Name</span>${nameCell}</div>` +
+      kvRow('Patient ID', txt('00100020')) +
+      kvRow('Sex', txt('00100040')) +
+      kvRow('Age', txt('00101010')) +
+      kvRow('Modality', txt('00080060')) +
+      kvRow('Study Description', txt('00081030')) +
+      kvRow('Study Date', fmtDate(txt('00080020'))) +
+      kvRow('Series Description', txt('0008103E')) +
+      kvRow('Body Part', txt('00180015'));
+    const tgl = $('ovPnToggle');
+    if (tgl) tgl.addEventListener('click', () => { localStorage.setItem(PN_KEY, patientShown() ? '0' : '1'); renderCore(); });
+  }
+
+  function renderTech() {
+    const tech = $('ovTech'); if (!tech) return;
+    const r = lookupTag(dict,'00280010')?.Value?.[0], c = lookupTag(dict,'00280011')?.Value?.[0];
+    tech.innerHTML =
+      kvRow('SOP Instance UID', txt('00080018')) +
+      kvRow('Transfer Syntax UID', metaTxt('00020010')) +
+      kvRow('Photometric Interpretation', txt('00280004')) +
+      kvRow('Image Position (Patient)', txt('00200032')) +
+      kvRow('Pixel Spacing', txt('00280030')) +
+      kvRow('Window Center', txt('00281050')) +
+      kvRow('Window Width', txt('00281051')) +
+      kvRow('Specific Character Set', txt('00080005')) +
+      kvRow('Rows × Columns', r && c ? `${r} × ${c}` : '');
+  }
+
+  // ---------- equipment / manufacturer ----------
+  const slug = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#060606"/><g fill="none" stroke="#333" stroke-width="3"><rect x="22" y="30" width="76" height="50" rx="4"/><circle cx="60" cy="55" r="14"/><rect x="40" y="86" width="40" height="6" rx="3"/></g><text x="60" y="108" fill="#555" font-family="monospace" font-size="9" text-anchor="middle">no image</text></svg>');
+
+  function renderMfr() {
+    const brand = txt('00080070'), model = txt('00081090'), img = $('ovMfrImg');
+    $('ovMfrBrand').textContent = brand || 'Unknown manufacturer';
+    $('ovMfrModel').textContent = model || '';
+    if (img) {
+      if (brand || model) {
+        const s = slug(`${brand}-${model}`) || slug(brand) || slug(model);
+        img.onerror = () => { img.onerror = null; img.src = PLACEHOLDER; };
+        img.src = `models/${s}.png`;
+      } else { img.onerror = null; img.src = PLACEHOLDER; }
+    }
+    $('ovMfrExtra').innerHTML =
+      kvRow('Station Name', txt('00081010')) +
+      kvRow('Institution', txt('00080080')) +
+      kvRow('Software Versions', txt('00181020')) +
+      kvRow('Device Serial', txt('00181000'));
+  }
+
+  // ---------- RIS / workflow ----------
+  // Some workflow attributes live only inside sequences on image objects —
+  // Request Attributes Sequence (0040,0275) and (rarely) Scheduled Procedure
+  // Step Sequence (0040,0100). Read top-level first, then fall back into them.
+  function firstSeqItem(tag8) { try { const e = getTag(dict, tag8); const it = e?.Value?.[0]; return it && typeof it === 'object' ? it : null; } catch (_) { return null; } }
+  function subTxt(item, tag8) { if (!item) return ''; try { const e = getTag(item, tag8); return e ? elToString(e).trim() : ''; } catch (_) { return ''; } }
+  function risVal(top, sub) {
+    let v = txt(top); if (v) return v;
+    v = subTxt(firstSeqItem('00400275'), sub || top); if (v) return v;
+    return subTxt(firstSeqItem('00400100'), sub || top);
+  }
+
+  function renderRis() {
+    const el = $('ovRis'); if (!el) return;
+    el.innerHTML =
+      kvRow('Accession Number', risVal('00080050')) +
+      kvRow('Study ID', txt('00200010')) +
+      kvRow('Referring Physician', txt('00080090')) +
+      kvRow('Requesting Physician', txt('00321032')) +
+      kvRow('Requesting Service', txt('00321033')) +
+      kvRow('Requested Procedure ID', risVal('00401001')) +
+      kvRow('Requested Procedure Desc.', txt('00321060')) +
+      kvRow('Scheduled Step ID', risVal('00400009')) +
+      kvRow('Scheduled Step Desc.', risVal('00400007')) +
+      kvRow('Performed Step ID', txt('00400253')) +
+      kvRow('Reason for Request', txt('00401002') || txt('00321030')) +
+      kvRow('Admission ID', txt('00380010')) +
+      kvRow('Performing Physician', txt('00081050')) +
+      kvRow('Operators', txt('00081070'));
+  }
+
+  // ---------- image viewer ----------
+  const viewer = $('ovViewer'), canvas = $('ovCanvas'), ctx = canvas ? canvas.getContext('2d') : null;
+  let ovRaw = null, ovFrames = 1;
+  const view = { wc: null, ww: null, invert: false, cmap: 'gray', rotate: 0, flipH: false, flipV: false, zoom: 1, panX: 0, panY: 0, frame: 0 };
+
+  const LUT = (function () {
+    const clamp = v => v < 0 ? 0 : v > 255 ? 255 : v | 0;
+    const gray = new Uint8Array(768), hot = new Uint8Array(768), jet = new Uint8Array(768), bone = new Uint8Array(768);
+    for (let i = 0; i < 256; i++) {
+      gray[i*3] = gray[i*3+1] = gray[i*3+2] = i;
+      hot[i*3] = clamp(i*3); hot[i*3+1] = clamp(i*3-255); hot[i*3+2] = clamp(i*3-510);
+      bone[i*3] = clamp(i*0.9); bone[i*3+1] = clamp(i*0.92); bone[i*3+2] = clamp(i+20);
+      const v = i/255;
+      jet[i*3]   = clamp(255*Math.min(Math.max(1.5-Math.abs(4*v-3),0),1));
+      jet[i*3+1] = clamp(255*Math.min(Math.max(1.5-Math.abs(4*v-2),0),1));
+      jet[i*3+2] = clamp(255*Math.min(Math.max(1.5-Math.abs(4*v-1),0),1));
+    }
+    return { gray, hot, jet, bone };
+  })();
+
+  function applyTransform() {
+    if (canvas) canvas.style.transform =
+      `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom}) rotate(${view.rotate}deg) scaleX(${view.flipH ? -1 : 1}) scaleY(${view.flipV ? -1 : 1})`;
+  }
+
+  function paint() {
+    if (!ovRaw || !ctx) return;
+    const { rows, cols } = ovRaw, n = rows * cols;
+    canvas.width = cols; canvas.height = rows;
+    const out = new Uint8ClampedArray(n * 4), lut = LUT[view.cmap] || LUT.gray;
+    if (ovRaw.rgb) {
+      const src = ovRaw.rgb;
+      for (let i = 0; i < n; i++) { const p = i*4; let r = src[p], g = src[p+1], b = src[p+2]; if (view.invert) { r = 255-r; g = 255-g; b = 255-b; } out[p] = r; out[p+1] = g; out[p+2] = b; out[p+3] = 255; }
+    } else {
+      const win = applyWindowToFloats(ovRaw.rawFloats, n, view.wc ?? ovRaw.wcTag, view.ww ?? ovRaw.wwTag, ovRaw.mn, ovRaw.mx);
+      for (let i = 0; i < n; i++) { let g = win[i*4]; if (view.invert) g = 255 - g; const p = i*4, q = g*3; out[p] = lut[q]; out[p+1] = lut[q+1]; out[p+2] = lut[q+2]; out[p+3] = 255; }
+    }
+    ctx.putImageData(new ImageData(out, cols, rows), 0, 0);
+    applyTransform();
+  }
+
+  function setupWL() {
+    const wc = $('ovWC'), ww = $('ovWW');
+    if (view.wc < +wc.min) wc.min = Math.floor(view.wc);
+    if (view.wc > +wc.max) wc.max = Math.ceil(view.wc);
+    if (view.ww > +ww.max) ww.max = Math.ceil(view.ww);
+    wc.value = view.wc; ww.value = Math.max(1, view.ww);
+    $('ovWCval').textContent = Math.round(view.wc);
+    $('ovWWval').textContent = Math.round(view.ww);
+  }
+
+  async function loadImage() {
+    if (!canvas) return;
+    const noimg = $('ovNoImg'), tools = $('ovTools');
+    let res = null;
+    try { res = await decodeDicomPixels(dict, view.frame, { meta }); } catch (e) { res = null; }
+    if (!res || res.error) {
+      ovRaw = null; canvas.style.display = 'none'; noimg.classList.remove('hidden');
+      noimg.textContent = res && res.error ? res.error : 'No renderable pixel data in this file.';
+      $('ovWL').classList.add('hidden'); $('ovFrameNav').classList.add('hidden'); if (tools) tools.style.display = 'none';
+      return;
+    }
+    canvas.style.display = ''; noimg.classList.add('hidden'); if (tools) tools.style.display = 'flex';
+    if (res.rawFloats) {
+      // Map stored pixel values to output units (Hounsfield for CT) via Rescale
+      // Slope/Intercept so the WC/WW tags — which are in output units — window
+      // correctly. Safe to mutate: this rawFloats copy is private to the overview.
+      const slope = parseFloat(lookupTag(dict, '00281053')?.Value?.[0]);
+      const inter = parseFloat(lookupTag(dict, '00281052')?.Value?.[0]);
+      const m = isFinite(slope) ? slope : 1, b = isFinite(inter) ? inter : 0;
+      if (m !== 1 || b !== 0) {
+        const rf = res.rawFloats;
+        for (let i = 0; i < rf.length; i++) rf[i] = rf[i] * m + b;
+        res.mn = res.mn * m + b; res.mx = res.mx * m + b;
+      }
+      ovRaw = { rawFloats: res.rawFloats, rows: res.rows, cols: res.cols, mn: res.mn, mx: res.mx, wcTag: res.wcTag, wwTag: res.wwTag };
+      if (view.wc == null) view.wc = res.wcTag ?? Math.round((res.mn + res.mx) / 2);
+      if (view.ww == null) view.ww = res.wwTag ?? Math.max(1, res.mx - res.mn);
+      setupWL(); $('ovWL').classList.remove('hidden'); $('ovColormap').disabled = false;
+    } else {
+      ovRaw = { rgb: res.pixels, rows: res.rows, cols: res.cols };
+      $('ovWL').classList.add('hidden'); $('ovColormap').disabled = true;
+    }
+    ovFrames = res.numFrames || 1;
+    const fn = $('ovFrameNav');
+    if (ovFrames > 1) { fn.classList.remove('hidden'); const fs = $('ovFrame'); fs.max = ovFrames - 1; fs.value = view.frame; $('ovFrameLabel').textContent = `${view.frame + 1}/${ovFrames}`; }
+    else fn.classList.add('hidden');
+    paint();
+  }
+
+  // control wiring (once)
+  if (canvas) {
+    $('ovInvert').addEventListener('click', () => { view.invert = !view.invert; $('ovInvert').classList.toggle('active', view.invert); paint(); });
+    $('ovColormap').addEventListener('change', e => { view.cmap = e.target.value; paint(); });
+    $('ovRotate').addEventListener('click', () => { view.rotate = (view.rotate + 90) % 360; applyTransform(); });
+    $('ovFlipH').addEventListener('click', () => { view.flipH = !view.flipH; $('ovFlipH').classList.toggle('active', view.flipH); applyTransform(); });
+    $('ovFlipV').addEventListener('click', () => { view.flipV = !view.flipV; $('ovFlipV').classList.toggle('active', view.flipV); applyTransform(); });
+    $('ovResetView').addEventListener('click', () => { view.zoom = 1; view.panX = 0; view.panY = 0; view.rotate = 0; view.flipH = false; view.flipV = false; $('ovFlipH').classList.remove('active'); $('ovFlipV').classList.remove('active'); applyTransform(); });
+    $('ovWC').addEventListener('input', e => { view.wc = +e.target.value; $('ovWCval').textContent = view.wc; paint(); });
+    $('ovWW').addEventListener('input', e => { view.ww = Math.max(1, +e.target.value); $('ovWWval').textContent = view.ww; paint(); });
+    $('ovPreset').addEventListener('change', e => { if (!e.target.value) return; const [c, w] = e.target.value.split(',').map(Number); view.wc = c; view.ww = w; setupWL(); paint(); });
+    $('ovFrame').addEventListener('input', e => { view.frame = +e.target.value; $('ovFrameLabel').textContent = `${view.frame + 1}/${ovFrames}`; loadImage(); });
+    viewer.addEventListener('wheel', e => { e.preventDefault(); const f = e.deltaY < 0 ? 1.1 : 1 / 1.1; view.zoom = Math.min(12, Math.max(0.2, view.zoom * f)); applyTransform(); }, { passive: false });
+    let dragging = false, sx = 0, sy = 0;
+    viewer.addEventListener('pointerdown', e => { dragging = true; sx = e.clientX - view.panX; sy = e.clientY - view.panY; viewer.classList.add('panning'); try { viewer.setPointerCapture(e.pointerId); } catch (_) {} });
+    viewer.addEventListener('pointermove', e => { if (!dragging) return; view.panX = e.clientX - sx; view.panY = e.clientY - sy; applyTransform(); });
+    const endPan = () => { dragging = false; viewer.classList.remove('panning'); };
+    viewer.addEventListener('pointerup', endPan); viewer.addEventListener('pointercancel', endPan);
+  }
+
+  // drop zone (reuses the editor's #fileInput → handleFiles)
+  const ovDrop = $('ovDrop');
+  if (ovDrop) {
+    ovDrop.addEventListener('click', () => fileInput.click());
+    ovDrop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+    ovDrop.addEventListener('dragover', e => { e.preventDefault(); ovDrop.classList.add('drag'); });
+    ovDrop.addEventListener('dragleave', () => ovDrop.classList.remove('drag'));
+    ovDrop.addEventListener('drop', e => { e.preventDefault(); ovDrop.classList.remove('drag'); if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files); });
+  }
+
+  // study switcher + action launcher
+  $('ovPrevStudy')?.addEventListener('click', () => { if (currentFileIdx > 0) switchFile(currentFileIdx - 1); });
+  $('ovNextStudy')?.addEventListener('click', () => { if (currentFileIdx < files.length - 1) switchFile(currentFileIdx + 1); });
+  document.querySelectorAll('.ov-act').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+  // open another file at any time (button + drop anywhere on the loaded overview)
+  $('ovOpenBtn')?.addEventListener('click', () => fileInput.click());
+  const ovContent = $('ovContent');
+  if (ovContent) {
+    ovContent.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); ovContent.classList.add('ov-dragover'); });
+    ovContent.addEventListener('dragleave', e => { if (!ovContent.contains(e.relatedTarget)) ovContent.classList.remove('ov-dragover'); });
+    // stopPropagation so the global window 'drop' handler doesn't also fire (double-load).
+    ovContent.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); ovContent.classList.remove('ov-dragover'); if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files); });
+  }
+
+  // ---------- render entry point ----------
+  let renderedIdx = -1;
+  window.renderOverview = function () {
+    const empty = $('ovEmpty'), content = $('ovContent');
+    if (!dict) { renderedIdx = -1; empty?.classList.remove('hidden'); content?.classList.add('hidden'); return; }
+    empty?.classList.add('hidden'); content?.classList.remove('hidden');
+    const multi = files.length > 1;
+    $('ovStudyName').textContent = files[currentFileIdx]?.name || '—';
+    $('ovStudyIdx').textContent = multi ? `${currentFileIdx + 1} / ${files.length}` : '';
+    $('ovPrevStudy').classList.toggle('hidden', !multi);
+    $('ovNextStudy').classList.toggle('hidden', !multi);
+    if (multi) { $('ovPrevStudy').disabled = currentFileIdx <= 0; $('ovNextStudy').disabled = currentFileIdx >= files.length - 1; }
+    renderCore(); renderTech(); renderRis(); renderMfr();
+    // fresh view state per file
+    view.wc = null; view.ww = null; view.frame = 0; view.invert = false; view.cmap = 'gray';
+    view.rotate = 0; view.flipH = false; view.flipV = false; view.zoom = 1; view.panX = 0; view.panY = 0;
+    $('ovInvert')?.classList.remove('active'); $('ovFlipH')?.classList.remove('active'); $('ovFlipV')?.classList.remove('active');
+    const cm = $('ovColormap'); if (cm) cm.value = 'gray';
+    renderedIdx = currentFileIdx;
+    loadImage();
+  };
+
+  // Called by switchTab: render only if a file is loaded but the overview
+  // hasn't been drawn for it yet (e.g. file was opened from another tab).
+  window.ovEnsureRendered = function () { if (dict && renderedIdx !== currentFileIdx) renderOverview(); };
+})();
 
 </script>
 </body>
