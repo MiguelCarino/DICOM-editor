@@ -5886,6 +5886,43 @@ document.getElementById('valOpenEditorBtn').addEventListener('click', () => {
 });
 
 // ================================================================
+// DEEP-LINK LOADER  —  open a study straight from Carino PACS.
+// PACS opens  <editor_url>#load=<manifestUrl>  where the manifest is
+// JSON { files: [ { name, url } ] }. We fetch each DICOM (URLs are
+// resolved against the manifest so relative PACS paths work) and feed
+// the normal handleFiles() path. CORS is served open by the PACS.
+// ================================================================
+window.addEventListener('load', () => {
+  const m = /[#&?]load=([^&]+)/.exec(location.hash || location.search || '');
+  if (!m) return;
+  let manifestUrl;
+  try { manifestUrl = decodeURIComponent(m[1]); } catch { return; }
+  (async () => {
+    try {
+      const res = await fetch(manifestUrl, { credentials: 'omit' });
+      if (!res.ok) throw new Error('manifest HTTP ' + res.status);
+      const data = await res.json();
+      const entries = (data && data.files) || [];
+      if (!entries.length) throw new Error(data && data.message || 'no DICOM files in study');
+      const loaded = [];
+      for (const e of entries) {
+        try {
+          const r = await fetch(new URL(e.url, manifestUrl).href, { credentials: 'omit' });
+          if (!r.ok) continue;
+          loaded.push(new File([await r.blob()], e.name || 'study.dcm'));
+        } catch { /* skip a file that won't fetch */ }
+      }
+      if (!loaded.length) throw new Error('could not fetch any DICOM file');
+      await handleFiles(loaded);
+      switchTab('editor');
+      toast?.(`Loaded ${loaded.length} file(s) from Carino PACS`);
+    } catch (err) {
+      toast?.('PACS deep-link failed: ' + (err.message || err));
+    }
+  })();
+});
+
+// ================================================================
 // BATCH PROCESSOR
 // ================================================================
 
