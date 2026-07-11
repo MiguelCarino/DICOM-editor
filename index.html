@@ -5887,13 +5887,38 @@ document.getElementById('valOpenEditorBtn').addEventListener('click', () => {
 
 // ================================================================
 // DEEP-LINK LOADER  —  open a study straight from Carino PACS.
-// PACS opens  <editor_url>#load=<manifestUrl>  where the manifest is
-// JSON { files: [ { name, url } ] }. We fetch each DICOM (URLs are
-// resolved against the manifest so relative PACS paths work) and feed
-// the normal handleFiles() path. CORS is served open by the PACS.
+// Two modes:
+//  (A) postMessage BRIDGE  (#carino-bridge) — used when this editor is a
+//      remote HTTPS page and the PACS is http://localhost. The editor CANNOT
+//      fetch the PACS's http API from an https page (mixed content, blocked in
+//      Safari), so the PACS fetches the DICOM itself and posts the bytes to us.
+//      We tell the opener we're ready, then receive { files:[{name,buf}] }.
+//  (B) direct fetch  (#load=<manifestUrl>) — used for a same-origin / localhost
+//      editor, where fetching the PACS manifest+files directly is allowed.
 // ================================================================
 window.addEventListener('load', () => {
-  const m = /[#&?]load=([^&]+)/.exec(location.hash || location.search || '');
+  const hash = location.hash || location.search || '';
+
+  // (A) postMessage bridge
+  if (/[#&?]carino-bridge/.test(hash) && window.opener) {
+    const onMsg = async (ev) => {
+      if (ev.source !== window.opener || !ev.data || ev.data.type !== 'carino-pacs-files') return;
+      window.removeEventListener('message', onMsg);
+      try {
+        const loaded = (ev.data.files || []).map(f => new File([f.buf], f.name || 'study.dcm'));
+        if (!loaded.length) throw new Error('no files received');
+        await handleFiles(loaded);
+        switchTab('editor');
+        toast?.(`Loaded ${loaded.length} file(s) from Carino PACS`);
+      } catch (err) { toast?.('PACS hand-off failed: ' + (err.message || err)); }
+    };
+    window.addEventListener('message', onMsg);
+    try { window.opener.postMessage({ type: 'carino-pacs-ready' }, '*'); } catch { /* opener gone */ }
+    return;
+  }
+
+  // (B) direct fetch
+  const m = /[#&?]load=([^&]+)/.exec(hash);
   if (!m) return;
   let manifestUrl;
   try { manifestUrl = decodeURIComponent(m[1]); } catch { return; }
