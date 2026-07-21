@@ -70,3 +70,18 @@ curl -sL https://raw.githubusercontent.com/innolitics/dicom-standard/master/stan
   Longitudinal Dates, etc.) are not yet exposed as toggles — the Basic Profile runs by
   default. The action table is periodically revised by NEMA; regenerate before relying on
   it for a production workflow.
+
+## License
+
+Licensed under the **Mozilla Public License 2.0** (MPL-2.0) — see [LICENSE](LICENSE).
+
+MPL is file-level copyleft: modifications to existing source files must be shared
+under the MPL, but the tool may be combined with, or integrated into, proprietary
+software. MPL-2.0 also carries an explicit patent grant. Each source file should
+carry the standard header:
+
+```
+This Source Code Form is subject to the terms of the Mozilla Public License, v.
+2.0. If a copy of the MPL was not distributed with this file, You can obtain one
+at http://mozilla.org/MPL/2.0/.
+```
