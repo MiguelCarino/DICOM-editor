@@ -18,8 +18,8 @@
       --border: #262626;
       --border-glow: rgba(234,179,8,0.3);
       --text: #ffffff;
-      --text-dim: #b8b8b8;
-      --text-muted: #8a8a8a;
+      --text-dim: #a3a3a3;
+      --text-muted: #666666;
 
       /* Vibrant category colors */
       --cat-patient: #22d3ee;
@@ -45,11 +45,11 @@
 
       --font: 'IBM Plex Sans', 'Red Hat Text', 'Liberation Sans', system-ui, -apple-system, sans-serif;
       --mono: 'IBM Plex Mono', 'Liberation Mono', ui-monospace, monospace;
-      --radius: 4px;
+      --radius: 10px;
 
       /* Radius scale */
       --r-sm: 4px;
-      --r-md: 8px;
+      --r-md: 10px;
       --r-full: 999px;
       /* Spacing scale */
       --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px;
@@ -115,7 +115,7 @@
     .app-tag:hover { border-color: var(--accent); background: rgba(234,179,8,.12); }
     .header-clock { display: flex; align-items: baseline; gap: 8px; border-left: 1px solid var(--border); padding-left: 18px; }
     .clock-time { font-family: var(--mono); font-size: 1.05rem; font-weight: 700; }
-    .clock-tz { font-family: var(--mono); font-size: .58rem; font-weight: 700; color: #050505; background: var(--accent); padding: 2px 5px; border-radius: 3px; }
+    .clock-tz { font-family: var(--mono); font-size: .6rem; font-weight: 700; color: #050505; background: var(--accent); padding: 2px 5px; border-radius: 3px; }
     .brand-greeting { font-family: var(--mono); font-size: .68rem; color: var(--text-muted); }
     .header.top-header .tab-nav { margin: 0 auto; }
     .social-row { display: flex; gap: 8px; }
@@ -140,7 +140,7 @@
       opacity: 0; visibility: hidden; transform: translateY(-8px); transition: .18s; z-index: 210;
     }
     .diag-dropdown.open { opacity: 1; visibility: visible; transform: translateY(0); }
-    .diag-section { font-family: var(--mono); font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); margin: 12px 0 6px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+    .diag-section { font-family: var(--mono); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted); margin: 12px 0 6px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
     .diag-section:first-child { margin-top: 0; }
     .diag-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: .78rem; padding: 3px 0; }
     .diag-lbl { color: var(--text-muted); flex-shrink: 0; }
