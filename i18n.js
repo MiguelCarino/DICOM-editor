@@ -191,6 +191,7 @@ const I18N = {
         // Overlays
         'Cancel': 'Cancelar',
         'Confirm': 'Confirmar',
+        'Load files': 'Cargar archivos',
         'Click anywhere to close': 'Haz clic en cualquier lugar para cerrar',
         // Attributes (titles / placeholders)
         'Search...': 'Buscar...',
@@ -389,6 +390,7 @@ const I18N = {
         'No content items found in Content Sequence.': 'Nenhum item encontrado na Content Sequence.',
         'Cancel': 'Cancelar',
         'Confirm': 'Confirmar',
+        'Load files': 'Carregar arquivos',
         'Click anywhere to close': 'Clique em qualquer lugar para fechar',
         'Search...': 'Buscar...',
         'Search tags…': 'Buscar tags…',
@@ -586,6 +588,7 @@ const I18N = {
         'No content items found in Content Sequence.': 'Content Sequenceに項目が見つかりません。',
         'Cancel': 'キャンセル',
         'Confirm': '確認',
+        'Load files': 'ファイルを読み込む',
         'Click anywhere to close': 'クリックで閉じる',
         'Search...': '検索...',
         'Search tags…': 'タグを検索…',
@@ -783,6 +786,7 @@ const I18N = {
         'No content items found in Content Sequence.': 'В Content Sequence не найдено элементов.',
         'Cancel': 'Отмена',
         'Confirm': 'Подтвердить',
+        'Load files': 'Загрузить файлы',
         'Click anywhere to close': 'Нажмите в любом месте, чтобы закрыть',
         'Search...': 'Поиск...',
         'Search tags…': 'Поиск тегов…',
