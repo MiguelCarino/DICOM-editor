@@ -130,6 +130,79 @@
     return out.buffer;
   }
 
+  // A minimal JPEG Lossless (SOF3) encoder: predictor 1, a single interleaved
+  // scan, one flat Huffman table of seventeen five-bit codes. Not competitive
+  // compression — the point is a stream that genuinely is 1.2.840.10008.1.2.4.70
+  // so the branch that handles it can be tested at all.
+  function jpegLossless(samples, w, h, comps, precision) {
+    const bytes = [];
+    let acc = 0, nbits = 0;
+    const putByte = (b) => { bytes.push(b); if (b === 0xFF) bytes.push(0x00); };  // byte stuffing
+    const putBits = (code, len) => {
+      for (let i = len - 1; i >= 0; i--) {
+        acc = ((acc << 1) | ((code >> i) & 1)) & 0xFF;
+        if (++nbits === 8) { putByte(acc); acc = 0; nbits = 0; }
+      }
+    };
+    const flush = () => { while (nbits) putBits(1, 1); };
+
+    // Category: how many bits the difference needs. Zero needs none.
+    const ssss = (d) => { let a = Math.abs(d), n = 0; while (a) { n++; a >>= 1; } return n; };
+
+    const prev = new Int32Array(w * comps);   // the row above, per component
+    const cur  = new Int32Array(w * comps);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        for (let c = 0; c < comps; c++) {
+          const v = samples[(y * w + x) * comps + c];
+          // Predictor 1 is the sample to the left; the first sample of a line
+          // takes the one above, and the very first takes half of full scale.
+          const pred = x > 0 ? cur[(x - 1) * comps + c]
+                     : y > 0 ? prev[c]
+                     : 1 << (precision - 1);
+          const d = v - pred;
+          const n = ssss(d);
+          putBits(n, 5);                                   // symbol n, code n
+          if (n) putBits(d > 0 ? d : d + (1 << n) - 1, n);
+          cur[x * comps + c] = v;
+        }
+      }
+      prev.set(cur);
+    }
+    flush();
+
+    const out = [];
+    const u16be = (v) => out.push((v >> 8) & 0xFF, v & 0xFF);
+    out.push(0xFF, 0xD8);                                  // SOI
+
+    out.push(0xFF, 0xC3);                                  // SOF3 — lossless, Huffman
+    u16be(8 + 3 * comps);
+    out.push(precision);
+    u16be(h); u16be(w);
+    out.push(comps);
+    for (let c = 1; c <= comps; c++) out.push(c, 0x11, 0);  // id, 1x1 sampling, no quant table
+
+    out.push(0xFF, 0xC4);                                  // DHT — seventeen codes, all length 5
+    u16be(2 + 1 + 16 + 17);
+    out.push(0x00);                                        // DC table 0
+    for (let i = 1; i <= 16; i++) out.push(i === 5 ? 17 : 0);
+    for (let v = 0; v <= 16; v++) out.push(v);
+
+    out.push(0xFF, 0xDA);                                  // SOS
+    u16be(6 + 2 * comps);
+    out.push(comps);
+    for (let c = 1; c <= comps; c++) out.push(c, 0x00);
+    out.push(1, 0, 0);                                     // predictor 1, Se 0, no point transform
+
+    // Spreading the entropy-coded bytes into push() would exceed the argument
+    // limit on any real-sized image, so assemble the pieces instead.
+    const file = new Uint8Array(out.length + bytes.length + 2);
+    file.set(out, 0);
+    file.set(bytes, out.length);
+    file.set([0xFF, 0xD9], out.length + bytes.length);      // EOI
+    return file.buffer;
+  }
+
   let uidSeq = 0;
   const uid = (root) => `1.2.826.0.1.3680043.10.99999.${root}.${++uidSeq}`;
 
@@ -736,6 +809,41 @@
       });
     }
 
+    // ---- JPEG Lossless, colour ---------------------------------------------
+    // What a UIH CT workstation writes its secondary captures as: three
+    // components, 8-bit, transfer syntax 1.2.840.10008.1.2.4.70.
+    {
+      const rgb = colorPattern(W, H);
+      add({
+        id: 'jpeg-lossless-rgb',
+        title: 'JPEG Lossless, 8-bit RGB',
+        note: 'Three components in one interleaved scan. Windowed as greyscale it reads ' +
+              'one sample per pixel out of a three-sample stream, so every row advances a ' +
+              'third as fast as it should and the picture stretches and tears.',
+        w: W, h: H,
+        bytes: build({ ts: '1.2.840.10008.1.2.4.70', rows: H, cols: W, pi: 'RGB', spp: 3,
+                       ba: 8, bs: 8, hb: 7, pr: 0, planar: 0, modality: 'CT',
+                       encapsulated: [jpegLossless(rgb, W, H, 3, 8)] }),
+        ref: { kind: 'rgb', rgb },
+      });
+    }
+
+    // ---- JPEG Lossless, 16-bit greyscale -----------------------------------
+    {
+      const s = new Uint16Array(n);
+      for (let i = 0; i < n; i++) s[i] = Math.round(p[i] * 4095);
+      add({
+        id: 'jpeg-lossless-mono16',
+        title: 'JPEG Lossless, 12 bits in 16',
+        note: 'The single-component case, which has to keep working.',
+        w: W, h: H,
+        bytes: build({ ts: '1.2.840.10008.1.2.4.70', rows: H, cols: W, pi: 'MONOCHROME2',
+                       ba: 16, bs: 12, hb: 11, pr: 0, wc: 2048, ww: 4096, modality: 'CR',
+                       encapsulated: [jpegLossless(s, W, H, 1, 12)] }),
+        ref: { kind: 'mono', samples: s, pi: 'MONOCHROME2', wc: 2048, ww: 4096 },
+      });
+    }
+
     // ---- RLE Lossless, colour ----------------------------------------------
     // Secondary captures off CT and ultrasound workstations very often arrive
     // this way. Segments are one byte-plane each, ordered by sample then by
@@ -997,5 +1105,5 @@
   }
 
   window.Forge = { build, corpus, expected, compare, pattern, colorPattern,
-                   windowFloats, encapsulate, element, W, H };
+                   windowFloats, encapsulate, element, jpegLossless, rleFrame, W, H };
 })();

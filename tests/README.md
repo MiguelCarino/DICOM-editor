@@ -10,7 +10,9 @@ throwaway HTTP server rather than `file://`.
 There are no fixture files. `dicom-forge.js` writes real Part-10 byte streams in
 the browser at run time — preamble, file meta group, dataset, encapsulated
 fragments and all — and hands each one to the app through `DicomMessage.readFile`,
-the same entry point a dropped file goes through.
+the same entry point a dropped file goes through. It carries small encoders for
+PackBits and for JPEG Lossless, so the compressed syntaxes are exercised by
+streams an independent implementation produced rather than by recorded bytes.
 
 ## The oracle
 
@@ -62,7 +64,8 @@ raw and JPEG-compressed; Rescale Slope/Intercept in Hounsfield and PET scalings;
 missing Window Center/Width; RGB in both planar configurations; YBR_FULL;
 YBR_FULL_422; PALETTE COLOR with 16-bit lookup tables; multi-frame greyscale,
 colour and JPEG; Implicit VR LE; Explicit VR BE; encapsulated baseline JPEG;
-JPEG 2000; RLE Lossless in colour, 16-bit greyscale and multi-frame; a single
+JPEG 2000; JPEG Lossless in colour and in 12-bit greyscale; RLE Lossless in
+colour, 16-bit greyscale and multi-frame; a single
 JPEG frame split across three fragments; and six deliberately malformed or
 undecodable files (truncated pixel data, window width zero, uncompressed
 YBR_FULL_422, MPEG-2 video, and raw pixels whose first two bytes are `FF D8` and
@@ -84,6 +87,7 @@ more. Everything below is what the tests now hold in place.
 | `rgb-planar1` | Planar Configuration 1 was never read, so plane-ordered RGB was unpacked as interleaved and came out as three coloured bands. | Read (0028,0006) and index per plane. |
 | `ybr-full` | YBR_FULL was matched as if it were RGB and copied channel for channel, with no YCbCr conversion. | Convert per PS3.3 C.7.6.3.1.2. |
 | `palette-color` | PALETTE COLOR was refused outright — "No renderable pixel data in this file" — with the lookup tables in the file never read. | `readPaletteLut` reads the descriptor/data pairs, including 16-bit tables and the first-mapped offset. |
+| `jpeg-lossless-rgb` | The JPEG Lossless branch windowed its output as greyscale whatever Samples per Pixel said, so a three-component image had one sample per pixel read out of a three-sample stream. Every row advanced a third as fast as it should: the picture came out stretched and torn rather than failing, which reads as a transmission fault. This is what UIH CT workstations write their secondary captures as. | The decoder already returns interleaved samples — raw pixel data by another name. It now feeds the uncompressed path, which handles samples per pixel, photometric interpretation, sign, rescale and windowing for every syntax alike. |
 | `rle-rgb`, `rle-mono16`, `rle-multiframe` | RLE Lossless was in none of the transfer-syntax sets, so its fragments matched no magic bytes and execution fell through to the uncompressed path — drawing the compressed stream as pixels. Because run-length coding keeps bytes near their neighbours the result is not noise: it is the picture, torn diagonally, which reads as a transmission fault rather than a missing decoder. | `rleToRaw` unpacks the PackBits segments into the byte layout raw pixels would have had, so planar configuration, photometric interpretation and windowing are all served by the code that already existed. |
 | `mpeg2-unsupported` | Same fall-through, general case: any encapsulated syntax without a decoder was rendered as though its bytes were pixels. | Anything still compressed when it reaches the raw path is refused by name. The exception is a buffer exactly the size raw pixels would occupy — then the syntax is simply mislabelled and the data really is raw. |
 | `jpeg-split-fragments` | Only the first fragment of a split frame carries the SOI marker, so the rest were skipped as non-JPEG and the browser got a truncated image. | A single frame spread over several fragments is concatenated before decoding. |

@@ -88,7 +88,7 @@ window.addEventListener('load', () => (async () => {
     const monoCases = ['mono2-u8', 'mono2-u16-b12', 'mono2-u16-b16', 'mono2-s16-b12',
                        'mono2-s16-b16', 'mono1-u16', 'ct-rescale-hu', 'pt-rescale-slope',
                        'mono2-no-window', 'implicit-vr', 'big-endian', 'raw-looks-like-jpeg',
-                       'rle-mono16'];
+                       'rle-mono16', 'jpeg-lossless-mono16'];
     for (const id of monoCases) {
       let res = null, err = '';
       try { ({ res } = await dec(id)); } catch (e) { err = e.message || String(e); }
@@ -118,7 +118,8 @@ window.addEventListener('load', () => (async () => {
 
     // ---- colour ------------------------------------------------------------
     for (const id of ['rgb-planar0', 'rgb-planar1', 'ybr-full', 'palette-color',
-                      'ybr-422-jpeg', 'mono1-jpeg', 'rle-rgb', 'jpeg-split-fragments']) {
+                      'ybr-422-jpeg', 'mono1-jpeg', 'rle-rgb', 'jpeg-split-fragments',
+                      'jpeg-lossless-rgb']) {
       const c = byId[id];
       let res = null, err = '';
       try { ({ res } = await dec(id)); } catch (e) { err = e.message || String(e); }

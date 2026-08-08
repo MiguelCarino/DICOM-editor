@@ -123,6 +123,41 @@ window.addEventListener('load', () => (async () => {
     ok('the written file has one Window Center, not two',
        Object.keys(back.dict).filter(k => /00281050$/i.test(k)).length === 1,
        Object.keys(back.dict).filter(k => /00281050$/i.test(k)).join(','));
+    // ---- saving must not destroy an encapsulated image -----------------------
+    // The file in front of a user is often one this app wrote. Compressed pixel
+    // data lives in fragments rather than one run of bytes, so a writer that
+    // flattens them produces a file that loads and then will not render.
+    for (const [id, ts, make] of [
+      ['jpeg-lossless', '1.2.840.10008.1.2.4.70',
+       (rgb, w, h) => Forge.jpegLossless(rgb, w, h, 3, 8)],
+      ['rle', '1.2.840.10008.1.2.5',
+       (rgb, w, h) => Forge.rleFrame([0, 1, 2].map(c => {
+         const pl = new Uint8Array(w * h);
+         for (let i = 0; i < w * h; i++) pl[i] = rgb[i * 3 + c];
+         return pl;
+       }))],
+    ]) {
+      const w = Forge.W, h = Forge.H;
+      const rgb = Forge.colorPattern(w, h);
+      const file = Forge.build({ ts, rows: h, cols: w, pi: 'RGB', spp: 3, ba: 8, bs: 8,
+                                 hb: 7, pr: 0, planar: 0, modality: 'XC',
+                                 encapsulated: [make(rgb, w, h)] });
+      await handleFiles([new File([file], `${id}.dcm`)]);
+      const want = Forge.expected({ kind: 'rgb', rgb }, w, h);
+
+      const before = await decodeDicomPixels(files[0].dict, 0, { meta: files[0].meta });
+      ok(`${id}: renders as loaded`, !!before && !before.error &&
+         !Forge.compare(before.pixels, want, 0),
+         before ? (before.error || Forge.compare(before.pixels, want, 0) || '') : 'null');
+
+      const round = DicomMessage.readFile(await buildEditedFile(files[0]).arrayBuffer());
+      normBin(round.dict);
+      const after = await decodeDicomPixels(round.dict, 0, { meta: round.meta });
+      ok(`${id}: still renders after being saved`, !!after && !after.error &&
+         !Forge.compare(after.pixels, want, 0),
+         after ? (after.error || Forge.compare(after.pixels, want, 0) || '') : 'null');
+    }
+
     // ---- the exported tag list has to answer "why will this not render?" ----
     switchFile(0);
     const exported = getExportRows();

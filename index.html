@@ -3732,6 +3732,12 @@ async function decodeDicomPixels(d, frameIndex = 0, { meta = null, wcOvr, wwOvr 
     return { pixels, rawFloats: raw, mn, mx };
   }
 
+  // Some compressed syntaxes decode to exactly the byte layout raw pixel data
+  // would have had. Those set this and then take the uncompressed path below,
+  // where samples per pixel, photometric interpretation, sign, rescale and
+  // windowing are all handled once, for every syntax alike.
+  let preDecoded = null;
+
   if (jpegFrames.length) {
     // Only the first fragment of a split frame carries the SOI marker, so the
     // rest were skipped as non-JPEG and the decoder saw a truncated image.
@@ -3745,29 +3751,29 @@ async function decodeDicomPixels(d, frameIndex = 0, { meta = null, wcOvr, wwOvr 
       try {
         const LosslessDecoder = await loadJpegLossless();
         const decoder = new LosslessDecoder();
+        // The decoder returns one sample per component per pixel, interleaved,
+        // in a plain typed array — which is raw pixel data. Windowing it as
+        // greyscale regardless of Samples per Pixel read one sample per pixel
+        // out of a three-sample stream: each row advanced a third as fast as it
+        // should, so the picture came out stretched and torn instead of failing.
         const decoded = decoder.decode(buf, 0, buf.byteLength, ba === 16 ? 2 : 1);
-        // decode() returns a typed array (Uint16Array for 16-bit), not a DataView
-        const data = ba === 16
-          ? new (pr ? Int16Array : Uint16Array)(decoded.buffer, decoded.byteOffset, decoded.byteLength / 2)
-          : new Uint8Array(decoded.buffer, decoded.byteOffset, decoded.byteLength);
-        const { pixels: pxL, rawFloats: rfL, mn: mnL, mx: mxL } = applyMonochromeWindowing(data);
-        return { pixels: pxL, rawFloats: rfL, mn: mnL, mx: mxL, wcTag: wc, wwTag: ww,
-                 invert: isMono1, rows, cols, numFrames };
+        preDecoded = decoded.buffer.slice(decoded.byteOffset, decoded.byteOffset + decoded.byteLength);
       } catch (e) {
         return { error: `JPEG Lossless decode failed: ${e.message}`, numFrames };
       }
-    }
+    } else {
 
-    // ── JPEG-LS (TS 1.2.4.80 / 1.2.4.81) ────────────────────────────────────
-    if (JPEG_LS_TS.has(ts)) {
-      return { error: 'JPEG-LS (1.2.840.10008.1.2.4.80/81) not supported in browser', numFrames };
-    }
+      // ── JPEG-LS (TS 1.2.4.80 / 1.2.4.81) ──────────────────────────────────
+      if (JPEG_LS_TS.has(ts)) {
+        return { error: 'JPEG-LS (1.2.840.10008.1.2.4.80/81) not supported in browser', numFrames };
+      }
 
-    // ── Baseline / Extended JPEG — browser-native decode ─────────────────────
-    try {
-      return fromBitmap(await bitmapToPixels(new Blob([buf], { type: 'image/jpeg' })));
-    } catch (e) {
-      return { error: `JPEG decode failed: ${e.message}`, numFrames };
+      // ── Baseline / Extended JPEG — browser-native decode ───────────────────
+      try {
+        return fromBitmap(await bitmapToPixels(new Blob([buf], { type: 'image/jpeg' })));
+      } catch (e) {
+        return { error: `JPEG decode failed: ${e.message}`, numFrames };
+      }
     }
   }
 
@@ -3779,13 +3785,12 @@ async function decodeDicomPixels(d, frameIndex = 0, { meta = null, wcOvr, wwOvr 
   // Decoded here into the layout raw pixels would have had, so everything below
   // — endianness, planar configuration, photometric interpretation, windowing —
   // is the same code that serves an uncompressed file.
-  let rleBuf = null;
   if (ts === RLE_TS) {
     const frags = encapsulatedFragments(px);
     const frag = frags[Math.min(fi, frags.length - 1)];
     if (!frag) return { error: 'RLE Lossless: no pixel fragment for this frame', numFrames };
     try {
-      rleBuf = rleToRaw(frag, framePixels, spp, Math.ceil(ba / 8));
+      preDecoded = rleToRaw(frag, framePixels, spp, Math.ceil(ba / 8));
     } catch (e) {
       return { error: `RLE decode failed: ${e.message}`, numFrames };
     }
@@ -3794,16 +3799,16 @@ async function decodeDicomPixels(d, frameIndex = 0, { meta = null, wcOvr, wwOvr 
   // ── Raw (uncompressed) pixel data ────────────────────────────────────────
   const isBigEndian = ts === '1.2.840.10008.1.2.2';
 
-  let pxBuf = rleBuf || px.Value[0];
+  let pxBuf = preDecoded || px.Value[0];
   if (ArrayBuffer.isView(pxBuf)) pxBuf = pxBuf.buffer.slice(pxBuf.byteOffset, pxBuf.byteOffset + pxBuf.byteLength);
   if (!(pxBuf instanceof ArrayBuffer)) return null;
 
-  if (!rleBuf && numFrames > 1 && fi > 0 && px.Value.length === 1) {
+  if (!preDecoded && numFrames > 1 && fi > 0 && px.Value.length === 1) {
     pxBuf = pxBuf.slice(fi * frameByteSize, (fi + 1) * frameByteSize);
   }
 
   // Heuristic for mis-labelled transfer syntax: only probe if TS is unknown
-  if (!isRawTS && !rleBuf && pxBuf.byteLength >= 4) {
+  if (!isRawTS && !preDecoded && pxBuf.byteLength >= 4) {
     const probe = new Uint8Array(pxBuf, 0, 4);
     if (probe[0] === 0xFF && probe[1] === 0xD8) {
       try {
@@ -3821,7 +3826,7 @@ async function decodeDicomPixels(d, frameIndex = 0, { meta = null, wcOvr, wwOvr 
   // transmission instead of an unsupported one. A buffer that is exactly the
   // size raw pixels would occupy is the one safe exception: the syntax is
   // mislabelled and the data really is raw.
-  if (!isRawTS && !rleBuf &&
+  if (!isRawTS && !preDecoded &&
       pxBuf.byteLength !== frameByteSize && pxBuf.byteLength !== frameByteSize * numFrames) {
     return { error: `${ts || 'This'} is a compressed transfer syntax this viewer cannot decode`, numFrames };
   }
