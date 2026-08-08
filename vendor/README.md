@@ -19,6 +19,26 @@ its dashboard; the two are kept byte-identical on purpose.
 | --- | --- | --- | --- | --- |
 | `dcmjs.min.js` | [dcmjs](https://github.com/dcmjs-org/dcmjs) | 0.29.8 | MIT | `LICENSE-dcmjs.txt` |
 | `lossless-min.js` | [jpeg-lossless-decoder-js](https://github.com/rii-mango/JPEGLosslessDecoderJS) | 2.1.2 | MIT | `LICENSE-jpeg-lossless-decoder-js.txt` |
+| `openjpegwasm_decode.js` | [@cornerstonejs/codec-openjpeg](https://github.com/cornerstonejs/codecs) | 1.3.0 | MIT | `LICENSE-codec-openjpeg.txt` |
+| `openjpegwasm_decode.wasm` | [@cornerstonejs/codec-openjpeg](https://github.com/cornerstonejs/codecs) | 1.3.0 | MIT | `LICENSE-codec-openjpeg.txt` |
+| `charlswasm_decode.js` | [@cornerstonejs/codec-charls](https://github.com/cornerstonejs/codecs) | 1.2.3 | MIT | `LICENSE-codec-charls.txt` |
+| `charlswasm_decode.wasm` | [@cornerstonejs/codec-charls](https://github.com/cornerstonejs/codecs) | 1.2.3 | MIT | `LICENSE-codec-charls.txt` |
+
+The two `*wasm_decode.*` pairs are the JPEG 2000 and JPEG-LS decoders, loaded
+lazily and only when a file of that transfer syntax is opened. The
+**decode-only** builds are deliberate: the full builds carry encoders this
+editor never calls, and cost 112 KB and 72 KB more of WebAssembly for nothing.
+Do not rename the four files — `locateFile` is what resolves the `.wasm` beside
+its loader, and keeping upstream's names is what keeps a refresh diffable.
+
+Those MIT notices cover the emscripten wrappers only. The C libraries compiled
+*into* the `.wasm` are separate works under separate terms, and shipping a
+binary is exactly what triggers their notice clause:
+
+| Compiled inside the `.wasm` | Licence | Text |
+| --- | --- | --- |
+| [OpenJPEG](https://github.com/uclouvain/openjpeg) (inside `openjpegwasm_decode.wasm`) | BSD 2-Clause | `LICENSE-openjpeg.txt` |
+| [CharLS](https://github.com/team-charls/charls) (inside `charlswasm_decode.wasm`) | BSD 3-Clause | `LICENSE-charls.txt` |
 
 `dcmjs.min.js` is the jsDelivr build of `dcmjs@0.29.8/build/dcmjs.js`, which is
 a bundle: three of its dependencies are compiled into the file we ship, so their
@@ -53,6 +73,30 @@ going stale against the code is the failure mode this table exists to prevent:
     tar xzf dcmjs-<version>.tgz
     cp package/License.txt LICENSE-dcmjs.txt
 
+    npm pack @cornerstonejs/codec-openjpeg@<version>
+    tar xzf cornerstonejs-codec-openjpeg-<version>.tgz
+    cp package/dist/openjpegwasm_decode.js package/dist/openjpegwasm_decode.wasm .
+    cp package/LICENSE LICENSE-codec-openjpeg.txt
+
+    npm pack @cornerstonejs/codec-charls@<version>
+    tar xzf cornerstonejs-codec-charls-<version>.tgz
+    cp package/dist/charlswasm_decode.js package/dist/charlswasm_decode.wasm .
+    cp package/LICENSE LICENSE-codec-charls.txt
+
+The two BSD texts are not in those tarballs and have to be taken from upstream
+in the same breath, or the binaries ship without the notice their licences
+require:
+
+    curl -o LICENSE-openjpeg.txt https://raw.githubusercontent.com/uclouvain/openjpeg/master/LICENSE
+    curl -o LICENSE-charls.txt  https://raw.githubusercontent.com/team-charls/charls/master/LICENSE.md
+
+One thing to know before touching how those two are loaded: **they are UMD
+bundles, so `index.html` pulls them in with a `<script>` tag, not `import()`.**
+Their export tail only fires for CommonJS or AMD, so a dynamic import resolves
+to a namespace with zero keys — no error, no rejection, nothing to debug. Making
+them match the `import()` two lines above, which is what the next person will
+want to do, breaks JPEG 2000 and JPEG-LS silently.
+
 Then re-read the new bundle for anything that points off-origin before shipping
 it. Minifiers append a `//# sourceMappingURL=` comment, CDN builds sometimes
 carry an absolute one, and a map URL is a real request the moment a browser has
@@ -69,7 +113,7 @@ already local there, so nothing had to move to make this copy offline-clean.
 Four things exist only here, and a careless `cp -r` from upstream deletes all
 four — the third one silently, and it corrupts studies when it goes:
 
-1. **The licensing and provenance in this directory** — this README, the five
+1. **The licensing and provenance in this directory** — this README, the nine
    `LICENSE-*.txt` files here, and the two in `../fonts/`. Carino PACS
    redistributes these bundles inside a shipped binary and a container image,
    which upstream (a static site users visit) does not; that is why the
