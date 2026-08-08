@@ -90,6 +90,46 @@
     return concat(parts);
   }
 
+  // PackBits (PS3.5 Annex G). Control byte n: 0..127 means the next n+1 bytes are
+  // literal, -1..-127 means repeat the next byte 1-n times, -128 is a no-op.
+  function packBits(src) {
+    const out = [];
+    let i = 0;
+    while (i < src.length) {
+      let run = 1;
+      while (i + run < src.length && src[i + run] === src[i] && run < 128) run++;
+      if (run >= 2) {
+        out.push(257 - run, src[i]);
+        i += run;
+      } else {
+        const start = i;
+        while (i < src.length && i - start < 128) {
+          if (i > start && i + 1 < src.length && src[i + 1] === src[i]) break;
+          i++;
+        }
+        out.push(i - start - 1);
+        for (let k = start; k < i; k++) out.push(src[k]);
+      }
+    }
+    if (out.length % 2) out.push(0);          // segments are padded to even length
+    return new Uint8Array(out);
+  }
+
+  // One RLE frame: a 64-byte header of segment count and offsets, then the
+  // PackBits segments themselves.
+  function rleFrame(segments) {
+    const packed = segments.map(packBits);
+    const header = new Uint32Array(16);
+    header[0] = packed.length;
+    let off = 64;
+    packed.forEach((p, i) => { header[i + 1] = off; off += p.length; });
+    const out = new Uint8Array(off);
+    out.set(new Uint8Array(header.buffer), 0);
+    let o = 64;
+    for (const p of packed) { out.set(p, o); o += p.length; }
+    return out.buffer;
+  }
+
   let uidSeq = 0;
   const uid = (root) => `1.2.826.0.1.3680043.10.99999.${root}.${++uidSeq}`;
 
@@ -696,6 +736,78 @@
       });
     }
 
+    // ---- RLE Lossless, colour ----------------------------------------------
+    // Secondary captures off CT and ultrasound workstations very often arrive
+    // this way. Segments are one byte-plane each, ordered by sample then by
+    // byte, most significant first (PS3.5 G.2).
+    {
+      const rgb = colorPattern(W, H);
+      const planes = [0, 1, 2].map(c => {
+        const p = new Uint8Array(n);
+        for (let i = 0; i < n; i++) p[i] = rgb[i * 3 + c];
+        return p;
+      });
+      add({
+        id: 'rle-rgb',
+        title: 'RLE Lossless, 8-bit RGB',
+        note: 'Read as though it were uncompressed, RLE does not look like noise — it ' +
+              'looks like the picture, torn diagonally, because run-length coding keeps ' +
+              'bytes near their neighbours.',
+        w: W, h: H,
+        bytes: build({ ts: '1.2.840.10008.1.2.5', rows: H, cols: W, pi: 'RGB', spp: 3,
+                       ba: 8, bs: 8, hb: 7, pr: 0, planar: 0, modality: 'XC',
+                       encapsulated: [rleFrame(planes)] }),
+        ref: { kind: 'rgb', rgb },
+      });
+    }
+
+    // ---- RLE Lossless, 16-bit greyscale ------------------------------------
+    {
+      const s = new Uint16Array(n);
+      for (let i = 0; i < n; i++) s[i] = Math.round(p[i] * 4095);
+      const hi = new Uint8Array(n), lo = new Uint8Array(n);
+      for (let i = 0; i < n; i++) { hi[i] = s[i] >> 8; lo[i] = s[i] & 0xFF; }
+      add({
+        id: 'rle-mono16',
+        title: 'RLE Lossless, 16-bit MONOCHROME2',
+        note: 'Two segments, high byte plane first. Getting the order wrong scales every ' +
+              'value by 256 rather than producing anything obviously broken.',
+        w: W, h: H,
+        bytes: build({ ts: '1.2.840.10008.1.2.5', rows: H, cols: W, pi: 'MONOCHROME2',
+                       ba: 16, bs: 12, hb: 11, pr: 0, wc: 2048, ww: 4096, modality: 'CT',
+                       encapsulated: [rleFrame([hi, lo])] }),
+        ref: { kind: 'mono', samples: s, pi: 'MONOCHROME2', wc: 2048, ww: 4096 },
+      });
+    }
+
+    // ---- RLE Lossless, multi-frame -----------------------------------------
+    {
+      const F = 3;
+      const base = colorPattern(W, H);
+      const frames = [], fragments = [];
+      for (let f = 0; f < F; f++) {
+        const fr = new Uint8Array(n * 3);
+        for (let i = 0; i < n * 3; i++) fr[i] = (i % 3 === f) ? base[i] : 0;
+        frames.push(fr);
+        fragments.push(rleFrame([0, 1, 2].map(c => {
+          const pl = new Uint8Array(n);
+          for (let i = 0; i < n; i++) pl[i] = fr[i * 3 + c];
+          return pl;
+        })));
+      }
+      add({
+        id: 'rle-multiframe',
+        title: 'Three-frame RLE Lossless cine',
+        note: 'One fragment per frame, as ultrasound loops arrive.',
+        w: W, h: H, frames: F,
+        frameRef: (f) => ({ kind: 'rgb', rgb: frames[f] }),
+        bytes: build({ ts: '1.2.840.10008.1.2.5', rows: H, cols: W, pi: 'RGB', spp: 3,
+                       ba: 8, bs: 8, hb: 7, pr: 0, planar: 0, frames: F, modality: 'US',
+                       encapsulated: fragments }),
+        ref: { kind: 'rgb', rgb: frames[0] },
+      });
+    }
+
     // ---- MONOCHROME1 inside a JPEG -----------------------------------------
     {
       const gray = new Uint8Array(n);
@@ -755,6 +867,55 @@
         w: W, h: H, broken: true, expectError: /YBR_FULL_422/i,
         bytes: build({ rows: H, cols: W, pi: 'YBR_FULL_422', spp: 3, ba: 8, bs: 8, hb: 7,
                        pr: 0, planar: 0, modality: 'US', pixels: s }),
+        ref: null,
+      });
+    }
+
+    // ---- one JPEG frame split across several fragments ---------------------
+    {
+      const gray = new Uint8Array(n);
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) gray[y * W + x] = ((x >> 2) * 32) & 0xFF;
+      }
+      const jpg = await jpegOf(gray, W, H);
+      // Split on even boundaries, as the standard requires of fragments. Only the
+      // first piece carries the SOI marker.
+      const whole = new Uint8Array(jpg);
+      const cut1 = Math.floor(whole.length / 3) & ~1;
+      const cut2 = Math.floor(whole.length * 2 / 3) & ~1;
+      const parts = [whole.slice(0, cut1), whole.slice(cut1, cut2), whole.slice(cut2)]
+        .map(u => u.buffer.slice(u.byteOffset, u.byteOffset + u.byteLength));
+      const rgb = new Uint8Array(n * 3);
+      for (let i = 0; i < n; i++) { rgb[i * 3] = rgb[i * 3 + 1] = rgb[i * 3 + 2] = gray[i]; }
+      add({
+        id: 'jpeg-split-fragments',
+        title: 'One JPEG frame split across three fragments',
+        note: 'Large single-frame images are often fragmented. Decoding only the piece ' +
+              'with the SOI marker gives a third of a picture.',
+        w: W, h: H, tol: 12,
+        bytes: build({ ts: '1.2.840.10008.1.2.4.50', rows: H, cols: W, pi: 'MONOCHROME2',
+                       ba: 8, bs: 8, hb: 7, pr: 0, encapsulated: parts }),
+        ref: { kind: 'rgb', rgb },
+      });
+    }
+
+    // ---- an encapsulated syntax we have no decoder for ---------------------
+    {
+      // MPEG-2 video in Pixel Data. The bytes are not JPEG, not J2K and not RLE,
+      // so nothing recognises them — which is exactly when a viewer is tempted to
+      // draw them as pixels.
+      const mpeg = new Uint8Array(4096);
+      mpeg.set([0x00, 0x00, 0x01, 0xB3], 0);          // MPEG sequence header
+      for (let i = 4; i < mpeg.length; i++) mpeg[i] = (i * 37) & 0xFF;
+      add({
+        id: 'mpeg2-unsupported',
+        title: 'MPEG-2 video in Pixel Data',
+        note: 'There is no picture to get right here. The only correct behaviour is to ' +
+              'say so rather than render the bitstream.',
+        w: W, h: H, broken: true, expectError: /compressed transfer syntax/i,
+        bytes: build({ ts: '1.2.840.10008.1.2.4.100', rows: H, cols: W, pi: 'YBR_PARTIAL_420',
+                       spp: 3, ba: 8, bs: 8, hb: 7, pr: 0, planar: 0, modality: 'US',
+                       encapsulated: [mpeg.buffer] }),
         ref: null,
       });
     }

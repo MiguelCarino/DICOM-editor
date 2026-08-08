@@ -62,9 +62,11 @@ raw and JPEG-compressed; Rescale Slope/Intercept in Hounsfield and PET scalings;
 missing Window Center/Width; RGB in both planar configurations; YBR_FULL;
 YBR_FULL_422; PALETTE COLOR with 16-bit lookup tables; multi-frame greyscale,
 colour and JPEG; Implicit VR LE; Explicit VR BE; encapsulated baseline JPEG;
-JPEG 2000; and five deliberately malformed or undecodable files (truncated pixel
-data, window width zero, uncompressed YBR_FULL_422, and raw pixels whose first
-two bytes are `FF D8` and so look like a JPEG SOI marker).
+JPEG 2000; RLE Lossless in colour, 16-bit greyscale and multi-frame; a single
+JPEG frame split across three fragments; and six deliberately malformed or
+undecodable files (truncated pixel data, window width zero, uncompressed
+YBR_FULL_422, MPEG-2 video, and raw pixels whose first two bytes are `FF D8` and
+so look like a JPEG SOI marker).
 
 ## What it caught
 
@@ -82,6 +84,9 @@ more. Everything below is what the tests now hold in place.
 | `rgb-planar1` | Planar Configuration 1 was never read, so plane-ordered RGB was unpacked as interleaved and came out as three coloured bands. | Read (0028,0006) and index per plane. |
 | `ybr-full` | YBR_FULL was matched as if it were RGB and copied channel for channel, with no YCbCr conversion. | Convert per PS3.3 C.7.6.3.1.2. |
 | `palette-color` | PALETTE COLOR was refused outright — "No renderable pixel data in this file" — with the lookup tables in the file never read. | `readPaletteLut` reads the descriptor/data pairs, including 16-bit tables and the first-mapped offset. |
+| `rle-rgb`, `rle-mono16`, `rle-multiframe` | RLE Lossless was in none of the transfer-syntax sets, so its fragments matched no magic bytes and execution fell through to the uncompressed path — drawing the compressed stream as pixels. Because run-length coding keeps bytes near their neighbours the result is not noise: it is the picture, torn diagonally, which reads as a transmission fault rather than a missing decoder. | `rleToRaw` unpacks the PackBits segments into the byte layout raw pixels would have had, so planar configuration, photometric interpretation and windowing are all served by the code that already existed. |
+| `mpeg2-unsupported` | Same fall-through, general case: any encapsulated syntax without a decoder was rendered as though its bytes were pixels. | Anything still compressed when it reaches the raw path is refused by name. The exception is a buffer exactly the size raw pixels would occupy — then the syntax is simply mislabelled and the data really is raw. |
+| `jpeg-split-fragments` | Only the first fragment of a split frame carries the SOI marker, so the rest were skipped as non-JPEG and the browser got a truncated image. | A single frame spread over several fragments is concatenated before decoding. |
 | `ybr-422-jpeg` | Found while fixing the above: JPEG ultrasound cine is almost always YBR_FULL_422, and the old photometric test refused it before the JPEG decoder — which returns RGB anyway — ever ran. | Accept every YBR flavour at the gate; uncompressed subsampled chroma still refuses, but now says which photometric it cannot handle. |
 
 ### Edits

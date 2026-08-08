@@ -123,6 +123,14 @@ window.addEventListener('load', () => (async () => {
     ok('the written file has one Window Center, not two',
        Object.keys(back.dict).filter(k => /00281050$/i.test(k)).length === 1,
        Object.keys(back.dict).filter(k => /00281050$/i.test(k)).join(','));
+    // ---- the exported tag list has to answer "why will this not render?" ----
+    switchFile(0);
+    const exported = getExportRows();
+    ok('the tag export carries the Transfer Syntax UID',
+       exported.some(r => r.tag === '(0002,0010)'),
+       exported.filter(r => r.tag.startsWith('(0002')).length + ' File Meta rows');
+    ok('and still carries the dataset',
+       exported.some(r => r.tag === '(0010,0010)'), String(exported.length));
   } catch (e) {
     ok('suite ran to completion', false, (e && e.stack ? e.stack.split('\n')[0] : String(e)));
   }

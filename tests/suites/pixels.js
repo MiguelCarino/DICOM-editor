@@ -87,7 +87,8 @@ window.addEventListener('load', () => (async () => {
     // ---- greyscale: the stored values that came back out --------------------
     const monoCases = ['mono2-u8', 'mono2-u16-b12', 'mono2-u16-b16', 'mono2-s16-b12',
                        'mono2-s16-b16', 'mono1-u16', 'ct-rescale-hu', 'pt-rescale-slope',
-                       'mono2-no-window', 'implicit-vr', 'big-endian', 'raw-looks-like-jpeg'];
+                       'mono2-no-window', 'implicit-vr', 'big-endian', 'raw-looks-like-jpeg',
+                       'rle-mono16'];
     for (const id of monoCases) {
       let res = null, err = '';
       try { ({ res } = await dec(id)); } catch (e) { err = e.message || String(e); }
@@ -117,7 +118,7 @@ window.addEventListener('load', () => (async () => {
 
     // ---- colour ------------------------------------------------------------
     for (const id of ['rgb-planar0', 'rgb-planar1', 'ybr-full', 'palette-color',
-                      'ybr-422-jpeg', 'mono1-jpeg']) {
+                      'ybr-422-jpeg', 'mono1-jpeg', 'rle-rgb', 'jpeg-split-fragments']) {
       const c = byId[id];
       let res = null, err = '';
       try { ({ res } = await dec(id)); } catch (e) { err = e.message || String(e); }
@@ -192,8 +193,20 @@ window.addEventListener('load', () => (async () => {
       }
     }
 
+    {
+      const c = byId['rle-multiframe'];
+      for (let f = 0; f < c.frames; f++) {
+        let res = null, err = '';
+        try { ({ res } = await dec(c.id, f)); } catch (e) { err = e.message || String(e); }
+        if (!res || res.error) { ok(`rle-multiframe: frame ${f} decodes`, false, err || (res && res.error)); continue; }
+        const diff = Forge.compare(res.pixels, Forge.expected(c.frameRef(f), c.w, c.h), c.tol);
+        ok(`rle-multiframe: frame ${f} is its own fragment`, !diff, diff || '');
+      }
+    }
+
     // ---- malformed input degrades instead of exploding ----------------------
-    for (const id of ['truncated-pixels', 'window-width-zero', 'jpeg2000-unsupported']) {
+    for (const id of ['truncated-pixels', 'window-width-zero', 'jpeg2000-unsupported',
+                      'mpeg2-unsupported']) {
       const c = byId[id];
       let res, err = '';
       try { ({ res } = await dec(id)); } catch (e) { err = e.message || String(e); }

@@ -3463,6 +3463,71 @@ function collectEncapsulatedFrames(px) {
   return { jpeg, j2k };
 }
 
+// Every fragment of encapsulated Pixel Data, magic bytes unexamined. Zero-length
+// entries are dropped: that is the empty Basic Offset Table, not a frame.
+function encapsulatedFragments(px) {
+  const out = [];
+  for (const v of (px.Value || [])) {
+    let buf = v;
+    if (ArrayBuffer.isView(buf)) buf = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    if (buf instanceof ArrayBuffer && buf.byteLength) out.push(buf);
+  }
+  return out;
+}
+
+function concatBuffers(bufs) {
+  const total = bufs.reduce((n, b) => n + b.byteLength, 0);
+  const out = new Uint8Array(total);
+  let o = 0;
+  for (const b of bufs) { out.set(new Uint8Array(b), o); o += b.byteLength; }
+  return out.buffer;
+}
+
+// PackBits (PS3.5 Annex G). A control byte of 0..127 introduces that many plus
+// one literal bytes, -1..-127 repeats the next byte 1-n times, -128 is a no-op.
+// A short segment leaves the rest of the plane at zero rather than throwing:
+// most of an image beats none of it.
+function unpackBits(src, outLen) {
+  const out = new Uint8Array(outLen);
+  let i = 0, o = 0;
+  while (i < src.length && o < outLen) {
+    const n = (src[i++] << 24) >> 24;
+    if (n >= 0) {
+      for (let k = 0; k <= n && o < outLen && i < src.length; k++) out[o++] = src[i++];
+    } else if (n !== -128) {
+      const v = src[i++];
+      for (let k = 0; k < 1 - n && o < outLen; k++) out[o++] = v;
+    }
+  }
+  return out;
+}
+
+// RLE Lossless (1.2.840.10008.1.2.5) back into the byte layout the uncompressed
+// path already understands. Segments are byte-planes ordered by sample and then
+// by byte, most significant first; raw pixel data is interleaved and little
+// endian, so within each sample the bytes go back in the opposite order.
+function rleToRaw(buf, framePixels, spp, bytesPerSample) {
+  if (buf.byteLength < 64) throw new Error('frame is shorter than the RLE header');
+  const dv = new DataView(buf);
+  const nSeg = dv.getUint32(0, true);
+  const want = spp * bytesPerSample;
+  if (nSeg !== want) throw new Error(`${nSeg} segments for ${spp} sample(s) of ${bytesPerSample} byte(s)`);
+
+  const src = new Uint8Array(buf);
+  const out = new Uint8Array(framePixels * want);
+  for (let s = 0; s < nSeg; s++) {
+    const start = dv.getUint32(4 + s * 4, true);
+    const next  = s + 1 < nSeg ? dv.getUint32(8 + s * 4, true) : 0;
+    if (start < 64 || start >= src.length) throw new Error(`segment ${s} starts outside the frame`);
+    const end = next > start && next <= src.length ? next : src.length;
+    const plane = unpackBits(src.subarray(start, end), framePixels);
+    const sample = Math.floor(s / bytesPerSample);
+    const at = sample * bytesPerSample + (bytesPerSample - 1 - (s % bytesPerSample));
+    for (let i = 0; i < framePixels; i++) out[i * want + at] = plane[i];
+  }
+  return out.buffer;
+}
+
 // Module-level windowing — operates on a pre-computed Float32Array so WL can
 // be re-applied instantly from cached raw data without re-decoding the image.
 // `invert` is the photometric inversion MONOCHROME1 asks for (PS3.3 C.7.6.3.1.2:
@@ -3591,6 +3656,7 @@ async function decodeDicomPixels(d, frameIndex = 0, { meta = null, wcOvr, wwOvr 
     '1.2.840.10008.1.2.4.80',  // JPEG-LS Lossless
     '1.2.840.10008.1.2.4.81',  // JPEG-LS Near-Lossless
   ]);
+  const RLE_TS = '1.2.840.10008.1.2.5';
   const isRawTS = UNCOMPRESSED_TS.has(ts);
   const isJ2kTS = ts === '1.2.840.10008.1.2.4.90' || ts === '1.2.840.10008.1.2.4.91'
                || ts === '1.2.840.10008.1.2.4.201' || ts === '1.2.840.10008.1.2.4.202';
@@ -3667,7 +3733,12 @@ async function decodeDicomPixels(d, frameIndex = 0, { meta = null, wcOvr, wwOvr 
   }
 
   if (jpegFrames.length) {
-    const buf = jpegFrames[Math.min(fi, jpegFrames.length - 1)];
+    // Only the first fragment of a split frame carries the SOI marker, so the
+    // rest were skipped as non-JPEG and the decoder saw a truncated image.
+    const allFrags = encapsulatedFragments(px);
+    const buf = (numFrames === 1 && allFrags.length > jpegFrames.length)
+      ? concatBuffers(allFrags)
+      : jpegFrames[Math.min(fi, jpegFrames.length - 1)];
 
     // ── JPEG Lossless (TS 1.2.4.57 / 1.2.4.70) ──────────────────────────────
     if (JPEG_LOSSLESS_TS.has(ts)) {
@@ -3704,19 +3775,35 @@ async function decodeDicomPixels(d, frameIndex = 0, { meta = null, wcOvr, wwOvr 
     return { error: 'JPEG 2000 compressed — not supported in browser', numFrames };
   }
 
+  // ── RLE Lossless ─────────────────────────────────────────────────────────
+  // Decoded here into the layout raw pixels would have had, so everything below
+  // — endianness, planar configuration, photometric interpretation, windowing —
+  // is the same code that serves an uncompressed file.
+  let rleBuf = null;
+  if (ts === RLE_TS) {
+    const frags = encapsulatedFragments(px);
+    const frag = frags[Math.min(fi, frags.length - 1)];
+    if (!frag) return { error: 'RLE Lossless: no pixel fragment for this frame', numFrames };
+    try {
+      rleBuf = rleToRaw(frag, framePixels, spp, Math.ceil(ba / 8));
+    } catch (e) {
+      return { error: `RLE decode failed: ${e.message}`, numFrames };
+    }
+  }
+
   // ── Raw (uncompressed) pixel data ────────────────────────────────────────
   const isBigEndian = ts === '1.2.840.10008.1.2.2';
 
-  let pxBuf = px.Value[0];
+  let pxBuf = rleBuf || px.Value[0];
   if (ArrayBuffer.isView(pxBuf)) pxBuf = pxBuf.buffer.slice(pxBuf.byteOffset, pxBuf.byteOffset + pxBuf.byteLength);
   if (!(pxBuf instanceof ArrayBuffer)) return null;
 
-  if (numFrames > 1 && fi > 0 && px.Value.length === 1) {
+  if (!rleBuf && numFrames > 1 && fi > 0 && px.Value.length === 1) {
     pxBuf = pxBuf.slice(fi * frameByteSize, (fi + 1) * frameByteSize);
   }
 
   // Heuristic for mis-labelled transfer syntax: only probe if TS is unknown
-  if (!isRawTS && pxBuf.byteLength >= 4) {
+  if (!isRawTS && !rleBuf && pxBuf.byteLength >= 4) {
     const probe = new Uint8Array(pxBuf, 0, 4);
     if (probe[0] === 0xFF && probe[1] === 0xD8) {
       try {
@@ -3726,6 +3813,17 @@ async function decodeDicomPixels(d, frameIndex = 0, { meta = null, wcOvr, wwOvr 
     if ((probe[0] === 0xFF && probe[1] === 0x4F) || (probe[0] === 0x00 && probe[1] === 0x00 && probe[2] === 0x00 && probe[3] === 0x0C)) {
       return { error: 'JPEG 2000 compressed — not supported in browser', numFrames };
     }
+  }
+
+  // Everything that reaches this point is about to be read as pixels. If the
+  // transfer syntax says compressed and we did not decode it, those are not
+  // pixels — drawing them anyway is what makes a study look like a bad
+  // transmission instead of an unsupported one. A buffer that is exactly the
+  // size raw pixels would occupy is the one safe exception: the syntax is
+  // mislabelled and the data really is raw.
+  if (!isRawTS && !rleBuf &&
+      pxBuf.byteLength !== frameByteSize && pxBuf.byteLength !== frameByteSize * numFrames) {
+    return { error: `${ts || 'This'} is a compressed transfer syntax this viewer cannot decode`, numFrames };
   }
 
   if (isBigEndian && ba === 16) {
@@ -5300,17 +5398,19 @@ addTagConfirm.addEventListener('click', () => {
 const exportJsonBtn = document.getElementById('exportJsonBtn');
 const exportCsvBtn  = document.getElementById('exportCsvBtn');
 
+// Same rows the table shows, File Meta included. Leaving group 0002 out meant an
+// exported tag list could not answer the first question anyone asks about an
+// image that will not render — which transfer syntax is it in.
 function getExportRows() {
   if (!dict) return [];
   const rows = [];
-  const entries = Object.entries(dict).filter(([t]) => t.startsWith('x') || /^[0-9a-f]{8}$/i.test(t));
-  entries.sort(([a], [b]) => a.localeCompare(b));
-  for (const [tag, el] of entries) {
+  for (const [tag, el] of [...tagsOf(files[currentFileIdx] || { dict, meta })].sort(
+         ([a], [b]) => a.localeCompare(b))) {
     rows.push({
       tag:   fmtTag(tag),
       desc:  descFor(tag) || 'Unknown',
       vr:    el.vr || '',
-      value: pendingEdits.has(tag) ? pendingEdits.get(tag).valueString : elToString(el),
+      value: shownValue(tag, el, pendingEdits) ?? '',
     });
   }
   return rows;
