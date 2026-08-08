@@ -181,6 +181,19 @@
     .ov-drop h2 { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
     .ov-drop p { color: var(--text-muted); font-size: 14px; }
     .ov-drop code { font-family: var(--mono); color: var(--accent); }
+    /* Both pickers live inside the box: a folder is a study, so opening one is
+       the same act as opening a file and belongs in the same panel. */
+    .ov-drop-actions, .drop-zone-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .ov-drop-actions { margin-top: 18px; }
+    .drop-zone-actions { margin-top: 12px; gap: 6px; }
+    .ov-drop-open, .drop-zone-btn {
+      padding: 8px 16px; border: 1px solid var(--border); background: #101010;
+      color: var(--text-dim); border-radius: 6px; cursor: pointer; font: 600 12px var(--font); transition: .15s;
+    }
+    .drop-zone-btn { padding: 5px 11px; font-size: 11px; }
+    .ov-drop-open:hover, .drop-zone-btn:hover { border-color: var(--accent); background: var(--accent-faint); color: var(--accent); }
+    .ov-drop-folder, .drop-zone-btn.folder { border-color: var(--accent); background: var(--accent-faint); color: var(--accent); }
+    .ov-drop-folder:hover, .drop-zone-btn.folder:hover { background: var(--accent); color: #050505; }
 
     /* Samples: a sibling of the drop box, never a child of it — see the markup. */
     .ov-samples { width: min(620px, 92%); text-align: center; }
@@ -1450,14 +1463,24 @@
     <div class="ov-main" id="overviewTab">
       <!-- Empty state -->
       <div class="ov-empty" id="ovEmpty">
-        <div class="ov-drop" id="ovDrop" tabindex="0" role="button" aria-label="Open a DICOM file">
+        <!-- Dropping needs no choice: this box takes loose files or a whole
+             folder either way. Picking does — a file input is `multiple` or
+             `webkitdirectory` and never both, so which dialog opens has to be
+             settled before it opens. Hence one box with two buttons in it rather
+             than a box and a button beside each other.
+             The box is no longer role="button": it holds buttons now, and a
+             button inside a button is not something a screen reader can
+             describe. Clicking the background still opens files, as a
+             convenience for the mouse rather than as the only way in. -->
+        <div class="ov-drop" id="ovDrop">
           <div class="ov-drop-icon">🩻</div>
           <h2 data-i18n>Open a DICOM file</h2>
-          <p><span data-i18n>Drag &amp; drop a</span> <code>.dcm</code> <span data-i18n>here, or click to browse.</span><br><span data-i18n>You can load several studies at once.</span><br><span data-i18n>or drop a whole folder</span></p>
+          <p><span data-i18n>Drag &amp; drop</span> <code>.dcm</code> <span data-i18n>files here — or a whole folder.</span><br><span data-i18n>You can load several studies at once.</span></p>
+          <div class="ov-drop-actions">
+            <button class="ov-drop-open" id="ovFilesBtn" data-i18n>📄 Open files</button>
+            <button class="ov-drop-open ov-drop-folder" id="ovFolderBtn" data-i18n>📁 Open folder</button>
+          </div>
         </div>
-        <!-- Sibling, not a child: #ovDrop is role="button" and its click handler
-             would open the file picker before this one ever ran. -->
-        <button class="ov-open-btn" id="ovFolderBtn" data-i18n>📁 Open folder</button>
 
         <!-- Also a sibling of #ovDrop, and for the same reason: a button nested
              inside it would pop the OS file dialog on every sample click. -->
@@ -1741,8 +1764,11 @@
           <div class="drop-zone" id="dropZone">
             <h4 data-i18n>Drop DICOM files</h4>
             <p data-i18n>or click to browse</p>
+            <div class="drop-zone-actions">
+              <button class="drop-zone-btn" id="filesBtn" data-i18n>📄 Open files</button>
+              <button class="drop-zone-btn folder" id="folderBtn" data-i18n>📁 Open folder</button>
+            </div>
           </div>
-          <button class="btn" id="folderBtn" style="width:100%;margin-top:8px" data-i18n>📁 Open folder</button>
         </div>
 
         <div class="card" id="previewCard" style="display:none">
@@ -1937,9 +1963,11 @@
         <div class="drop-zone" id="extractorDropZone">
           <h4 data-i18n>Drop .dcm files</h4>
           <p data-i18n>or click to browse</p>
+          <div class="drop-zone-actions">
+            <button class="drop-zone-btn" id="extractorSideAddBtn" data-i18n>📄 Open files</button>
+            <button class="drop-zone-btn folder" id="extractorFolderBtn" data-i18n>📁 Open folder</button>
+          </div>
         </div>
-        <button class="btn" id="extractorSideAddBtn" style="width:100%;margin-top:8px" data-i18n>+ Browse Files</button>
-        <button class="btn" id="extractorFolderBtn" style="width:100%;margin-top:6px" data-i18n>📁 Open folder</button>
       </div>
       <div class="card">
         <div class="card-title" data-i18n>Export</div>
@@ -6059,8 +6087,12 @@ folderInput.addEventListener('change', e => {
   if (folderTarget === 'extract') addExtractorFiles(items);
   else loadStudy({ items, fromFolder: true, truncated: false });
 });
-document.getElementById('folderBtn')?.addEventListener('click', () => openFolder('study'));
-document.getElementById('extractorFolderBtn')?.addEventListener('click', () => openFolder('extract'));
+// Each of these sits inside its drop zone, and every drop zone opens the FILE
+// picker when clicked. Without stopping here the folder dialog would come up
+// with the file dialog queued behind it.
+document.getElementById('filesBtn')?.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+document.getElementById('folderBtn')?.addEventListener('click', e => { e.stopPropagation(); openFolder('study'); });
+document.getElementById('extractorFolderBtn')?.addEventListener('click', e => { e.stopPropagation(); openFolder('extract'); });
 
 downloadAllBtn.addEventListener('click', () => downloadRange(0, files.length));
 
@@ -6228,7 +6260,8 @@ function extractorLog(msg) {
 }
 
 extractorAddBtn.addEventListener('click', () => extractorFileInput.click());
-extractorSideAddBtn.addEventListener('click', () => extractorFileInput.click());
+// Inside the drop zone, whose own click opens the same picker.
+extractorSideAddBtn.addEventListener('click', e => { e.stopPropagation(); extractorFileInput.click(); });
 extractorFileInput.addEventListener('change', e => { if (e.target.files?.length) addExtractorFiles(e.target.files); });
 clearExtractorBtn.addEventListener('click', () => {
   extractorFiles = [];
@@ -8956,8 +8989,10 @@ document.addEventListener('keydown', e => {
   // drop zone (reuses the editor's #fileInput → handleFiles)
   const ovDrop = $('ovDrop');
   if (ovDrop) {
+    // The keyboard path is the two buttons inside the box, not the box itself:
+    // it is no longer focusable, and a keydown handler here would fire a second
+    // time for whichever button was already handling the Enter.
     ovDrop.addEventListener('click', () => fileInput.click());
-    ovDrop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
     ovDrop.addEventListener('dragover', e => { e.preventDefault(); ovDrop.classList.add('drag'); });
     ovDrop.addEventListener('dragleave', () => ovDrop.classList.remove('drag'));
     // stopPropagation, or the window-level handler loads the same drop a second
@@ -9028,8 +9063,11 @@ document.addEventListener('keydown', e => {
     }
   }));
 
+  // Both sit inside #ovDrop, whose background click also opens the file picker.
+  $('ovFilesBtn')?.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+  $('ovFolderBtn')?.addEventListener('click', e => { e.stopPropagation(); openFolder('study'); });
+
   // open another file at any time (button + drop anywhere on the loaded overview)
-  $('ovFolderBtn')?.addEventListener('click', () => openFolder('study'));
   $('ovOpenBtn')?.addEventListener('click', () => fileInput.click());
   const ovContent = $('ovContent');
   if (ovContent) {

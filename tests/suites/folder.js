@@ -272,8 +272,42 @@
       ok('every tab that loads files can open a folder',
          !!document.getElementById('ovFolderBtn') && !!document.getElementById('folderBtn') &&
          !!document.getElementById('extractorFolderBtn'));
-      ok('the folder button is not inside the click-swallowing drop card',
-         !document.getElementById('ovDrop').contains(document.getElementById('ovFolderBtn')));
+
+      // Files and folders are one panel, not a panel and a button beside it.
+      // The folder picker used to be kept outside the drop card because the card
+      // was role="button" and swallowed the click; it is inside now, and what
+      // has to hold instead is that pressing it opens ONE dialog. A folder
+      // button that also fires the drop zone's own click gives the user the file
+      // dialog stacked behind the folder one.
+      for (const [btn, zone] of [['ovFolderBtn', 'ovDrop'], ['folderBtn', 'dropZone'],
+                                 ['extractorFolderBtn', 'extractorDropZone']]) {
+        ok(`${btn} sits inside its drop zone`,
+           document.getElementById(zone).contains(document.getElementById(btn)));
+      }
+      {
+        const opened = [];
+        const realFile = fileInput.click.bind(fileInput);
+        const realDir  = folderInput.click.bind(folderInput);
+        fileInput.click   = () => opened.push('files');
+        folderInput.click = () => opened.push('folder');
+        try {
+          document.getElementById('ovFolderBtn').click();
+          ok('and opening a folder does not also open the file picker',
+             opened.join(',') === 'folder', opened.join(',') || '(nothing opened)');
+          opened.length = 0;
+          document.getElementById('ovFilesBtn').click();
+          ok('and the files button opens only the file picker',
+             opened.join(',') === 'files', opened.join(',') || '(nothing opened)');
+        } finally {
+          fileInput.click = realFile;
+          folderInput.click = realDir;
+        }
+      }
+      // A container that holds buttons cannot itself be one — a screen reader
+      // has no way to describe a button inside a button.
+      ok('the drop card is not a button now that it holds two',
+         document.getElementById('ovDrop').getAttribute('role') !== 'button' &&
+         !document.getElementById('ovDrop').hasAttribute('tabindex'));
     }
   } catch (e) {
     ok('suite ran to completion', false, (e && e.message) || String(e));
