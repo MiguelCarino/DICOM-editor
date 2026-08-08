@@ -1,0 +1,206 @@
+// Decoder-level checks: does decodeDicomPixels() get the numbers out of the file?
+//
+// This suite deliberately stops short of display. For greyscale it asserts on
+// rawFloats — the stored values the decoder recovered — because that is the one
+// thing that must be right no matter which layer later applies rescale, VOI or
+// inversion. Sign handling, bit masking, byte order and frame offsets all show
+// up here as wrong minima and maxima. What the user finally sees is tests/suites/viewer.js.
+//
+// Colour is different: nothing further is applied to it, so RGB cases are
+// compared pixel for pixel against the oracle right here.
+window.addEventListener('load', () => (async () => {
+  const out = [];
+  const ok = (name, cond, extra) => out.push(`${cond ? 'PASS' : 'FAIL'} :: ${name}${extra ? ' :: ' + extra : ''}`);
+  const report = () => {
+    const pre = document.createElement('pre');
+    pre.id = 'TESTOUT';
+    pre.textContent = out.join('\n');
+    document.body.appendChild(pre);
+  };
+
+  try {
+    const cases = await Forge.corpus();
+    const byId = Object.fromEntries(cases.map(c => [c.id, c]));
+
+    // dcmjs is what the app itself parses with, so parse failures are real failures.
+    function parse(c) {
+      const b = c.bytes;
+      const msg = DicomMessage.readFile(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+      normBin(msg.dict);
+      return { dict: msg.dict, meta: msg.meta || {} };
+    }
+
+    async function dec(id, frame = 0) {
+      const c = byId[id];
+      if (!c) throw new Error('no such case: ' + id);
+      const { dict, meta } = parse(c);
+      return { c, res: await decodeDicomPixels(dict, frame, { meta }) };
+    }
+
+    const range = (a) => {
+      let mn = Infinity, mx = -Infinity;
+      for (let i = 0; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; }
+      return [mn, mx];
+    };
+    const trueRange = (id) => range(byId[id].ref.samples);
+
+    // ---- every case must at least survive parsing --------------------------
+    for (const c of cases) {
+      let msg = '';
+      try { parse(c); } catch (e) { msg = e.message || String(e); }
+      ok(`${c.id}: dcmjs parses the file`, !msg, msg);
+    }
+
+    // ---- geometry and frame counts -----------------------------------------
+    for (const c of cases) {
+      if (c.broken) continue;
+      let res = null, err = '';
+      try { ({ res } = await dec(c.id)); } catch (e) { err = e.message || String(e); }
+      if (err) { ok(`${c.id}: decodes without throwing`, false, err); continue; }
+      ok(`${c.id}: returns something renderable`, !!res && !res.error,
+         res ? (res.error || '') : 'returned null');
+      if (!res || res.error) continue;
+      ok(`${c.id}: ${c.w}x${c.h} geometry survives`, res.cols === c.w && res.rows === c.h,
+         `${res.cols}x${res.rows}`);
+      const want = c.frames || 1;
+      ok(`${c.id}: reports ${want} frame(s)`, res.numFrames === want, String(res.numFrames));
+    }
+
+    // ---- greyscale: the stored values that came back out --------------------
+    const monoCases = ['mono2-u8', 'mono2-u16-b12', 'mono2-u16-b16', 'mono2-s16-b12',
+                       'mono2-s16-b16', 'mono1-u16', 'ct-rescale-hu', 'pt-rescale-slope',
+                       'mono2-no-window', 'implicit-vr', 'big-endian', 'raw-looks-like-jpeg'];
+    for (const id of monoCases) {
+      let res = null, err = '';
+      try { ({ res } = await dec(id)); } catch (e) { err = e.message || String(e); }
+      if (err || !res || res.error || !res.rawFloats) {
+        ok(`${id}: recovers the stored pixel values`, false,
+           err || (res ? (res.error || 'no rawFloats — decoded as colour?') : 'null'));
+        continue;
+      }
+      const [wmn, wmx] = trueRange(id);
+      const [gmn, gmx] = range(res.rawFloats);
+      ok(`${id}: stored range is ${wmn}..${wmx}`, gmn === wmn && gmx === wmx, `got ${gmn}..${gmx}`);
+    }
+
+    // A ramp is monotonic across a row; a byte-order or masking slip breaks that
+    // long before it breaks the min and max.
+    for (const id of ['mono2-u16-b12', 'mono2-s16-b12', 'big-endian', 'implicit-vr']) {
+      let res = null;
+      try { ({ res } = await dec(id)); } catch (_) {}
+      if (!res || !res.rawFloats) { ok(`${id}: middle row still ramps upward`, false, 'no data'); continue; }
+      const y = 16, w = Forge.W;
+      let mono = true, at = -1;
+      for (let x = 6; x < w - 6; x++) {
+        if (res.rawFloats[y * w + x] < res.rawFloats[y * w + x - 1]) { mono = false; at = x; break; }
+      }
+      ok(`${id}: middle row still ramps upward`, mono, at >= 0 ? `drops at x=${at}` : '');
+    }
+
+    // ---- colour ------------------------------------------------------------
+    for (const id of ['rgb-planar0', 'rgb-planar1', 'ybr-full', 'palette-color']) {
+      const c = byId[id];
+      let res = null, err = '';
+      try { ({ res } = await dec(id)); } catch (e) { err = e.message || String(e); }
+      if (err || !res || res.error) {
+        ok(`${id}: decodes to colour pixels`, false, err || (res ? res.error : 'returned null'));
+        continue;
+      }
+      const want = Forge.expected(c.ref, c.w, c.h);
+      const diff = Forge.compare(res.pixels, want, c.tol);
+      ok(`${id}: colours match the source image`, !diff, diff || '');
+    }
+
+    // ---- frames are actually different from one another ---------------------
+    {
+      const c = byId['multiframe-mono'];
+      const seen = [];
+      for (let f = 0; f < c.frames; f++) {
+        let res = null;
+        try { ({ res } = await dec(c.id, f)); } catch (_) {}
+        seen.push(res && res.rawFloats ? range(res.rawFloats).join('..') : 'none');
+      }
+      ok('multiframe-mono: each frame decodes to its own data',
+         new Set(seen).size === c.frames, seen.join(' | '));
+      for (let f = 0; f < c.frames; f++) {
+        let res = null;
+        try { ({ res } = await dec(c.id, f)); } catch (_) {}
+        const want = range(c.frameRef(f).samples).join('..');
+        ok(`multiframe-mono: frame ${f} holds frame ${f}`,
+           !!res && res.rawFloats && range(res.rawFloats).join('..') === want,
+           res && res.rawFloats ? range(res.rawFloats).join('..') : 'none');
+      }
+    }
+    {
+      const c = byId['multiframe-rgb'];
+      for (let f = 0; f < c.frames; f++) {
+        let res = null, err = '';
+        try { ({ res } = await dec(c.id, f)); } catch (e) { err = e.message || String(e); }
+        if (!res || res.error) { ok(`multiframe-rgb: frame ${f} decodes`, false, err || (res && res.error)); continue; }
+        const diff = Forge.compare(res.pixels, Forge.expected(c.frameRef(f), c.w, c.h), c.tol);
+        ok(`multiframe-rgb: frame ${f} is the ${['red', 'green', 'blue'][f]} one`, !diff, diff || '');
+      }
+    }
+    {
+      const c = byId['jpeg-multiframe'];
+      for (let f = 0; f < c.frames; f++) {
+        let res = null, err = '';
+        try { ({ res } = await dec(c.id, f)); } catch (e) { err = e.message || String(e); }
+        if (!res || res.error) { ok(`jpeg-multiframe: frame ${f} decodes`, false, err || (res && res.error)); continue; }
+        const diff = Forge.compare(res.pixels, Forge.expected(c.frameRef(f), c.w, c.h), c.tol);
+        ok(`jpeg-multiframe: frame ${f} is its own fragment`, !diff, diff || '');
+      }
+    }
+
+    // ---- the FF D8 trap ----------------------------------------------------
+    {
+      let res = null, err = '';
+      try { ({ res } = await dec('raw-looks-like-jpeg')); } catch (e) { err = e.message || String(e); }
+      ok('raw-looks-like-jpeg: not mistaken for a JPEG',
+         !!res && !res.error && !!res.rawFloats && res.rawFloats[0] === 0xD8FF,
+         err || (res && res.error) || (res && res.rawFloats ? `first px ${res.rawFloats[0]}` : 'no rawFloats'));
+    }
+
+    // ---- baseline JPEG -----------------------------------------------------
+    {
+      const c = byId['jpeg-baseline'];
+      let res = null, err = '';
+      try { ({ res } = await dec(c.id)); } catch (e) { err = e.message || String(e); }
+      if (!res || res.error) ok('jpeg-baseline: browser decodes the fragment', false, err || (res && res.error));
+      else {
+        const diff = Forge.compare(res.pixels, Forge.expected(c.ref, c.w, c.h), c.tol);
+        ok('jpeg-baseline: browser decodes the fragment', !diff, diff || '');
+      }
+    }
+
+    // ---- malformed input degrades instead of exploding ----------------------
+    for (const id of ['truncated-pixels', 'window-width-zero', 'jpeg2000-unsupported']) {
+      const c = byId[id];
+      let res, err = '';
+      try { ({ res } = await dec(id)); } catch (e) { err = e.message || String(e); }
+      ok(`${id}: does not throw`, !err, err);
+      if (c.expectError) {
+        ok(`${id}: says why it cannot show the image`,
+           !!res && !!res.error && c.expectError.test(res.error),
+           res ? (res.error || 'no error reported') : 'null');
+      }
+    }
+    {
+      // Width 0 is illegal, but a viewer that answers with a uniformly black
+      // frame has silently lost the picture.
+      let res = null;
+      try { ({ res } = await dec('window-width-zero')); } catch (_) {}
+      let flat = true;
+      if (res && res.pixels) {
+        const first = res.pixels[0];
+        for (let i = 0; i < res.pixels.length; i += 4) if (res.pixels[i] !== first) { flat = false; break; }
+      }
+      ok('window-width-zero: image is not flattened to one shade', !!res && !res.error && !flat,
+         res && res.pixels ? `all pixels ${res.pixels[0]}` : 'no pixels');
+    }
+  } catch (e) {
+    ok('suite ran to completion', false, (e && e.stack ? e.stack.split('\n')[0] : String(e)));
+  }
+
+  report();
+})());

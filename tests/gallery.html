@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forge gallery — DICOM test images</title>
+<link rel="stylesheet" href="../fonts.css">
+<style>
+  :root {
+    --surface: #0d0d0d; --surface-solid: #080808; --border: #262626;
+    --text: #fff; --text-dim: #a3a3a3; --text-muted: #666;
+    --accent: #eab308; --accent-glow: rgba(234,179,8,.15);
+    --font: 'IBM Plex Sans', 'Red Hat Text', 'Liberation Sans', system-ui, sans-serif;
+    --mono: 'IBM Plex Mono', 'Liberation Mono', ui-monospace, monospace;
+    --r-md: 10px; --r-sm: 4px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--surface-solid); color: var(--text);
+         font-family: var(--font); font-size: 14px; line-height: 1.55; }
+  header { border-bottom: 1px solid var(--border); padding: 28px 24px 22px; }
+  h1 { margin: 0 0 6px; font-size: 1.25rem; letter-spacing: -.01em; }
+  h1 span { color: var(--accent); }
+  header p { margin: 0 0 14px; color: var(--text-dim); max-width: 68ch; }
+  .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  button { font: inherit; font-size: .8rem; padding: 7px 14px; border-radius: var(--r-sm);
+           border: 1px solid var(--border); background: var(--surface); color: var(--text);
+           cursor: pointer; }
+  button:hover { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600; }
+  .count { color: var(--text-muted); font-family: var(--mono); font-size: .75rem; }
+  main { display: grid; gap: 16px; padding: 24px;
+         grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  .card { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface);
+          overflow: hidden; display: flex; flex-direction: column; }
+  .shot { background: #000; display: flex; align-items: center; justify-content: center;
+          aspect-ratio: 1; padding: 12px; }
+  .shot canvas { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+  .shot.none { color: var(--text-muted); font-family: var(--mono); font-size: .72rem;
+               text-align: center; padding: 20px; }
+  .body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .id { font-family: var(--mono); font-size: .68rem; color: var(--accent); letter-spacing: .02em; }
+  .title { font-size: .84rem; font-weight: 600; }
+  .note { font-size: .76rem; color: var(--text-dim); flex: 1; }
+  .frames { font-family: var(--mono); font-size: .68rem; color: var(--text-muted); }
+  footer { border-top: 1px solid var(--border); padding: 20px 24px 40px; color: var(--text-dim); }
+  footer code { font-family: var(--mono); font-size: .78rem; color: var(--text); }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Forge gallery <span>— reference renderings</span></h1>
+  <p>
+    Every image below is drawn from the sample values a test file was built from, not
+    from the file itself. That makes them an oracle: this is what
+    <a href="https://dicom.carino.systems">dicom.carino.systems</a> should show when
+    the same file is opened in it. Download a case, drop it into the viewer, and
+    compare. Anything that does not match is a bug in the viewer, not in the file.
+  </p>
+  <div class="bar">
+    <button class="primary" id="all">Download every case</button>
+    <span class="count" id="count">building…</span>
+  </div>
+</header>
+
+<main id="grid"></main>
+
+<footer>
+  The same corpus drives the automated suites: <code>./tests/run.sh</code> from the repo root.
+</footer>
+
+<script src="dicom-forge.js"></script>
+<script>
+(async () => {
+  const count = document.getElementById('count');
+  try {
+  const grid = document.getElementById('grid');
+  const cases = await Forge.corpus();
+  count.textContent = `${cases.length} cases`;
+
+  function save(c) {
+    const url = URL.createObjectURL(new Blob([c.bytes], { type: 'application/dicom' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `${c.id}.dcm`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  for (const c of cases) {
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    // Frame 0 is what the viewer opens on, so that is what we show.
+    const ref = c.frameRef ? c.frameRef(0) : c.ref;
+    let shot;
+    if (ref) {
+      shot = document.createElement('div');
+      shot.className = 'shot';
+      const cv = document.createElement('canvas');
+      cv.width = c.w; cv.height = c.h;
+      cv.getContext('2d').putImageData(new ImageData(Forge.expected(ref, c.w, c.h), c.w, c.h), 0, 0);
+      shot.appendChild(cv);
+    } else {
+      shot = document.createElement('div');
+      shot.className = 'shot none';
+      shot.textContent = 'deliberately malformed — there is no correct picture, only correct behaviour';
+    }
+
+    const body = document.createElement('div');
+    body.className = 'body';
+    const id = document.createElement('div'); id.className = 'id'; id.textContent = c.id;
+    const title = document.createElement('div'); title.className = 'title'; title.textContent = c.title;
+    const note = document.createElement('div'); note.className = 'note'; note.textContent = c.note || '';
+    const meta = document.createElement('div'); meta.className = 'frames';
+    meta.textContent = `${c.w}×${c.h}${c.frames > 1 ? ` · ${c.frames} frames` : ''} · ${(c.bytes.length / 1024).toFixed(1)} kB`;
+    const btn = document.createElement('button');
+    btn.textContent = 'Download .dcm';
+    btn.addEventListener('click', () => save(c));
+
+    body.append(id, title, note, meta, btn);
+    card.append(shot, body);
+    grid.appendChild(card);
+  }
+
+  // Browsers throttle a burst of downloads, so space them out.
+  document.getElementById('all').addEventListener('click', () => {
+    cases.forEach((c, i) => setTimeout(() => save(c), i * 250));
+  });
+  } catch (e) {
+    // A silent empty page would be indistinguishable from "no cases", so say so.
+    count.textContent = 'failed: ' + ((e && e.message) || e);
+  }
+})();
+</script>
+</body>
+</html>
