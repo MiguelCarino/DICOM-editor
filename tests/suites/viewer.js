@@ -10,15 +10,9 @@
 // The two are checked separately on purpose. They are different code paths, and
 // a case that passes in one and fails in the other is exactly the kind of bug
 // that gets reported as "the image looks wrong sometimes".
-window.addEventListener('load', () => (async () => {
+(window.SUITES || (window.SUITES = {})).viewer = async () => {
   const out = [];
   const ok = (name, cond, extra) => out.push(`${cond ? 'PASS' : 'FAIL'} :: ${name}${extra ? ' :: ' + extra : ''}`);
-  const report = () => {
-    const pre = document.createElement('pre');
-    pre.id = 'TESTOUT';
-    pre.textContent = out.join('\n');
-    document.body.appendChild(pre);
-  };
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
   try {
@@ -166,5 +160,14 @@ window.addEventListener('load', () => (async () => {
     ok('suite ran to completion', false, (e && e.stack ? e.stack.split('\n')[0] : String(e)));
   }
 
-  report();
-})());
+  return out;
+};
+
+// Two callers: tests/run.sh injects this file alone and scrapes the <pre> below;
+// index.html#selftest sets window.SELFTEST and awaits the returned lines instead.
+if (!window.SELFTEST) window.addEventListener('load', async () => {
+  const pre = document.createElement('pre');
+  pre.id = 'TESTOUT';
+  pre.textContent = (await window.SUITES.viewer()).join('\n');
+  document.body.appendChild(pre);
+});

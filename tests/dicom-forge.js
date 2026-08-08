@@ -75,6 +75,24 @@
     return concat([...head, vrb, new Uint8Array(2), u32(data.length, be), data]);
   }
 
+  // A sequence: defined length, one (FFFE,E000) item per dataset, each item also
+  // of defined length. Undefined lengths with (FFFE,E00D)/(FFFE,E0DD) delimiters
+  // are equally legal, but defined ones are what a writer emits and they keep the
+  // encoder honest — every length here is the real byte count of what follows.
+  // `items` is an array of ds objects in build()'s own { tag: {vr, v} } shape, so
+  // a nested sequence is just another { vr:'SQ', items:[...] } entry.
+  function sequence(tag, items, { be = false, implicit = false } = {}) {
+    const body = items.map(ds => {
+      const inner = concat(Object.keys(ds).sort().map(t => {
+        const e = ds[t];
+        return e.vr === 'SQ' ? sequence(t, e.items || [], { be, implicit })
+                             : element(t, e.vr, bytesOfValue(e.vr, e.v, be), { implicit, be });
+      }));
+      return concat([u16(0xFFFE, be), u16(0xE000, be), u32(inner.length, be), inner]);
+    });
+    return element(tag, 'SQ', concat(body), { implicit, be });
+  }
+
   // Undefined-length OB holding one item per frame, preceded by an empty basic
   // offset table — how every compressed transfer syntax carries its pixels.
   function encapsulate(frames, be) {
@@ -259,8 +277,9 @@
 
     const body = [];
     for (const tag of Object.keys(ds).sort()) {
-      const { vr, v } = ds[tag];
-      body.push(element(tag, vr, bytesOfValue(vr, v, be), { implicit, be }));
+      const e = ds[tag];
+      body.push(e.vr === 'SQ' ? sequence(tag, e.items || [], { implicit, be })
+                              : element(tag, e.vr, bytesOfValue(e.vr, e.v, be), { implicit, be }));
     }
 
     // Pixel data last: OW for 16-bit raw, OB for 8-bit and for anything
@@ -308,6 +327,68 @@
   }
 
   // ------------------------------------------------------------ the samples --
+
+
+  // ------------------------------------------------ checked-in codestreams --
+
+  // JPEG 2000 and JPEG-LS are the two syntaxes this file cannot forge itself:
+  // the app vendors decode-only WASM, so there is no encoder in the browser to
+  // write one with. These five streams were produced out of band, from the very
+  // rasters pattern() and colorPattern() build below, by
+  // tests/fixtures/make-codec-fixtures.mjs — regenerate them with that script
+  // rather than by hand, and read the oracle-strength note in tests/README.md
+  // before reading a pass here as proof the codec is correct.
+  //
+  // That script carries its own copies of pattern() and colorPattern(). The two
+  // have to stay in step: the reference image here is computed from this file's
+  // copy and never from these bytes, so a drift shows up as every JPEG 2000 and
+  // JPEG-LS assertion failing at once, with nothing pointing at the cause.
+  const J2K_MONO16_B12 =
+    '/0//UQApAAAAAAAgAAAAIAAAAAAAAAAAAAAAIAAAACAAAAAAAAAAAAABCwEB/1IADAACAAEAAwQEAAH/XAANQGBoaHBoaHBo' +
+    'aHD/ZAAlAAFDcmVhdGVkIGJ5IE9wZW5KUEVHIHZlcnNpb24gMi41LjD/kAAKAAAAAAEFAAH/k9/gbBLQk+seBDs4vJljM4eR' +
+    'gLLB+MlR1t+gL3x4B8P2E4/kRn/gAeAUrUxM+Jytm5qu9RKUi1ralzMvFNcRT7JTOdCIFMSTb/gY37MkzXNuVu1gJzD739Wm' +
+    'zYfP8EM/wLw/kRAXXTffquEXzJvipMaIw1tssVIlUQa5wFTAuF+sBlYIKH8Myr3XZ3mvDfMZF0vURpjn0p5O/m9HfxawLrHM' +
+    'wnU9Qt7dw0MvYx1/x/JNP8CEH7BYHDx8tCuXvTFdCT9QEUuXAEs8GLKjUDlCL32AXL1wrUBilrxwiD+r6xzDN/c1k1VFJ4pW' +
+    'OQE/HoFJ2eIlkM9TbGT/2Q==';
+  const J2K_RGB_RCT =
+    '/0//UQAvAAAAAAAgAAAAIAAAAAAAAAAAAAAAIAAAACAAAAAAAAAAAAADBwEBBwEBBwEB/1IADAACAAEBAwQEAAH/XAANQEBI' +
+    'SFBISFBISFD/ZAAlAAFDcmVhdGVkIGJ5IE9wZW5KUEVHIHZlcnNpb24gMi41LjD/kAAKAAAAAAGsAAH/k8+0RAt1XuBselNc' +
+    'HFK0X640h4Af/xiYFN8ncQBDDB0FWT1dO0r92OAax9+AkAZBlIy0Bzbl+LaIOp62XHb/f8PqCofUGwPnEhTZd8xUzlyYOA4U' +
+    '1OD3J+AJyAtA5lp/FVbhgDBSc6YPz8AmfgHw+0HAFNl4lR1gjngfFNjnAdzLN5zp9lF9tRJaFVbisfPEt8PqBofUDCIaCGLa' +
+    'IgDP1Vy9L8PqDofUHwPnEBe9xJNLMG41wUwWAYDsDxfE93ylGTLCWr0O0xTfFrDGAj/yiD/PwC5+AtD7QgAXvcSTS0V1xai8' +
+    'Lw8XxPs4vZ5ZglnPuzj+z+0cBFnNCd8WsMUJxxBqH8HziIPnGDahma5jmSP9PmKirYhuV0rgTGNLw+oTh9QrA+cUIhm8yayO' +
+    'I52bCxmI/3X2Dl6XnwN7Xy+EA8sB8Hv3QsAMmJfvaUQfpyQsTNoPsAjmwRXPwCJ+AvD7QQAiGbzJrI6XfyQoBKPBOX+H/ZVW' +
+    'Zp24D5kfZ2kgsfShJCxNB8D5BcD5BIBfp8eImBCcdrKpg52WqQEEKAYagf/Z';
+  const JLS_MONO16_B12 =
+    '/9j/9wALDAAgACABAREA/9oACAEBAAAAAECBBBAAAAAAFSghyDIF/v19vl7vV5vN3u11ulzuVxuFvt9ttlrtVpwPIECCCEIQ' +
+    'iIiIiJJJJJIHIJJJKqqqqqqDYKqqqr/+DMP/f/9AgkQXhdBHCR//f/wgf/9//2ED/3//fhB//3//RB//f/9xD/9//3iH/3//' +
+    'fEP/f/9+If9//38R/3//fxH/f/9/Ef9//38j/3//fkf/f/98j/9//3kf/3//cj//f/9k/3//f5P/f/9+T/9//3k//3//ZP9/' +
+    '/3+T/3//QAAAAAUIQjkKQYR5GMYxjGMYxjGMYxjGMzMzAgcmZmZmZmZmZmZmZmZmCDJmZmZtttttttttggy222222222222w' +
+    'hP/Z';
+  const JLS_RGB =
+    '/9j/9wARCAAgACADAREAAhEAAxEA/9oADAMBAAIAAwAAAgBLCTB5n2AAGwDsPYewtpff38vv6+vv6+vr7+vr/3/X/3//L/9/' +
+    'gCkysqrV11kyZ5573ve973ve973/f/54Jd3bu93/f/9//3//f/3EO7u7vd//f/9//3//f92O7u7v/3//f/9//3//fU7u7u//' +
+    'f/9//3//f/99Du7u7/9//3//f/9//30O7u7v/3//f/9//3//fwec5znOd/9//3//f/9//0v/f/9//3//f/9//3/z/3//f/9/' +
+    '/3//f/9/9f9//3//f/9//3//f/z/f/9//3//f/9//3/+/3//f/9//3//f/9//v9//3//f/9//3//f/7/f/9//3//f/9//3/6' +
+    'f/9//3//f/9//3//f3//f/9//3//f/9//39//3//f/9//3//f/9+f/9//3//f/9//3//f3//f/9//3//f/9//35//3//f/9/' +
+    '/3//f/9+f/9//3//f/9//3//fn//f/9//3//f/9//35//3//f/9//3//f/9/f/9//3//f/9//3//fn//f/9//3//f/9//35/' +
+    '/3//f/9//3//f/9+f/9//3//f/9//3//f3//f/9//3//f/9//37/f/9//3//f/9//3/9/3//f/9//3//f/9/4P/Z';
+  const JLS_RGB_PLANAR =
+    '/9j/9wARCAAgACADAREAAhEAAxEA/9oACAEBAAAAAIcd47Vr/dvbu1tvtt9t9slf/3//F/9//31//3//X/9//3//f/9//3//' +
+    'f/9//3//f/9//3//f/9//3//f/9//3//f/9//3//f/9//3//f/9//3//f/9//3//f/9//3//f/9//3//f/9//3//f/9//3//' +
+    'f/9//3//f/9//3//f/9//3//f/9//3//f/9//3//f/9//3/8/9oACAECAAAAAP98B5X/f/94T/9//3kf/3//dn//f/9V/3//' +
+    'f0f/f/99H/9//3z/f/9/5/9//38//3//df9//3/P/3//fv9//3/v/3//fv9//3+n/3//f3//f/93/3//fn//f/93/3//fn//' +
+    'f/9n/3//fn//f/9n/3//f3//f/9n/3//fn//f/9n/3//f3//f/9v/3//ff9//3//2gAIAQMAAAAASV7/fLnwvBaOjo6OC/y7' +
+    '/3//AP/Z';
+
+  // Chromium's atob gives a binary string; the fixtures are stored base64 only
+  // because a JS source file cannot carry raw bytes.
+  function b64ToBytes(s) {
+    const bin = atob(s.replace(/\s+/g, ''));
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
 
   const W = 32, H = 32;
 
@@ -1058,14 +1139,106 @@
       });
     }
 
-    // ---- JPEG 2000, which nothing in the browser can decode ------------------
+    // ---- JPEG 2000, 12 bits in 16 ------------------------------------------
     {
-      // A J2K codestream signature and nothing behind it — enough to be recognised.
+      const s = new Uint16Array(n);
+      for (let i = 0; i < n; i++) s[i] = Math.round(p[i] * 4095);
+      add({
+        id: 'j2k-mono16-b12',
+        title: 'JPEG 2000 Lossless, 12 bits in 16',
+        note: 'The codestream carries 12 bits of real precision, so the decoder hands back ' +
+              'two bytes per sample for a picture whose values never exceed 4095. Read at ' +
+              'the wrong width it is a picture of noise; read unshifted it is 16 times too dark.',
+        w: W, h: H,
+        bytes: build({ ts: '1.2.840.10008.1.2.4.90', rows: H, cols: W, pi: 'MONOCHROME2',
+                       ba: 16, bs: 12, hb: 11, pr: 0, wc: 2048, ww: 4096, modality: 'MG',
+                       encapsulated: [b64ToBytes(J2K_MONO16_B12)] }),
+        ref: { kind: 'mono', samples: s, pi: 'MONOCHROME2', wc: 2048, ww: 4096 },
+      });
+    }
+
+    // ---- JPEG 2000, colour, with the multi-component transform --------------
+    // YBR_RCT is what a lossless colour J2K is tagged with, and it is the one
+    // photometric interpretation the raw path used to refuse outright. OpenJPEG
+    // inverts the transform itself, so what arrives here is already RGB — a
+    // second YCbCr conversion, or a refusal, are both silent picture defects.
+    {
+      const rgb = colorPattern(W, H);
+      add({
+        id: 'j2k-rgb-rct',
+        title: 'JPEG 2000 Lossless, RGB with the reversible colour transform',
+        note: 'Tagged YBR_RCT, decoded to RGB. Converting it again gives wrong colours with ' +
+              'no error at all, which is the worst way for a viewer to be wrong.',
+        w: W, h: H,
+        bytes: build({ ts: '1.2.840.10008.1.2.4.90', rows: H, cols: W, pi: 'YBR_RCT', spp: 3,
+                       ba: 8, bs: 8, hb: 7, pr: 0, planar: 0, modality: 'XC',
+                       encapsulated: [b64ToBytes(J2K_RGB_RCT)] }),
+        ref: { kind: 'rgb', rgb },
+      });
+    }
+
+    // ---- JPEG-LS, 12 bits in 16 ---------------------------------------------
+    {
+      const s = new Uint16Array(n);
+      for (let i = 0; i < n; i++) s[i] = Math.round(p[i] * 4095);
+      add({
+        id: 'jls-mono16-b12',
+        title: 'JPEG-LS Lossless, 12 bits in 16',
+        note: 'Opens FF D8 FF F7, so it arrives down the same branch as a baseline JPEG and ' +
+              'has to be told apart by transfer syntax rather than by magic bytes.',
+        w: W, h: H,
+        bytes: build({ ts: '1.2.840.10008.1.2.4.80', rows: H, cols: W, pi: 'MONOCHROME2',
+                       ba: 16, bs: 12, hb: 11, pr: 0, wc: 2048, ww: 4096, modality: 'CR',
+                       encapsulated: [b64ToBytes(JLS_MONO16_B12)] }),
+        ref: { kind: 'mono', samples: s, pi: 'MONOCHROME2', wc: 2048, ww: 4096 },
+      });
+    }
+
+    // ---- JPEG-LS, colour, sample interleaved --------------------------------
+    {
+      const rgb = colorPattern(W, H);
+      add({
+        id: 'jls-rgb',
+        title: 'JPEG-LS Lossless, 8-bit RGB, sample interleaved',
+        note: 'The ordinary colour layout: RGBRGB… CharLS applies no colour transform, so ' +
+              'the photometric interpretation in the header is still the truth.',
+        w: W, h: H,
+        bytes: build({ ts: '1.2.840.10008.1.2.4.80', rows: H, cols: W, pi: 'RGB', spp: 3,
+                       ba: 8, bs: 8, hb: 7, pr: 0, planar: 0, modality: 'XC',
+                       encapsulated: [b64ToBytes(JLS_RGB)] }),
+        ref: { kind: 'rgb', rgb },
+      });
+    }
+
+    // ---- JPEG-LS, colour, component interleaved -----------------------------
+    // (0028,0006) says 0 here, as PS3.5 A.4 requires of an encapsulated image,
+    // and the codestream is planar anyway. Only the codec knows, which is why
+    // its reported interleave mode has to outrank the tag.
+    {
+      const rgb = colorPattern(W, H);
+      add({
+        id: 'jls-rgb-planar',
+        title: 'JPEG-LS Lossless, 8-bit RGB, component interleaved',
+        note: 'Three whole planes in one stream while the tag claims interleaved samples. ' +
+              'Believing the tag turns the picture into three vertical bands.',
+        w: W, h: H,
+        bytes: build({ ts: '1.2.840.10008.1.2.4.80', rows: H, cols: W, pi: 'RGB', spp: 3,
+                       ba: 8, bs: 8, hb: 7, pr: 0, planar: 0, modality: 'XC',
+                       encapsulated: [b64ToBytes(JLS_RGB_PLANAR)] }),
+        ref: { kind: 'rgb', rgb },
+      });
+    }
+
+    // ---- a JPEG 2000 header with nothing behind it --------------------------
+    {
+      // A J2K codestream signature and 60 zero bytes. OpenJPEG does not throw on
+      // this: it returns a frameInfo of all zeros and an empty buffer, so only an
+      // explicit check stands between it and a silently blank frame.
       const j2k = new Uint8Array(64);
       j2k.set([0xFF, 0x4F, 0xFF, 0x51], 0);
       add({
         id: 'jpeg2000-unsupported',
-        title: 'JPEG 2000 (not decodable in a browser)',
+        title: 'JPEG 2000 with an unreadable codestream',
         note: 'The right behaviour is a clear message, not a blank canvas or a crash.',
         w: W, h: H, broken: true, expectError: /2000/i,
         bytes: build({ ts: '1.2.840.10008.1.2.4.90', rows: H, cols: W, pi: 'MONOCHROME2',
@@ -1074,7 +1247,408 @@
       });
     }
 
+    // ---- a JPEG 2000 codestream cut off part-way ----------------------------
+    {
+      add({
+        id: 'j2k-truncated',
+        title: 'JPEG 2000 truncated to its first 200 bytes',
+        note: 'A valid header over half a picture. The decoder returns width 0 and an empty ' +
+              'buffer rather than raising, so this is the case the length guard exists for.',
+        w: W, h: H, broken: true, expectError: /2000/i,
+        bytes: build({ ts: '1.2.840.10008.1.2.4.90', rows: H, cols: W, pi: 'MONOCHROME2',
+                       ba: 16, bs: 12, hb: 11, pr: 0, wc: 2048, ww: 4096,
+                       encapsulated: [b64ToBytes(J2K_MONO16_B12).slice(0, 200)] }),
+        ref: null,
+      });
+    }
+
+    // ---- High-Throughput JPEG 2000, which stays refused ---------------------
+    // Part 15 shares the FF 4F FF 51 magic with Part 1 but not the block coder,
+    // and OpenJPEG 2.x does not implement it. The refusal has to be by transfer
+    // syntax; a magic-byte test would hand this straight to the wrong decoder.
+    {
+      const ht = new Uint8Array(64);
+      ht.set([0xFF, 0x4F, 0xFF, 0x51], 0);
+      add({
+        id: 'htj2k-unsupported',
+        title: 'High-Throughput JPEG 2000 (1.2.840.10008.1.2.4.201)',
+        note: 'Named in the refusal so the user can tell it apart from ordinary JPEG 2000, ' +
+              'which this tool does decode.',
+        w: W, h: H, broken: true, expectError: /High-Throughput|201/i,
+        bytes: build({ ts: '1.2.840.10008.1.2.4.201', rows: H, cols: W, pi: 'MONOCHROME2',
+                       ba: 16, bs: 12, hb: 11, pr: 0, encapsulated: [ht.buffer] }),
+        ref: null,
+      });
+    }
+
     return cases;
+  }
+
+  // ------------------------------------------------------------ demo samples --
+  //
+  // The corpus above is built to break decoders: 32x32 ramps and corner flags,
+  // deliberately malformed files, patterns chosen so a transpose or an off-by-one
+  // is unmissable. None of that is any use as the first thing a visitor sees.
+  //
+  // Forge.samples() is the other audience. It builds a small synthetic study
+  // that looks enough like imaging to be worth opening, with a complete header
+  // so the Overview's cards fill in and its Conformance check comes back clean.
+  // It lives here, beside the corpus, for one reason: every sample carries the
+  // same independently computed reference the corpus cases do, so the suites can
+  // hold the app's front door to exactly the same standard as its test files. A
+  // second copy of this in index.html would be a picture with no oracle behind it.
+
+  // Deterministic value noise in 0..1. Math.random would make a sample that is
+  // not the same file twice, and the reference image is derived from this
+  // raster — an oracle cannot be built on a picture that changes between runs.
+  function noise(x, y, seed) {
+    let h = (x * 374761393 + y * 668265263 + seed * 1274126177) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+  }
+
+  // A 5x7 column-major font, five bytes a glyph, bit 0 the top row. Only the
+  // characters a modality's burned-in banner uses — this exists to put plausible
+  // identity into pixels for the redaction tool to find, not to typeset.
+  const TEXT_CHARS = ' -./:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ^';
+  const TEXT_FONT =
+    '0000000000' + '0808080808' + '0060600000' + '2010080402' + '0036360000' +
+    '3E5149453E' + '00427F4000' + '4261514946' + '2141454B31' + '1814127F10' +
+    '2745454539' + '3C4A494930' + '0171090503' + '3649494936' + '064949291E' +
+    '7E1111117E' + '7F49494936' + '3E41414122' + '7F4141221C' + '7F49494941' +
+    '7F09090101' + '3E4149497A' + '7F0808087F' + '00417F4100' + '2040413F01' +
+    '7F08142241' + '7F40404040' + '7F0204027F' + '7F0408107F' + '3E4141413E' +
+    '7F09090906' + '3E4151215E' + '7F09192946' + '4649494931' + '01017F0101' +
+    '3F4040403F' + '1F2040201F' + '7F2018207F' + '6314081463' + '0708700807' +
+    '6151494543' + '0402010204';
+
+  // Stamps text through a put(x, y) callback, so the same glyphs burn into a
+  // greyscale plane and into RGB triplets. A character the font has no glyph for
+  // advances as a space rather than throwing.
+  function drawText(text, x0, y0, scale, put) {
+    for (const [i, ch] of [...String(text).toUpperCase()].entries()) {
+      const gi = TEXT_CHARS.indexOf(ch);
+      if (gi < 0) continue;
+      for (let col = 0; col < 5; col++) {
+        const bits = parseInt(TEXT_FONT.substr(gi * 10 + col * 2, 2), 16);
+        for (let row = 0; row < 7; row++) {
+          if (!(bits & (1 << row))) continue;
+          for (let dy = 0; dy < scale; dy++) {
+            for (let dx = 0; dx < scale; dx++) put(x0 + (i * 6 + col) * scale + dx, y0 + row * scale + dy);
+          }
+        }
+      }
+    }
+  }
+
+  // An axial abdomen in Hounsfield units. Not anatomy — enough structure at
+  // enough different densities that a missing rescale or the wrong window is
+  // obvious at a glance, which is the whole point of shipping it as a sample.
+  function ctAbdomenHU(w, h) {
+    const out = new Float32Array(w * h);
+    const cx = w / 2, cy = h * 0.52, rx = w * 0.42, ry = h * 0.34;
+    const near = (x, y, px, py, r) => Math.hypot(x - px, y - py) < r;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const u = (x - cx) / rx, v = (y - cy) / ry;
+        let hu = -1000;                                                  // air
+        if (u * u + v * v < 1) {
+          hu = (u * u + v * v) > 0.88 ? -95 : 45;                        // fat rind, then soft tissue
+          if (near(x, y, cx - w * 0.14, cy - h * 0.14, w * 0.18)) hu = 88;   // liver
+          if (near(x, y, cx + w * 0.20, cy - h * 0.13, w * 0.09)) hu = 70;   // spleen
+          if (near(x, y, cx - w * 0.23, cy + h * 0.07, w * 0.075)) hu = 30;  // kidneys
+          if (near(x, y, cx + w * 0.23, cy + h * 0.07, w * 0.075)) hu = 30;
+          if (near(x, y, cx + w * 0.04, cy + h * 0.11, w * 0.032)) hu = 260; // contrast-filled aorta
+          if (near(x, y, cx, cy + h * 0.22, w * 0.075)) hu = 420;            // vertebral body
+          hu += (noise(x, y, 7) - 0.5) * 16;                                 // quantum noise
+        }
+        out[y * w + x] = hu;
+      }
+    }
+    return out;
+  }
+
+  // A PA chest as TRANSMISSION in 0..1, not density: a lot of X-rays get through
+  // lung, almost none through spine. That is what a MONOCHROME1 CR stores, and
+  // it is why zero has to come out white. Render this one MONOCHROME2 by mistake
+  // and you get a photographic negative — bright lungs, black ribs.
+  function crChestTransmission(w, h) {
+    const out = new Float32Array(w * h);
+    const cx = w / 2;
+    const lung = (x, y, sx) => {
+      const u = (x - cx - sx * w) / (w * 0.185), v = (y - h * 0.42) / (h * 0.25);
+      return u * u + v * v < 1;
+    };
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const fy = y / h;
+        // Outside the torso the beam hits the detector unattenuated, which is
+        // the blackest thing on a chest film — without it the whole frame reads
+        // as one white slab and there is nothing to judge the inversion by.
+        const half = w * (0.30 + 0.13 * Math.min(1, Math.max(0, (fy - 0.05) * 2.2)));
+        const inBody = Math.abs(x - cx) <= half && fy >= 0.05 && fy <= 0.93;
+        let t = 0.97;
+        if (inBody) {
+          t = 0.42;                                                      // soft tissue
+          const inLung = lung(x, y, -0.21) || lung(x, y, 0.21);
+          if (inLung) t = 0.80;
+          // Vessels fanning out of the hila; they darken lung, not black it out.
+          if (inLung && Math.abs(Math.abs(x - cx) - w * 0.09 - (y - h * 0.34) * 0.30) < w * 0.013) t -= 0.22;
+          // Ribs: a family of arcs crossing everything, denser than lung, thinner than spine.
+          const rib = (y - h * 0.16) - Math.abs(x - cx) * 0.40;
+          if (rib > 0 && rib % (h * 0.105) < h * 0.019 && fy < 0.74) t = Math.min(t, 0.10);
+          const hx = (x - cx + w * 0.05) / (w * 0.20), hy = (y - h * 0.60) / (h * 0.16);
+          if (hx * hx + hy * hy < 1) t = Math.min(t, 0.22);                                   // heart
+          if (fy > 0.75 + 0.05 * Math.cos((x - cx) / w * 5)) t = Math.min(t, 0.20);           // diaphragm
+          if (Math.abs(x - cx) < w * 0.035 && fy > 0.10 && fy < 0.86) t = 0.05;               // spine
+        }
+        out[y * w + x] = Math.max(0.01, Math.min(1, t + (noise(x, y, 11) - 0.5) * 0.035));
+      }
+    }
+    return out;
+  }
+
+  // A B-mode sector in 0..1: a wedge out of the top of the frame, speckle inside
+  // it, two anechoic chambers and one bright interface. `phase` moves the near
+  // structures, so a cine of these has something that visibly beats.
+  function usSector(w, h, phase) {
+    const g = new Float32Array(w * h);
+    const ax = w / 2, ay = -h * 0.10;                                    // apex just above the frame
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const dx = x - ax, dy = y - ay;
+        const ang = Math.atan2(dx, dy), r = Math.hypot(dx, dy);
+        let v = 0;
+        if (Math.abs(ang) < 0.60 && r > h * 0.13 && r < h * 1.02) {
+          v = 0.22 + 0.55 * noise(x, y, 3) * (1.15 - r / (h * 1.1));     // speckle, fading with depth
+          if (Math.abs(r - h * (0.60 + 0.05 * Math.sin(phase))) < h * 0.018) v = 0.92;
+          if (Math.hypot(x - w * 0.37, y - (h * 0.44 + h * 0.05 * Math.sin(phase))) < w * 0.10) v = 0.04;
+          if (Math.hypot(x - w * 0.66, y - h * 0.66) < w * 0.06) v = 0.05;
+        }
+        g[y * w + x] = Math.max(0, Math.min(1, v));
+      }
+    }
+    return g;
+  }
+
+  // The same sector as RGB, with a colour Doppler box laid over it: red towards
+  // the probe, blue away. What this sample is really for is that RGB has to come
+  // out of the pipeline untouched — no windowing, no inversion, no channel swap.
+  function usColorRGB(w, h, phase) {
+    const g = usSector(w, h, phase);
+    const rgb = new Uint8Array(w * h * 3);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x, o = i * 3;
+        rgb[o] = rgb[o + 1] = rgb[o + 2] = Math.round(g[i] * 255);
+        const inBox = x > w * 0.27 && x < w * 0.73 && y > h * 0.30 && y < h * 0.72;
+        if (!inBox || g[i] <= 0.03) continue;
+        const flow = Math.sin((x / w) * 14 + phase) * (1 - Math.abs(y / h - 0.50) * 3.2);
+        if (flow > 0.35) {
+          rgb[o] = 45 + Math.round(flow * 210); rgb[o + 1] = Math.round(flow * 95); rgb[o + 2] = 25;
+        } else if (flow < -0.35) {
+          rgb[o] = 25; rgb[o + 1] = Math.round(-flow * 105); rgb[o + 2] = 45 + Math.round(-flow * 210);
+        }
+      }
+    }
+    return rgb;
+  }
+
+  // Identity that is unmistakably fake wherever it surfaces — in a tag, in the
+  // pixels, or in a screenshot somebody pastes into a bug report.
+  const SAMPLE_STUDY_UID  = '1.2.826.0.1.3680043.10.99999.9.1';
+  const SAMPLE_FRAME_UID  = '1.2.826.0.1.3680043.10.99999.9.99';
+  // Fixed, not minted from the corpus's uid() counter: the same sample has to
+  // come out byte for byte the same on every call, or a #sample= link stops
+  // reproducing and the reference image stops being a reference to anything.
+  const sampleUID = (series, inst) => `${SAMPLE_STUDY_UID}.${series}` + (inst ? `.${inst}` : '');
+  // Kept to 21 characters: at the scale the banner is drawn, that is what fits
+  // across a 256-wide frame without running off the edge.
+  const SAMPLE_BANNER     = ['SAMPLE^PHANTOM', 'ID SAMPLE-001', '2026/01/01 12:00'];
+
+  // Type 1 and Type 2 attributes every sample shares. Without these the demo's
+  // own Conformance card opens red, which is a poor advertisement for a tool
+  // whose selling point is that it checks conformance.
+  function sampleHeader(series, seriesDesc, bodyPart, spacing) {
+    return {
+      '00080050': { vr: 'SH', v: ['SAMPLE-ACC'] },                 // Accession Number
+      '00080070': { vr: 'LO', v: ['Carino Systems'] },             // Manufacturer
+      '00080080': { vr: 'LO', v: ['Carino Systems'] },             // Institution Name
+      '00080090': { vr: 'PN', v: ['Sample^Referrer'] },            // Referring Physician
+      '0008103e': { vr: 'LO', v: [seriesDesc] },                   // Series Description
+      '00081010': { vr: 'SH', v: ['DEMO-01'] },                    // Station Name
+      '00081090': { vr: 'LO', v: ['Forge Phantom'] },              // Manufacturer Model Name
+      '00100010': { vr: 'PN', v: ['Sample^Phantom'] },
+      '00100020': { vr: 'LO', v: ['SAMPLE-001'] },
+      '00100030': { vr: 'DA', v: ['19800101'] },                   // Patient Birth Date
+      '00100040': { vr: 'CS', v: ['O'] },                          // Patient Sex
+      '00101010': { vr: 'AS', v: ['045Y'] },                       // Patient Age
+      '00180015': { vr: 'CS', v: [bodyPart] },                     // Body Part Examined
+      '00181020': { vr: 'LO', v: ['forge'] },                      // Software Versions
+      '00200010': { vr: 'SH', v: ['SAMPLE1'] },                    // Study ID
+      '00200011': { vr: 'IS', v: [String(series)] },               // Series Number
+      '00280030': { vr: 'DS', v: spacing },                        // Pixel Spacing
+    };
+  }
+
+  /**
+   * A small synthetic study for the app's empty state: five files, one patient,
+   * one study, one series each. Same shape as a corpus case, so the suites and
+   * the gallery can consume them without knowing which list they came from.
+   */
+  function samples(size) {
+    const w = size || 256, h = size || 256, n = w * h;
+    const out = [];
+    const add = (c) => { out.push(c); return c; };
+
+    // ---- CT abdomen: rescale to Hounsfield, soft-tissue window --------------
+    {
+      const hu = ctAbdomenHU(w, h);
+      // Stored signed with intercept -1024, which is what CT actually ships:
+      // the numbers in the file are meaningless until the rescale is applied.
+      const s = new Int16Array(n);
+      for (let i = 0; i < n; i++) s[i] = Math.max(0, Math.min(4095, Math.round(hu[i] + 1024)));
+      add({
+        id: 'ct', name: 'CT abdomen', file: 'sample-ct-abdomen.dcm',
+        title: 'Soft-tissue window over real Hounsfield units',
+        note: 'Stored signed with intercept -1024, so the numbers in the file mean nothing until '
+            + 'the rescale is applied. The WC 40 / WW 400 window is in Hounsfield units.',
+        w, h, frames: 1,
+        bytes: build({
+          rows: h, cols: w, pi: 'MONOCHROME2', ba: 16, bs: 16, hb: 15, pr: 1,
+          wc: 40, ww: 400, slope: 1, intercept: -1024, modality: 'CT',
+          sopClass: '1.2.840.10008.5.1.4.1.1.2', title: 'SAMPLE CT ABDOMEN',
+          studyUID: SAMPLE_STUDY_UID, seriesUID: sampleUID(1), sopInstance: sampleUID(1, 1),
+          instance: 1, pixels: s,
+          extra: Object.assign(sampleHeader(1, 'AXIAL 5MM', 'ABDOMEN', ['0.7', '0.7']), {
+            '00180050': { vr: 'DS', v: ['5.0'] },                  // Slice Thickness
+            '00180060': { vr: 'DS', v: ['120'] },                  // KVP
+            '00181030': { vr: 'LO', v: ['SAMPLE ABDOMEN'] },       // Protocol Name
+            '00181160': { vr: 'SH', v: ['NONE'] },                 // Filter Type
+            '00200032': { vr: 'DS', v: ['-89.6', '-89.6', '0'] },  // Image Position (Patient)
+            '00200037': { vr: 'DS', v: ['1', '0', '0', '0', '1', '0'] },
+            '00200052': { vr: 'UI', v: [SAMPLE_FRAME_UID] },       // Frame of Reference UID
+          }),
+        }),
+        ref: { kind: 'mono', samples: s, pi: 'MONOCHROME2', wc: 40, ww: 400, slope: 1, intercept: -1024 },
+      });
+    }
+
+    // ---- Chest CR: MONOCHROME1, where zero is white -------------------------
+    {
+      const t = crChestTransmission(w, h);
+      const s = new Uint16Array(n);
+      for (let i = 0; i < n; i++) s[i] = Math.round(t[i] * 4095);
+      add({
+        id: 'cr', name: 'Chest X-ray', file: 'sample-cr-chest.dcm',
+        title: 'MONOCHROME1 — the inversion most viewers get wrong',
+        note: 'The pixels hold transmission, not density: zero has to come out white. Render it '
+            + 'MONOCHROME2 by mistake and you get bright lungs and black ribs.',
+        w, h, frames: 1,
+        bytes: build({
+          rows: h, cols: w, pi: 'MONOCHROME1', ba: 16, bs: 12, hb: 11, pr: 0,
+          wc: 2048, ww: 4096, modality: 'CR',
+          sopClass: '1.2.840.10008.5.1.4.1.1.1', title: 'SAMPLE CHEST PA',
+          studyUID: SAMPLE_STUDY_UID, seriesUID: sampleUID(2), sopInstance: sampleUID(2, 1),
+          instance: 1, pixels: s,
+          extra: Object.assign(sampleHeader(2, 'PA ERECT', 'CHEST', ['0.14', '0.14']), {
+            '00181030': { vr: 'LO', v: ['SAMPLE CHEST PA'] },
+          }),
+        }),
+        ref: { kind: 'mono', samples: s, pi: 'MONOCHROME1', wc: 2048, ww: 4096 },
+      });
+    }
+
+    // ---- Colour Doppler ultrasound ------------------------------------------
+    {
+      const rgb = usColorRGB(w, h, 0.9);
+      add({
+        id: 'us', name: 'Ultrasound (colour)', file: 'sample-us-doppler.dcm',
+        title: 'RGB colour Doppler — no window, no inversion, no channel swap',
+        note: 'Interleaved RGB, planar configuration 0. Nothing about it should be windowed on '
+            + 'the way to the canvas, and red must stay on the same side it started.',
+        w, h, frames: 1,
+        bytes: build({
+          rows: h, cols: w, pi: 'RGB', spp: 3, ba: 8, bs: 8, hb: 7, pr: 0, planar: 0,
+          modality: 'US', sopClass: '1.2.840.10008.5.1.4.1.1.6.1', title: 'SAMPLE US DOPPLER',
+          studyUID: SAMPLE_STUDY_UID, seriesUID: sampleUID(3), sopInstance: sampleUID(3, 1),
+          instance: 1, pixels: rgb,
+          extra: sampleHeader(3, 'COLOUR DOPPLER', 'HEART', ['0.25', '0.25']),
+        }),
+        ref: { kind: 'rgb', rgb },
+      });
+    }
+
+    // ---- Multi-frame cine ----------------------------------------------------
+    {
+      const F = 16;
+      const s = new Uint8Array(n * F);
+      const frames = [];
+      for (let f = 0; f < F; f++) {
+        const g = usSector(w, h, (f / F) * Math.PI * 2);
+        const fr = new Uint8Array(n);
+        for (let i = 0; i < n; i++) fr[i] = Math.round(g[i] * 255);
+        frames.push(fr);
+        s.set(fr, f * n);
+      }
+      add({
+        id: 'cine', name: 'Cine loop', file: 'sample-us-cine.dcm',
+        title: 'Sixteen frames at 30 fps — the frame slider and the play button',
+        note: 'Carries both a Recommended Display Frame Rate and a Frame Time, so the rate the '
+            + 'player picks is the one the standard says it should.',
+        w, h, frames: F,
+        bytes: build({
+          rows: h, cols: w, pi: 'MONOCHROME2', ba: 8, bs: 8, hb: 7, pr: 0, frames: F,
+          wc: 128, ww: 256, modality: 'US', sopClass: '1.2.840.10008.5.1.4.1.1.3.1',
+          title: 'SAMPLE US CINE', studyUID: SAMPLE_STUDY_UID, seriesUID: sampleUID(4),
+          sopInstance: sampleUID(4, 1), instance: 1, pixels: s,
+          extra: Object.assign(sampleHeader(4, 'FOUR CHAMBER', 'HEART', ['0.25', '0.25']), {
+            // Both rates, because the app prefers the recommended one and falls
+            // back to frame time; a sample should exercise the branch it takes.
+            '00082144': { vr: 'IS', v: ['30'] },                   // Recommended Display Frame Rate
+            '00181063': { vr: 'DS', v: ['33.33'] },                // Frame Time
+          }),
+        }),
+        frameRef: (f) => ({ kind: 'mono', samples: frames[f], pi: 'MONOCHROME2', wc: 128, ww: 256 }),
+        ref: { kind: 'mono', samples: frames[0], pi: 'MONOCHROME2', wc: 128, ww: 256 },
+      });
+    }
+
+    // ---- Burned-in annotation, for the redaction tool ------------------------
+    {
+      const rgb = usColorRGB(w, h, 2.4);
+      // White text at the top left and a footer, exactly where a modality puts
+      // it. The reference image is this same raster, so the gallery and the
+      // suites see the identity too — a redaction that removed nothing would
+      // still match, which is why redact.js compares before and after instead.
+      const put = (x, y) => {
+        if (x < 0 || y < 0 || x >= w || y >= h) return;
+        const o = (y * w + x) * 3;
+        rgb[o] = rgb[o + 1] = rgb[o + 2] = 255;
+      };
+      const scale = Math.max(1, Math.round(w / 170));
+      SAMPLE_BANNER.forEach((line, i) => drawText(line, Math.round(w * 0.03), Math.round(h * 0.03) + i * 9 * scale, scale, put));
+      drawText('MI 0.9  TIS 0.4', Math.round(w * 0.03), h - 10 * scale, scale, put);
+      add({
+        id: 'burn', name: 'Burned-in annotation', file: 'sample-burned-in.dcm',
+        title: 'Patient identity in the pixels, flagged (0028,0301) = YES',
+        note: 'A name, an ID and a date drawn into the image the way a modality console burns '
+            + 'them in. Anonymising the tags does not touch it — this is what Redact is for.',
+        w, h, frames: 1, burnedIn: true,
+        bytes: build({
+          rows: h, cols: w, pi: 'RGB', spp: 3, ba: 8, bs: 8, hb: 7, pr: 0, planar: 0,
+          modality: 'US', sopClass: '1.2.840.10008.5.1.4.1.1.7', title: 'SAMPLE SCREEN CAPTURE',
+          studyUID: SAMPLE_STUDY_UID, seriesUID: sampleUID(5), sopInstance: sampleUID(5, 1),
+          instance: 1, pixels: rgb,
+          extra: Object.assign(sampleHeader(5, 'SCREEN CAPTURE', 'HEART', ['0.25', '0.25']), {
+            '00280301': { vr: 'CS', v: ['YES'] },                  // Burned In Annotation
+          }),
+        }),
+        ref: { kind: 'rgb', rgb },
+      });
+    }
+
+    return out;
   }
 
   // -------------------------------------------------------------- comparing --
@@ -1104,6 +1678,13 @@
            `first at px ${firstAt}`;
   }
 
-  window.Forge = { build, corpus, expected, compare, pattern, colorPattern,
-                   windowFloats, encapsulate, element, jpegLossless, rleFrame, W, H };
+  // The checked-in codestreams, by name, so a suite can wrap one in a header
+  // that deliberately disagrees with it. Nothing else should reach for these —
+  // they are reference bytes, not an encoder.
+  const CODESTREAMS = { J2K_MONO16_B12, J2K_RGB_RCT, JLS_MONO16_B12, JLS_RGB, JLS_RGB_PLANAR };
+  const codestream = (name) => b64ToBytes(CODESTREAMS[name]);
+
+  window.Forge = { build, corpus, samples, expected, compare, pattern, colorPattern,
+                   windowFloats, encapsulate, element, sequence, jpegLossless, rleFrame,
+                   drawText, codestream, W, H };
 })();

@@ -5,18 +5,71 @@
 // those shared between files is not a stale-UI problem, it is a file that gets
 // written with another file's identity. This suite loads a small study through
 // the real drop handler and checks that each file keeps its own.
-window.addEventListener('load', () => (async () => {
+(window.SUITES || (window.SUITES = {})).edits = async () => {
   const out = [];
   const ok = (name, cond, extra) => out.push(`${cond ? 'PASS' : 'FAIL'} :: ${name}${extra ? ' :: ' + extra : ''}`);
-  const report = () => {
-    const pre = document.createElement('pre');
-    pre.id = 'TESTOUT';
-    pre.textContent = out.join('\n');
-    document.body.appendChild(pre);
-  };
   // The app's own formatter, so a PN element reads the same here as it does in
   // the working copy we are comparing against.
   const tag = (d, t) => { const e = lookupTag(d, t); return e ? elToString(e).trim() : ''; };
+
+  // A whole-dataset fingerprint, deep enough that nothing can change without it
+  // showing: every element's VR, every value, the bytes behind every buffer, and
+  // the same again for every item of every sequence. FNV-1a because the point is
+  // to notice a difference, not to resist anyone.
+  const fnv = (bytes) => {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < bytes.length; i++) { h ^= bytes[i]; h = Math.imul(h, 0x01000193) >>> 0; }
+    return h.toString(16);
+  };
+  const fingerprint = (node) => {
+    const parts = [];
+    const walk = (obj, prefix) => {
+      for (const k of Object.keys(obj).sort()) {
+        const el = obj[k];
+        if (!el || typeof el !== 'object') { parts.push(`${prefix}${k}=${String(el)}`); continue; }
+        const vals = Array.isArray(el.Value) ? el.Value : (el.Value === undefined ? [] : [el.Value]);
+        parts.push(`${prefix}${k}|${el.vr}|n=${vals.length}`);
+        if (typeof el.InlineBinary === 'string') parts.push(`${prefix}${k}|inline=${el.InlineBinary.length}`);
+        vals.forEach((v, i) => {
+          const at = `${prefix}${k}[${i}]`;
+          if (v instanceof ArrayBuffer) parts.push(`${at}=ab:${v.byteLength}:${fnv(new Uint8Array(v))}`);
+          else if (ArrayBuffer.isView(v)) parts.push(`${at}=view:${v.byteLength}:${fnv(new Uint8Array(v.buffer, v.byteOffset, v.byteLength))}`);
+          else if (v && typeof v === 'object') walk(v, at + '/');
+          else parts.push(`${at}=${String(v)}`);
+        });
+      }
+    };
+    walk(node || {}, '');
+    return parts.join('\n');
+  };
+  // Every buffer in a dataset, by reference and in traversal order. Equal bytes
+  // are not the point here — the point of the shallow copy is that the pixels
+  // are never duplicated, so what has to hold is that these are literally the
+  // same objects afterwards.
+  const buffersOf = (node) => {
+    const seen = [];
+    const walk = (obj) => {
+      for (const k of Object.keys(obj).sort()) {
+        const el = obj[k];
+        if (!el || typeof el !== 'object') continue;
+        const vals = Array.isArray(el.Value) ? el.Value : (el.Value === undefined ? [] : [el.Value]);
+        for (const v of vals) {
+          if (v instanceof ArrayBuffer || ArrayBuffer.isView(v)) seen.push(v);
+          else if (v && typeof v === 'object') walk(v);
+        }
+      }
+    };
+    walk(node || {});
+    return seen;
+  };
+  // Where two fingerprints first disagree, so a failure names the tag instead of
+  // making someone diff two thousand lines by eye.
+  const firstDiff = (a, b) => {
+    const la = a.split('\n'), lb = b.split('\n');
+    for (let i = 0; i < Math.max(la.length, lb.length); i++)
+      if (la[i] !== lb[i]) return `${la[i] ?? '(missing)'} -> ${lb[i] ?? '(missing)'}`;
+    return '';
+  };
 
   try {
     // A three-slice series: one study, one series, three instances that differ
@@ -91,6 +144,50 @@ window.addEventListener('load', () => (async () => {
     ok('they still share one Series Instance UID',
        new Set(written.map(d => tag(d, '0020000e'))).size === 1);
 
+    // ---- saving must not disturb the file being saved ------------------------
+    // The writer is handed a SHALLOW copy of entry.dict, which keeps a second
+    // copy of PixelData out of memory on every download but rests entirely on
+    // dcmjs treating the dataset it is given as read-only. Nothing else in this
+    // app would notice that breaking: the exported file would still look right,
+    // and the file the user still has open would be the one that quietly changed.
+    switchFile(0);
+    const beforeFP = fingerprint(files[0].dict);
+    const beforeMetaFP = fingerprint(files[0].meta);
+    const beforeBufs = buffersOf(files[0].dict).concat(buffersOf(files[0].meta));
+    const firstOut = new Uint8Array(await buildEditedFile(files[0]).arrayBuffer());
+    const afterFP = fingerprint(files[0].dict);
+    ok('writing a file does not disturb the file', afterFP === beforeFP, firstDiff(beforeFP, afterFP));
+    ok('and does not disturb its File Meta either',
+       fingerprint(files[0].meta) === beforeMetaFP,
+       firstDiff(beforeMetaFP, fingerprint(files[0].meta)));
+
+    const afterBufs = buffersOf(files[0].dict).concat(buffersOf(files[0].meta));
+    ok('and leaves every buffer in it exactly where it was',
+       beforeBufs.length > 0 && afterBufs.length === beforeBufs.length &&
+       afterBufs.every((b, i) => b === beforeBufs[i]),
+       `${beforeBufs.length} before, ${afterBufs.length} after`);
+
+    // The saving is the point, not only the correctness, and "no copy was made"
+    // cannot be seen from outside — so borrow the writer for one call and look at
+    // the dataset it is actually handed. A deep copy would hand it a second set
+    // of buffers, which is a second copy of the image per file per download.
+    const realWrite = DicomDict.prototype.write;
+    let handed = null;
+    DicomDict.prototype.write = function (...a) { handed = this.dict; return realWrite.apply(this, a); };
+    try { buildEditedBytes(files[0]); } finally { DicomDict.prototype.write = realWrite; }
+    const handedBufs = buffersOf(handed || {}), ownBufs = buffersOf(files[0].dict);
+    ok('the writer gets the file\'s own buffers rather than copies of them',
+       ownBufs.length > 0 && handedBufs.length === ownBufs.length &&
+       handedBufs.every((b, i) => b === ownBufs[i]),
+       `${ownBufs.length} in the file, ${handedBufs.length} handed over`);
+
+    // Aliasing that survives one write shows up on the second, which would be
+    // built on top of whatever the first one left behind.
+    const secondOut = new Uint8Array(await buildEditedFile(files[0]).arrayBuffer());
+    ok('saving the same file twice gives the same bytes',
+       secondOut.length === firstOut.length && secondOut.every((b, i) => b === firstOut[i]),
+       `${firstOut.length} vs ${secondOut.length}`);
+
     // ---- bulk rewrites reseed every working copy, not just the visible one ----
     switchFile(0);
     const beforeIds = files.map(f => tag(f.dict, '00100020'));
@@ -150,12 +247,70 @@ window.addEventListener('load', () => (async () => {
          !Forge.compare(before.pixels, want, 0),
          before ? (before.error || Forge.compare(before.pixels, want, 0) || '') : 'null');
 
+      // Encapsulated pixel data is an array of fragment buffers rather than one,
+      // which is the shape the shallow copy has the least excuse to get right.
+      const encFP = fingerprint(files[0].dict);
       const round = DicomMessage.readFile(await buildEditedFile(files[0]).arrayBuffer());
+      ok(`${id}: writing it leaves the fragments alone`,
+         fingerprint(files[0].dict) === encFP, firstDiff(encFP, fingerprint(files[0].dict)));
       normBin(round.dict);
       const after = await decodeDicomPixels(round.dict, 0, { meta: round.meta });
       ok(`${id}: still renders after being saved`, !!after && !after.error &&
          !Forge.compare(after.pixels, want, 0),
          after ? (after.error || Forge.compare(after.pixels, want, 0) || '') : 'null');
+    }
+
+    // ---- an edit two levels down goes into the export, not into the file ----
+    // A nested edit is written by walking the outgoing dataset down to the item
+    // that holds it. That dataset is a shallow copy, so the walk has to duplicate
+    // the sequence and the item on the way rather than write through the ones the
+    // loaded file is still using — otherwise exporting a study would edit it, and
+    // a second export would be built on top of the first.
+    {
+      const n = Forge.W * Forge.H;
+      const px = new Uint16Array(n);
+      for (let k = 0; k < n; k++) px[k] = k & 0xFFF;
+      const nested = Forge.build({
+        rows: Forge.H, cols: Forge.W, pi: 'MONOCHROME2', ba: 16, bs: 12, hb: 11, pr: 0,
+        modality: 'CT', pixels: px,
+        extra: {
+          '00081140': { vr: 'SQ', items: [{
+            '00081150': { vr: 'UI', v: ['1.2.840.10008.5.1.4.1.1.7'] },
+            '00100010': { vr: 'PN', v: ['Nested^Original'] },
+            '0040a170': { vr: 'SQ', items: [{
+              '00080100': { vr: 'SH', v: ['121322'] },
+              '00080104': { vr: 'LO', v: ['Deeper^Original'] },
+            }] },
+          }] },
+        },
+      });
+      await handleFiles([new File([nested], 'nested.dcm')]);
+
+      const keyOf = (node, t) => Object.keys(node).find(k => k.replace(/^x/i, '').toLowerCase() === t);
+      const seqKey = keyOf(files[0].dict, '00081140');
+      const item0 = files[0].dict[seqKey].Value[0];
+      const nameKey = keyOf(item0, '00100010');
+      const innerKey = keyOf(item0, '0040a170');
+      const deepKey = keyOf(item0[innerKey].Value[0], '00080104');
+      ok('the nested fixture loaded with a sequence inside a sequence',
+         !!(seqKey && nameKey && innerKey && deepKey), [seqKey, nameKey, innerKey, deepKey].join('/'));
+
+      pendingEdits.set(`${seqKey}/0/${nameKey}`, { vr: 'PN', valueString: 'Nested^Edited' });
+      pendingEdits.set(`${seqKey}/0/${innerKey}/0/${deepKey}`, { vr: 'LO', valueString: 'Deeper^Edited' });
+
+      const nestedFP = fingerprint(files[0].dict);
+      const outMsg = DicomMessage.readFile(await buildEditedFile(files[0]).arrayBuffer());
+      ok('a nested edit does not leak back into the loaded dataset',
+         fingerprint(files[0].dict) === nestedFP, firstDiff(nestedFP, fingerprint(files[0].dict)));
+
+      const outItem = lookupTag(outMsg.dict, '00081140').Value[0];
+      ok('the nested edit reached the exported file',
+         tag(outItem, '00100010') === 'Nested^Edited', tag(outItem, '00100010'));
+      ok('and so did the one two levels down',
+         tag(lookupTag(outItem, '0040a170').Value[0], '00080104') === 'Deeper^Edited',
+         tag(lookupTag(outItem, '0040a170').Value[0], '00080104'));
+      ok('the item that was not on the edit path came through untouched',
+         tag(outItem, '00081150') === '1.2.840.10008.5.1.4.1.1.7', tag(outItem, '00081150'));
     }
 
     // ---- the exported tag list has to answer "why will this not render?" ----
@@ -170,5 +325,14 @@ window.addEventListener('load', () => (async () => {
     ok('suite ran to completion', false, (e && e.stack ? e.stack.split('\n')[0] : String(e)));
   }
 
-  report();
-})());
+  return out;
+};
+
+// Two callers: tests/run.sh injects this file alone and scrapes the <pre> below;
+// index.html#selftest sets window.SELFTEST and awaits the returned lines instead.
+if (!window.SELFTEST) window.addEventListener('load', async () => {
+  const pre = document.createElement('pre');
+  pre.id = 'TESTOUT';
+  pre.textContent = (await window.SUITES.edits()).join('\n');
+  document.body.appendChild(pre);
+});

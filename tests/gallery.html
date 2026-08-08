@@ -6,6 +6,10 @@
 <title>Forge gallery — DICOM test images</title>
 <link rel="stylesheet" href="../fonts.css">
 <style>
+  /* A copy of the token block at the top of ../index.html, kept in step by hand.
+     Verified identical value by value on 2026-08-08. One page is not enough
+     consumers to justify extracting a shared stylesheet, but if a third one
+     appears, extract it rather than making a third copy. */
   :root {
     --surface: #0d0d0d; --surface-solid: #080808; --border: #262626;
     --text: #fff; --text-dim: #a3a3a3; --text-muted: #666;
@@ -42,6 +46,13 @@
   .title { font-size: .84rem; font-weight: 600; }
   .note { font-size: .76rem; color: var(--text-dim); flex: 1; }
   .frames { font-family: var(--mono); font-size: .68rem; color: var(--text-muted); }
+  .acts { display: flex; gap: 6px; }
+  .acts > * { flex: 1; text-align: center; }
+  .acts a { text-decoration: none; }
+  .sec { grid-column: 1 / -1; margin: 6px 0 0; font-size: .95rem; }
+  .sec + .sec-note { grid-column: 1 / -1; margin: -6px 0 2px; color: var(--text-dim); max-width: 72ch; }
+  .back { display: inline-block; margin-bottom: 10px; font-size: .8rem; text-decoration: none; }
+  .back:hover { text-decoration: underline; }
   footer { border-top: 1px solid var(--border); padding: 20px 24px 40px; color: var(--text-dim); }
   footer code { font-family: var(--mono); font-size: .78rem; color: var(--text); }
   a { color: var(--accent); }
@@ -49,16 +60,23 @@
 </head>
 <body>
 <header>
+  <!-- Relative, not the public hostname: the same link then works from a local
+       ./tests/run.sh server, from a checkout opened over python -m http.server,
+       and from dicom.carino.systems, without knowing which one it is on. -->
+  <a class="back" href="../index.html">← Back to the DICOM editor</a>
   <h1>Forge gallery <span>— reference renderings</span></h1>
   <p>
     Every image below is drawn from the sample values a test file was built from, not
-    from the file itself. That makes them an oracle: this is what
-    <a href="https://dicom.carino.systems">dicom.carino.systems</a> should show when
-    the same file is opened in it. Download a case, drop it into the viewer, and
-    compare. Anything that does not match is a bug in the viewer, not in the file.
+    from the file itself. That makes them an oracle: this is what the
+    <a href="../index.html">DICOM editor</a> should show when the same file is opened
+    in it. Open a case straight in the viewer, or download it and drop it in yourself.
+    Anything that does not match is a bug in the viewer, not in the file.
   </p>
   <div class="bar">
     <button class="primary" id="all">Download every case</button>
+    <!-- A cross-page link, so it arrives as a fresh load — which is the only
+         state the self-test is allowed to run in. -->
+    <a href="../index.html#selftest"><button>Run the suites in your browser</button></a>
     <span class="count" id="count">building…</span>
   </div>
 </header>
@@ -75,18 +93,25 @@
   const count = document.getElementById('count');
   try {
   const grid = document.getElementById('grid');
+  const demos = Forge.samples();
   const cases = await Forge.corpus();
-  count.textContent = `${cases.length} cases`;
+  count.textContent = `${demos.length} samples · ${cases.length} cases`;
 
   function save(c) {
     const url = URL.createObjectURL(new Blob([c.bytes], { type: 'application/dicom' }));
     const a = document.createElement('a');
-    a.href = url; a.download = `${c.id}.dcm`;
+    a.href = url; a.download = c.file || `${c.id}.dcm`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
 
-  for (const c of cases) {
+  function section(heading, text) {
+    const h = document.createElement('h2'); h.className = 'sec'; h.textContent = heading;
+    const p = document.createElement('p'); p.className = 'sec-note'; p.textContent = text;
+    grid.append(h, p);
+  }
+
+  function render(c, kind) {
     const card = document.createElement('div');
     card.className = 'card';
 
@@ -117,10 +142,31 @@
     btn.textContent = 'Download .dcm';
     btn.addEventListener('click', () => save(c));
 
-    body.append(id, title, note, meta, btn);
+    // The viewer rebuilds this exact case from the same forge, so the link is a
+    // case id rather than a file — which makes it something you can paste into a
+    // bug report and have the other person land on the same picture.
+    const open = document.createElement('a');
+    open.href = `../index.html#${kind}=${encodeURIComponent(c.id)}`;
+    open.innerHTML = '<button style="width:100%">Open in the viewer</button>';
+
+    const acts = document.createElement('div');
+    acts.className = 'acts';
+    acts.append(btn, open);
+
+    body.append(id, title, note, meta, acts);
     card.append(shot, body);
     grid.appendChild(card);
   }
+
+  section('Demo samples',
+          'The five files behind "Load a sample" on the editor\'s empty state. They are ' +
+          'the only ones here built to be looked at rather than to break something.');
+  for (const d of demos) render(d, 'sample');
+
+  section('Test corpus',
+          'One case per encoding, geometry or defect the decoder has to survive. The ' +
+          'patterns are chosen so a transpose, a flip or an off-by-one is unmissable.');
+  for (const c of cases) render(c, 'case');
 
   // Browsers throttle a burst of downloads, so space them out.
   document.getElementById('all').addEventListener('click', () => {

@@ -21,12 +21,59 @@ curl -sL https://raw.githubusercontent.com/innolitics/dicom-standard/master/stan
 # map each entry's { id, name, valueRepresentation } into window.DICOM_DICT / window.DICOM_DICT_MASKS
 ```
 
+## Trying it without a file
+
+The empty state offers five **samples**, built in the browser and dropped through the
+ordinary load path — nothing is fetched, nothing is uploaded, and no patient ever existed.
+They are chosen for what they make the tool do rather than for what is easy to write:
+
+| Sample | What it exercises |
+| --- | --- |
+| CT abdomen | 16-bit signed pixels, Rescale Slope/Intercept, a window quoted in Hounsfield units |
+| Chest X-ray | `MONOCHROME1` — the inversion most viewers get wrong |
+| Ultrasound | interleaved RGB: no windowing, no inversion, no channel swap |
+| Cine loop | sixteen frames, `(0008,2144)` Recommended Display Frame Rate 30 |
+| Burned-in text | a name, an ID and a date drawn into the pixels, `(0028,0301)` = `YES` |
+
+They are forged by [`tests/dicom-forge.js`](tests/dicom-forge.js), the same oracle the test
+suites use, so each one ships with the reference image it is supposed to decode to and
+`tests/suites/samples.js` checks the app against it. Two deep links follow from that:
+`#sample=<id>` opens one of the five, and `#case=<id>` opens any case in the test corpus —
+which is what makes every card in the [reference gallery](https://dicom.carino.systems/tests/gallery.html)
+a one-click reproduction. Both refuse to run when a Carino PACS hand-off is in flight.
+
+## Viewing a study
+
+A dropped folder is a stack, not a list. Files are sorted on load by `(0020,0011)` Series
+Number, then `(0020,0013)` Instance Number, falling back to a **natural** sort on the
+filename (`img9` before `img10`) for exports that number nothing — so the image on screen
+is the first image of the first series, and the file browser's series tiles hold contiguous
+runs. The Overview counter names only the levels that have more than one member: a plain
+series reads `Image 3 / 40`, and a drop that turned out to hold two studies says so.
+
+In the Overview viewer:
+
+- **Wheel pages the stack** — the next frame inside a multi-frame file, otherwise the next
+  image of the **same series**. It stops at the series boundary rather than walking into a
+  different acquisition. This is the convention OHIF and Weasis both ship.
+- **Ctrl/⌘+wheel zooms** (the web idiom, not the PACS one — it also makes a macOS trackpad
+  pinch zoom, since that arrives as a ctrl+wheel event), and drag still pans.
+- **Window/level, zoom, pan, invert, colormap, rotate and flip survive a wheel page** within
+  one series, which is the entire point of scrolling a CT stack. Moving to a different
+  series or file any other way — a series tile, the ◀ ▶ buttons, the arrow keys — still
+  starts from the new file's own window.
+- **Cine** plays a multi-frame file, with a loop toggle and an fps box seeded from the file:
+  `(0008,2144)` Recommended Display Frame Rate, else `(0018,1063)` Frame Time, else
+  `(0018,0040)` Cine Rate, else 15 fps, clamped to 1–60. Frames are decoded on demand and
+  chained, so a stack the machine cannot hold at the requested rate plays slower rather
+  than falling behind a queue.
+
 ## De-identification
 
 The **Anonymize** action implements the **DICOM PS3.15 Annex E, Table E.1‑1 — Basic
 Application Level Confidentiality Profile**. The attribute action codes are generated from
 the machine-readable [Innolitics `dicom-standard`](https://github.com/innolitics/dicom-standard)
-table into [`deid-profile.js`](deid-profile.js) (617 attributes), which maps each tag to its
+table into [`deid-profile.js`](deid-profile.js) (618 attributes), which maps each tag to its
 Basic Profile action:
 
 | Code | Meaning | This tool |
@@ -48,28 +95,169 @@ Original Attributes, SR content, etc. is cleaned), and additionally:
   (SOP Class, Transfer Syntax, coding schemes),
 - writes the required de-identification markers **`(0012,0062)` Patient Identity Removed =
   `YES`**, **`(0012,0063)` De-identification Method**, and **`(0012,0064)` Method Code
-  Sequence** `(113100, DCM, Basic Application Confidentiality Profile)`,
-- warns when **`(0028,0301)` Burned In Annotation = YES** (identity in the *pixels* cannot
-  be removed by a tag editor).
+  Sequence** — one item per profile applied, always beginning with
+  `(113100, DCM, Basic Application Confidentiality Profile)`,
+- warns when **`(0028,0301)` Burned In Annotation = YES** and points at the pixel
+  redaction tool below.
 
-For clinical usability it applies the PS3.15 **Retain Patient Characteristics** option:
-original **Patient's Sex** is kept, **Patient's Name** is set to a readable dummy, and
-**Patient's Age** to `000Y`.
+For clinical usability, and regardless of the options below, three values are written back
+after the compliant pass: the original **Patient's Sex**, a readable dummy **Patient's
+Name**, and **Patient's Age** `000Y`. None of them identifies anyone, and a study whose
+every patient is `ANON^ANON` is needlessly miserable to read. This is *not* the PS3.15
+Retain Patient Characteristics option — that one is the checkbox below and keeps nine real
+attributes, age included.
+
+### Optional profiles
+
+The **⚙** button beside Anonymize opens the PS3.15 optional profiles. All five are off by
+default, so the Basic Profile alone remains what happens if you change nothing. Each is
+applied on top of the Basic Profile and recorded as its own `(0012,0064)` item and its own
+`(0012,0063)` value:
+
+| Option | CID 7050 | Keeps |
+| --- | --- | --- |
+| Retain UIDs | `113110` | the 59 UID attributes, *and* skips the UID remap entirely |
+| Retain device identity | `113109` | 46 attributes — station name, manufacturer, model, serial number, scheduled station |
+| Retain institution identity | `113112` | 10 attributes — institution name/address/code, department, clinical trial site |
+| Retain patient characteristics | `113108` | 9 attributes — real age, size, weight, ethnic group, sex, pregnancy and smoking status |
+| Retain full dates | `113106` | 165 attributes — study/series/acquisition/content dates and times, unshifted |
+
+Table E.1-1 marks each option's attributes either **K** (keep unmodified) or **C** (clean —
+"replace with values of similar meaning known not to contain identifying information").
+**Only the K rows are honoured.** A C row keeps its Basic Profile action, which removes
+*more* than the option promises and never less: Retain device identity therefore still
+strips the eleven AE Titles it marks C, and Retain patient characteristics still removes
+Allergies, Patient State, Pre-Medication and Special Needs.
+
+The five options that are **not** offered are the ones that are C all the way down, and
+that this tool cannot honestly claim: **Clean Descriptors** (125 attributes of free text to
+scrub), **Clean Graphics** and **Clean Structured Content** (graphic-annotation and SR
+content surgery), **Retain Longitudinal Modified Dates** (date shifting), and **Retain Safe
+Private** (a per-vendor safe-private list this repository does not have). Their columns are
+generated into `deid-profile.js` all the same, so the data is there if the capability ever
+is. Offering a checkbox that writes `113105` into `(0012,0064)` while doing no cleaning
+would put a false statement in the file's own audit trail, which is worse than the missing
+feature.
+
+### Burned-in pixel redaction
+
+Identity printed *into the image* — the banner an ultrasound or secondary-capture device
+burns across the top of every frame — is not reachable by any tag edit. **Redact**, on the
+Overview tab, overwrites those samples in the stored pixel data itself. Drag boxes over the
+text (they are kept in image coordinates, so zoom, pan, rotate and flip do not move them),
+then apply.
+
+- **Every frame, always.** A cine whose first frame is clean and whose frames 2..N still
+  carry the name is more dangerous than one that was never redacted, because the user
+  believes it is clean. There is no per-frame option.
+- **The fill is the darkest value that photometric interpretation can express**, not a
+  hard-coded zero: `0` for MONOCHROME2, `-(1 << (bs-1))` for signed data, the **maximum**
+  stored value for MONOCHROME1, `(0,128,128)` for YBR_FULL, and for PALETTE COLOR the index
+  whose lookup-table entry is darkest — which is very often not index 0.
+- **Compressed images are decompressed** to uncompressed Explicit VR Little Endian and the
+  pixel module rewritten (RLE Lossless, JPEG Lossless, JPEG 2000 and JPEG-LS without loss —
+  a lossy `.91` or `.81` stream lost what it lost before it reached us, and nothing further
+  is thrown away here; baseline/extended JPEG at 8 bits per sample, which is stated before
+  you confirm). The file grows and its Transfer Syntax changes.
+- **Afterwards the instance says so**: `(0028,0301)` Burned In Annotation = `NO`,
+  `(0012,0064)` gains `(113101, DCM, Clean Pixel Data Option)` beside any existing
+  `113100`, `(0012,0063)` is appended to, `(0008,0008)` Image Type value 1 becomes
+  `DERIVED`, `(0008,2111)` Derivation Description records the region and frame counts, and
+  a fresh `(0008,0018)` SOP Instance UID is assigned — these are no longer the pixels the
+  old UID identified. `(0028,2110)` Lossy Image Compression and its ratio/method are
+  deliberately **left alone**: per PS3.3 C.7.6.1.1.5 they describe the pixel data's history,
+  and decompressing an image does not restore what a lossy codec threw away.
+- **Undo is session-only.** It is offered until you leave the page; once the file has been
+  exported the redacted bytes are out in the world.
 
 ### Regenerating the profile table
 
 ```bash
-curl -sL https://raw.githubusercontent.com/innolitics/dicom-standard/master/standard/confidentiality_profile_attributes.json -o conf.json
-# then map each entry's { id, basicProfile } into window.DEID_PROFILE in deid-profile.js
+curl -sL https://raw.githubusercontent.com/innolitics/dicom-standard/master/standard/confidentiality_profile_attributes.json -o /tmp/conf.json
+node tools/make-deid-profile.mjs /tmp/conf.json > deid-profile.js
 ```
+
+[`tools/make-deid-profile.mjs`](tools/make-deid-profile.mjs) takes the `basicProfile` column
+into `window.DEID_PROFILE` and the ten option columns into `window.DEID_OPTIONS`, skipping
+the four rows whose `id` is not concrete hex (`50xxxxxx`, `60xx3000`, `60xx4000` and the
+odd-group private one — all handled in code instead). It re-adds `(0002,0013)` Implementation
+Version Name, which is file-meta and so is *not* in Table E.1-1: that one entry is the
+difference between the 617 rows upstream and the 618 the file ships, and a regeneration that
+drops it silently changes behaviour. Node only, run by hand; nothing at runtime touches the
+network.
 
 ### Not covered / limitations
 
-- **Burned-in pixel data** is not redacted (a tag editor cannot touch pixels).
-- The optional profiles (Clean Descriptors/Graphics/Structured Content, Retain
-  Longitudinal Dates, etc.) are not yet exposed as toggles — the Basic Profile runs by
-  default. The action table is periodically revised by NEMA; regenerate before relying on
-  it for a production workflow.
+- Pixel redaction cannot reach **High-Throughput JPEG 2000** (`1.2.840.10008.1.2.4.201`
+  and `.202`) or **MPEG/H.264** images: there is no decoder for them here, so those are
+  refused by name rather than half-done. **12-bit JPEG Extended** can only be decoded at 8
+  bits per sample, so redacting one drops four bits of depth across the whole image, not
+  just inside the boxes. **JPEG 2000** and **JPEG-LS** are decoded and redacted at full
+  depth, but the decode runs on the main thread — a large mammogram takes a noticeable
+  fraction of a second per frame, and an Extract run over a range of them will hold the
+  page while it works.
+- Redaction applies to the editor's copy of the file. A file dropped separately into the
+  **Extract** tab keeps its own copy, and a PNG exported from there will still show the
+  banner.
+- Five of the ten optional profiles are exposed as toggles (above); the other five —
+  Clean Descriptors, Clean Graphics, Clean Structured Content, Retain Longitudinal
+  Modified Dates and Retain Safe Private — are deliberately not, because every attribute
+  they cover is a `C` (clean) row and this tool does no free-text scrubbing, date shifting,
+  annotation surgery or safe-private matching. For the same reason a `C` row inside an
+  option that *is* offered falls back to the Basic Profile rather than being retained.
+- The action table is periodically revised by NEMA; regenerate it before relying on it for
+  a production workflow.
+
+## Tests
+
+```bash
+./tests/run.sh              # everything
+./tests/run.sh pixels       # named suites only
+```
+
+Each suite is injected into a copy of the real `index.html` and run in headless Chromium
+against the real functions — there is no build step and nothing is mocked. The oracle is
+[`tests/dicom-forge.js`](tests/dicom-forge.js), which writes DICOM files byte by byte and,
+separately, computes what each one is *supposed* to look like from the samples it was built
+from rather than from the bytes. A decoder that is self-consistently wrong still fails.
+
+[**tests/gallery.html**](https://dicom.carino.systems/tests/gallery.html) renders that
+oracle: every case in the corpus, its reference picture, what it is for, and a button to
+open it straight in the viewer. It is the picture to compare against when the app shows
+something suspicious — if the two disagree, the bug is in the app, not in the file.
+[`tests/README.md`](tests/README.md) is the long version, including a list of the rendering
+defects the corpus was written to catch.
+
+`tests/dicom-forge.js` is therefore **not** dead weight in a deployment: the empty state's
+sample buttons lazy-load it. Prune `tests/` and those buttons stop working.
+
+### Running the suites in your own browser
+
+[**dicom.carino.systems/#selftest**](https://dicom.carino.systems/#selftest) runs the same
+suites in the browser you are reading this in, and prints what came back:
+
+> Your browser decoded 18 of 18 DICOM encodings correctly.
+> Encodings that no browser can decode: 3 — every one of them was refused with an
+> explanation, as it should be. 1128 of 1128 assertions passed.
+
+It takes a few seconds — the whole corpus is built, decoded, redacted, edited and exported
+while you watch the progress line.
+
+Under it is a row per **transfer syntax × photometric interpretation** — 21 of them, from
+Implicit VR Little Endian through JPEG-LS and JPEG 2000 — saying which of the test files in
+that encoding this browser got right, which it correctly refused, and, where something
+failed, the name of the assertion that failed. That is a conformance claim with its
+evidence attached, and it is browser-specific: the JPEG baseline path goes through the
+browser's own image decoder, and JPEG 2000, JPEG-LS and JPEG Lossless go through WASM
+builds whose behaviour is not identical everywhere. **Copy report** puts the whole thing on
+the clipboard as plain text, with the user agent and the URL, ready to paste into an issue.
+
+Nothing is uploaded and nothing is fetched: every file is forged in the page.
+
+It is a page-load route rather than a button, and it is reached from the Info dropdown and
+from the gallery. The suites drive the real `handleFiles()`, the real tab switcher and the
+real redaction tool, so they cannot be let loose on a session with a study open — the link
+asks first, then reloads, and the way back out is another reload.
 
 ## Licensing
 
@@ -84,7 +272,21 @@ relicense. Each keeps its own terms, and each carries its own notice.
 | Path | What it is | Licence | Notice |
 | --- | --- | --- | --- |
 | [`fonts/`](fonts/) | IBM Plex Mono, IBM Plex Sans, Red Hat Display, Red Hat Text | SIL OFL 1.1 | [`fonts/OFL.txt`](fonts/OFL.txt) |
-| [`vendor/`](vendor/) | third-party JavaScript | per package — see the notice | [`vendor/README.md`](vendor/README.md) |
+| [`vendor/`](vendor/) | third-party JavaScript and WebAssembly | per package — see the notice | [`vendor/README.md`](vendor/README.md) |
+
+| Under `vendor/` | What it is | Licence | Notice |
+| --- | --- | --- | --- |
+| [`dcmjs.min.js`](vendor/dcmjs.min.js) | DICOM parser/writer | MIT | [`vendor/LICENSE-dcmjs.txt`](vendor/LICENSE-dcmjs.txt) |
+| [`lossless-min.js`](vendor/lossless-min.js) | JPEG Lossless decoder | MIT | [`vendor/LICENSE-jpeg-lossless-decoder-js.txt`](vendor/LICENSE-jpeg-lossless-decoder-js.txt) |
+| `openjpegwasm_decode.js` / `.wasm` | JPEG 2000 decoder (`@cornerstonejs/codec-openjpeg` 1.3.0) | MIT wrapper over BSD 2-Clause OpenJPEG | [`vendor/LICENSE-codec-openjpeg.txt`](vendor/LICENSE-codec-openjpeg.txt), [`vendor/LICENSE-openjpeg.txt`](vendor/LICENSE-openjpeg.txt) |
+| `charlswasm_decode.js` / `.wasm` | JPEG-LS decoder (`@cornerstonejs/codec-charls` 1.2.3) | MIT wrapper over BSD 3-Clause CharLS | [`vendor/LICENSE-codec-charls.txt`](vendor/LICENSE-codec-charls.txt), [`vendor/LICENSE-charls.txt`](vendor/LICENSE-charls.txt) |
+
+The two WebAssembly codecs each carry **two** notices, not one: the npm package
+is MIT and covers the emscripten wrapper, while the C library compiled into the
+`.wasm` is BSD and requires its own notice to be reproduced in exactly this kind
+of binary redistribution. Both texts are in `vendor/`, and
+[`vendor/README.md`](vendor/README.md) has the `npm pack` recipe that keeps them
+in step with the bytes.
 
 Those files travel with any fork, mirror or repackaging of this repository, and
 their notices must travel with them.

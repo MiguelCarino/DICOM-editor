@@ -4,15 +4,9 @@
 // same table: the same filters and search apply, both sides are ordinary loaded
 // files with their own editable working copies, and closing the comparison
 // leaves the editor exactly as it was.
-window.addEventListener('load', () => (async () => {
+(window.SUITES || (window.SUITES = {})).compare = async () => {
   const out = [];
   const ok = (name, cond, extra) => out.push(`${cond ? 'PASS' : 'FAIL'} :: ${name}${extra ? ' :: ' + extra : ''}`);
-  const report = () => {
-    const pre = document.createElement('pre');
-    pre.id = 'TESTOUT';
-    pre.textContent = out.join('\n');
-    document.body.appendChild(pre);
-  };
   const $ = (id) => document.getElementById(id);
   const rowFor = (tag8) => [...tagBody.querySelectorAll('tr')].find(
     tr => tr.querySelector('.tag-code')?.textContent === fmtTag(tag8));
@@ -77,9 +71,14 @@ window.addEventListener('load', () => (async () => {
     ok('and its input is not editable on the side that lacks it',
        rowFor('00080080')?.children[3].querySelector('input')?.disabled === true);
 
+    // Through t(), not against the English: this suite also runs inside
+    // index.html#selftest, in whatever language the visitor is reading in.
+    const T = window.t || String;
     const stats = $('cmpStatRow').textContent;
-    ok('the bar reports one difference per differing tag', /1 differ|2 differ|3 differ/.test(stats), stats);
-    ok('the bar counts one tag on each side alone', /1 only here/.test(stats) && /1 only there/.test(stats), stats);
+    ok('the bar reports one difference per differing tag',
+       new RegExp(`[123] ${T('differ')}`).test(stats), stats);
+    ok('the bar counts one tag on each side alone',
+       stats.includes(`1 ${T('only here')}`) && stats.includes(`1 ${T('only there')}`), stats);
 
     // ---- the editor's own filters still rule the table ------------------------
     searchQuery = 'Carino Systems';         // a value that exists only in the other file
@@ -143,17 +142,38 @@ window.addEventListener('load', () => (async () => {
     ok('and the rows are four cells wide once more', rowFor('00100020')?.children.length === 4,
        String(rowFor('00100020')?.children.length));
 
+    // ---- the Overview launcher opens this same mode -------------------------
+    // Compare stopped being a tab of its own, so its launcher has to land in the
+    // editor with a comparison already open. Pointed at a tab that no longer
+    // exists it hid every panel and left a blank page.
+    switchTab('overview');
+    ok('the launcher is live while a second file is loaded', $('ovActCompare').disabled === false);
+    $('ovActCompare').click();
+    ok('the Overview Compare button opens the editor', activeTab === 'editor', activeTab);
+    ok('and brings the other file with it', compareEntry() === files[1],
+       compareEntry()?.name || 'none');
+    $('cmpClose').click();
+
     // ---- a file cannot be compared with itself ------------------------------
     compareIdx = 1;
     renderCompareUI();
     switchFile(1);
     ok('switching onto the compared file closes the comparison', compareEntry() === null);
     ok('the picker now offers the file we came from',
-       [...$('compareWith').options].map(o => o.textContent).join(',') === 'Compare with…,first.dcm',
+       [...$('compareWith').options].map(o => o.textContent).join(',') === `${T('Compare with…')},first.dcm`,
        [...$('compareWith').options].map(o => o.textContent).join(','));
   } catch (e) {
     ok('suite ran to completion', false, (e && e.stack ? e.stack.split('\n')[0] : String(e)));
   }
 
-  report();
-})());
+  return out;
+};
+
+// Two callers: tests/run.sh injects this file alone and scrapes the <pre> below;
+// index.html#selftest sets window.SELFTEST and awaits the returned lines instead.
+if (!window.SELFTEST) window.addEventListener('load', async () => {
+  const pre = document.createElement('pre');
+  pre.id = 'TESTOUT';
+  pre.textContent = (await window.SUITES.compare()).join('\n');
+  document.body.appendChild(pre);
+});

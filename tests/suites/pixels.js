@@ -9,15 +9,9 @@
 //
 // Colour is different: nothing further is applied to it, so RGB cases are
 // compared pixel for pixel against the oracle right here.
-window.addEventListener('load', () => (async () => {
+(window.SUITES || (window.SUITES = {})).pixels = async () => {
   const out = [];
   const ok = (name, cond, extra) => out.push(`${cond ? 'PASS' : 'FAIL'} :: ${name}${extra ? ' :: ' + extra : ''}`);
-  const report = () => {
-    const pre = document.createElement('pre');
-    pre.id = 'TESTOUT';
-    pre.textContent = out.join('\n');
-    document.body.appendChild(pre);
-  };
 
   try {
     const cases = await Forge.corpus();
@@ -88,7 +82,7 @@ window.addEventListener('load', () => (async () => {
     const monoCases = ['mono2-u8', 'mono2-u16-b12', 'mono2-u16-b16', 'mono2-s16-b12',
                        'mono2-s16-b16', 'mono1-u16', 'ct-rescale-hu', 'pt-rescale-slope',
                        'mono2-no-window', 'implicit-vr', 'big-endian', 'raw-looks-like-jpeg',
-                       'rle-mono16', 'jpeg-lossless-mono16'];
+                       'rle-mono16', 'jpeg-lossless-mono16', 'j2k-mono16-b12', 'jls-mono16-b12'];
     for (const id of monoCases) {
       let res = null, err = '';
       try { ({ res } = await dec(id)); } catch (e) { err = e.message || String(e); }
@@ -104,7 +98,8 @@ window.addEventListener('load', () => (async () => {
 
     // A ramp is monotonic across a row; a byte-order or masking slip breaks that
     // long before it breaks the min and max.
-    for (const id of ['mono2-u16-b12', 'mono2-s16-b12', 'big-endian', 'implicit-vr']) {
+    for (const id of ['mono2-u16-b12', 'mono2-s16-b12', 'big-endian', 'implicit-vr',
+                      'j2k-mono16-b12', 'jls-mono16-b12']) {
       let res = null;
       try { ({ res } = await dec(id)); } catch (_) {}
       if (!res || !res.rawFloats) { ok(`${id}: middle row still ramps upward`, false, 'no data'); continue; }
@@ -119,7 +114,7 @@ window.addEventListener('load', () => (async () => {
     // ---- colour ------------------------------------------------------------
     for (const id of ['rgb-planar0', 'rgb-planar1', 'ybr-full', 'palette-color',
                       'ybr-422-jpeg', 'mono1-jpeg', 'rle-rgb', 'jpeg-split-fragments',
-                      'jpeg-lossless-rgb']) {
+                      'jpeg-lossless-rgb', 'j2k-rgb-rct', 'jls-rgb', 'jls-rgb-planar']) {
       const c = byId[id];
       let res = null, err = '';
       try { ({ res } = await dec(id)); } catch (e) { err = e.message || String(e); }
@@ -207,7 +202,7 @@ window.addEventListener('load', () => (async () => {
 
     // ---- malformed input degrades instead of exploding ----------------------
     for (const id of ['truncated-pixels', 'window-width-zero', 'jpeg2000-unsupported',
-                      'mpeg2-unsupported']) {
+                      'j2k-truncated', 'htj2k-unsupported', 'mpeg2-unsupported']) {
       const c = byId[id];
       let res, err = '';
       try { ({ res } = await dec(id)); } catch (e) { err = e.message || String(e); }
@@ -218,6 +213,61 @@ window.addEventListener('load', () => (async () => {
            res ? (res.error || 'no error reported') : 'null');
       }
     }
+    // ---- the codecs that decode, and the ones that must not ----------------
+    // decode() answers a truncated or garbage codestream with width 0 and an
+    // empty buffer instead of raising, so "no error" here would mean the app
+    // fell into the raw path holding nothing and drew whatever it found.
+    for (const id of ['jpeg2000-unsupported', 'j2k-truncated', 'htj2k-unsupported']) {
+      let res = null;
+      try { ({ res } = await dec(id)); } catch (_) {}
+      ok(`${id}: refuses rather than returning pixels`,
+         !!res && !!res.error && res.pixels === undefined,
+         res ? (res.error ? `pixels=${res.pixels === undefined ? 'none' : 'present'}` : 'no error') : 'null');
+    }
+    {
+      // Part 15 has to be refused by transfer syntax. Its codestream carries the
+      // same FF 4F FF 51 magic as Part 1, so a magic-byte test would hand it to
+      // OpenJPEG, which cannot decode it and does not say so.
+      let res = null;
+      try { ({ res } = await dec('htj2k-unsupported')); } catch (_) {}
+      ok('htj2k-unsupported: names High-Throughput rather than blaming the codestream',
+         !!res && /High-Throughput|201/i.test(res.error || ''), res ? res.error : 'null');
+    }
+
+    // ---- a codestream that disagrees with its own header --------------------
+    // The codec reports the width, depth and component count it actually found;
+    // the dataset carries a second copy in Rows, Columns, Bits Allocated and
+    // Samples per Pixel; and everything downstream indexes the samples using the
+    // dataset's numbers. Checking the codec only against itself is a tautology —
+    // a valid twelve-bit codestream under an eight-bit header decoded to noise
+    // with nothing to say why. Nonconformant files are the whole point of a tool
+    // like this, so the disagreement has to be named.
+    {
+      const frag = Forge.codestream('J2K_MONO16_B12');
+      const jlsFrag = Forge.codestream('JLS_MONO16_B12');
+      for (const [label, ts, bytes, want] of [
+        ['JPEG 2000', '1.2.840.10008.1.2.4.90', frag, /Bits Allocated/i],
+        ['JPEG-LS', '1.2.840.10008.1.2.4.80', jlsFrag, /Bits Allocated/i],
+      ]) {
+        const file = Forge.build({ ts, rows: Forge.H, cols: Forge.W, pi: 'MONOCHROME2',
+                                   ba: 8, bs: 8, hb: 7, pr: 0, modality: 'MG',
+                                   encapsulated: [bytes] });
+        const msg = DicomMessage.readFile(file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength));
+        normBin(msg.dict);
+        let res = null;
+        try { res = await decodeDicomPixels(msg.dict, 0, { meta: msg.meta }); } catch (e) { res = { error: 'threw: ' + e.message }; }
+        ok(`${label}: a 12-bit codestream under an 8-bit header is refused, not drawn`,
+           !!res && !!res.error && want.test(res.error) && res.pixels === undefined,
+           res ? (res.error || `no error, pixels=${res.pixels ? 'present' : 'none'}`) : 'null');
+      }
+
+      // The same guard must not fire on a file whose header is right.
+      let good = null;
+      try { ({ res: good } = await dec('j2k-mono16-b12')); } catch (_) {}
+      ok('and a codestream that agrees with its header still decodes',
+         !!good && !good.error, good ? (good.error || '') : 'null');
+    }
+
     {
       // Width 0 is illegal, but a viewer that answers with a uniformly black
       // frame has silently lost the picture.
@@ -235,5 +285,14 @@ window.addEventListener('load', () => (async () => {
     ok('suite ran to completion', false, (e && e.stack ? e.stack.split('\n')[0] : String(e)));
   }
 
-  report();
-})());
+  return out;
+};
+
+// Two callers: tests/run.sh injects this file alone and scrapes the <pre> below;
+// index.html#selftest sets window.SELFTEST and awaits the returned lines instead.
+if (!window.SELFTEST) window.addEventListener('load', async () => {
+  const pre = document.createElement('pre');
+  pre.id = 'TESTOUT';
+  pre.textContent = (await window.SUITES.pixels()).join('\n');
+  document.body.appendChild(pre);
+});
