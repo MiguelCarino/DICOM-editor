@@ -3982,12 +3982,18 @@ function readPaletteLut(d, descTag, dataTag, bigEndian) {
   return { lut, first, count };
 }
 
-// Lazy-load the JPEG Lossless decoder (ES module — must use dynamic import)
-const JPEG_LOSSLESS_CDN = './vendor/lossless-min.js';
+// Lazy-load the JPEG Lossless decoder (ES module — must use dynamic import).
+// MODULE, not CDN: this path is relative and always has been, but the old name
+// was enough for a security review of the Carino PACS build to conclude the
+// editor fetches a decoder from the internet. It does not, and there it would
+// contradict a documented guarantee — that build ships to air-gapped hospital
+// networks and promises no outbound connection but the ones the operator
+// configured. A constant is cheap; a misreading of one is not.
+const JPEG_LOSSLESS_MODULE = './vendor/lossless-min.js';
 let _jpegLosslessDecoder = null;
 async function loadJpegLossless() {
   if (_jpegLosslessDecoder) return _jpegLosslessDecoder;
-  const mod = await import(JPEG_LOSSLESS_CDN);
+  const mod = await import(JPEG_LOSSLESS_MODULE);
   _jpegLosslessDecoder = mod.Decoder;
   return _jpegLosslessDecoder;
 }

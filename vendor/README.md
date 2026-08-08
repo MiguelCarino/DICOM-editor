@@ -101,52 +101,30 @@ Then re-read the new bundle for anything that points off-origin before shipping
 it. Minifiers append a `//# sourceMappingURL=` comment, CDN builds sometimes
 carry an absolute one, and a map URL is a real request the moment a browser has
 devtools open. The maps we ship are named relatively or root-relatively, so they
-resolve against the operator's own engine and 404 there rather than leaving the
-building; keep it that way.
+resolve against whatever origin is serving the page and 404 there rather than
+leaving the building; keep it that way.
 
-## If you are syncing from upstream DICOM-editor
+## The copy inside Carino PACS
 
-The editor is a vendored copy of https://github.com/MiguelCarino/DICOM-editor.
-Upstream is where the self-hosting was done — the fonts and both bundles are
-already local there, so nothing had to move to make this copy offline-clean.
+Carino PACS bundles this editor and serves it from its dashboard, so this tree
+exists twice. Keep the two byte-identical: a divergence here is a divergence in
+what a hospital is running.
 
-Four things exist only here, and a careless `cp -r` from upstream deletes all
-four — the third one silently, and it corrupts studies when it goes:
+That copy carries two things this one does not, and a careless `cp -r` in either
+direction destroys them:
 
-1. **The licensing and provenance in this directory** — this README, the nine
-   `LICENSE-*.txt` files here, and the two in `../fonts/`. Carino PACS
-   redistributes these bundles inside a shipped binary and a container image,
-   which upstream (a static site users visit) does not; that is why the
-   obligation lands here.
-2. **One rename in `index.html`**: the constant holding the JPEG-lossless module
-   path is `JPEG_LOSSLESS_MODULE`, not upstream's `JPEG_LOSSLESS_CDN`. Same
-   value, same two lines — but the old name is how a security review concluded
-   this editor pulls from a CDN when it does not, and that misreading costs more
-   here than upstream because here it contradicts a documented guarantee.
-3. **The PN fix in `index.html`'s `parseByVR()`**: upstream builds a Person Name
-   as `{Alphabetic, Ideographic, Phonetic}`; here the `case 'PN'` is gone and PN
-   falls through to the plain-string default. That object is the shape of a
-   *naturalised* dcmjs dataset. The raw dict this editor holds — the one
-   `DicomMessage.readFile` returns and `DicomDict.write` consumes — carries PN
-   as a string in both directions in dcmjs 0.29.8, so the writer stringified the
-   object to the literal `[object Object]`. Because `downloadRange()` rewrites
-   every tag in `pendingEdits`, and `pendingEdits` is seeded with the whole
-   dataset at load, upstream destroys `PatientName`, `ReferringPhysicianName`
-   and every other PN tag on a plain open-and-save with nothing edited. Verified
-   in headless Chromium: with the fix, load-and-save-untouched is byte-identical
-   to the input, and editing a PN, editing a non-PN and Anonymize All all write
-   well-formed names.
-
-   The check is `../tests/pn-roundtrip.e2e.mjs`, which is the fourth thing that
-   exists only here:
-
-       node pacs/web/editor/tests/pn-roundtrip.e2e.mjs
-
-   Read dcmjs's `PersonName` value representation before any bundle refresh, and
-   run that suite after. Its read and write shapes are not symmetric, and a
-   version that starts returning objects from `readBytes` would need the `case`
-   back — the suite is how you find that out in a minute instead of from a site
-   that reports corrupt names a year later.
-
-Copy the source files, keep these. Or push them upstream, which is better —
-number 3 especially, since upstream corrupts every study it saves today.
+* **`pacs/web/editor/vendor/README.md`** — its own version of this file. PACS
+  redistributes these bundles inside a shipped binary and a container image,
+  which a static site users visit does not, and that is a different obligation
+  written up in different words. Do not overwrite it with this one.
+* **`pacs/web/editor/tests/pn-roundtrip.e2e.mjs`** — a Node check that a Person
+  Name survives a load-and-save untouched. It exists because it once did not:
+  `parseByVR` built the `{Alphabetic, Ideographic, Phonetic}` shape of a
+  *naturalised* dcmjs dataset, while the raw dict this editor holds carries PN
+  as a plain string in both directions in dcmjs 0.29.8, so the writer stringified
+  the object to the literal `[object Object]` — on every PN tag, on a plain open
+  and save with nothing edited. `parseByVR` follows the shape the element is
+  already in now, and `tests/suites/edits.js` asserts it here. Run the PACS suite
+  after any dcmjs bump anyway: the read and write shapes are not symmetric, and a
+  version that starts returning objects from `readBytes` would need that branch
+  to change again.
