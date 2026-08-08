@@ -1,10 +1,11 @@
 // Decoder-level checks: does decodeDicomPixels() get the numbers out of the file?
 //
 // This suite deliberately stops short of display. For greyscale it asserts on
-// rawFloats — the stored values the decoder recovered — because that is the one
-// thing that must be right no matter which layer later applies rescale, VOI or
-// inversion. Sign handling, bit masking, byte order and frame offsets all show
-// up here as wrong minima and maxima. What the user finally sees is tests/suites/viewer.js.
+// rawFloats — the decoder's buffer of values in output units, stored values with
+// Rescale Slope/Intercept applied — because sign handling, bit masking, byte
+// order, rescale and frame offsets all surface there as a wrong minimum or
+// maximum, before any windowing can hide them. What the user finally sees is
+// tests/suites/viewer.js.
 //
 // Colour is different: nothing further is applied to it, so RGB cases are
 // compared pixel for pixel against the oracle right here.
@@ -30,10 +31,19 @@ window.addEventListener('load', () => (async () => {
       return { dict: msg.dict, meta: msg.meta || {} };
     }
 
+    // Several assertions decode the same case, often frame by frame. Parsing is
+    // the expensive half, and decodeDicomPixels does not consume the dict, so
+    // parse each file once.
+    const parsed = new Map();
+    const parseOnce = (c) => {
+      if (!parsed.has(c.id)) parsed.set(c.id, parse(c));
+      return parsed.get(c.id);
+    };
+
     async function dec(id, frame = 0) {
       const c = byId[id];
       if (!c) throw new Error('no such case: ' + id);
-      const { dict, meta } = parse(c);
+      const { dict, meta } = parseOnce(c);
       return { c, res: await decodeDicomPixels(dict, frame, { meta }) };
     }
 
@@ -42,7 +52,15 @@ window.addEventListener('load', () => (async () => {
       for (let i = 0; i < a.length; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; }
       return [mn, mx];
     };
-    const trueRange = (id) => range(byId[id].ref.samples);
+    // rawFloats is the decoder's output-unit buffer: stored values with Rescale
+    // Slope/Intercept already applied, which is the scale Window Center/Width
+    // are quoted in. So the range we expect is the rescaled one.
+    const trueRange = (id) => {
+      const ref = byId[id].ref;
+      const m = ref.slope != null ? ref.slope : 1, b = ref.intercept != null ? ref.intercept : 0;
+      const [mn, mx] = range(ref.samples);
+      return [mn * m + b, mx * m + b];
+    };
 
     // ---- every case must at least survive parsing --------------------------
     for (const c of cases) {
@@ -74,13 +92,13 @@ window.addEventListener('load', () => (async () => {
       let res = null, err = '';
       try { ({ res } = await dec(id)); } catch (e) { err = e.message || String(e); }
       if (err || !res || res.error || !res.rawFloats) {
-        ok(`${id}: recovers the stored pixel values`, false,
+        ok(`${id}: recovers the pixel values`, false,
            err || (res ? (res.error || 'no rawFloats — decoded as colour?') : 'null'));
         continue;
       }
       const [wmn, wmx] = trueRange(id);
       const [gmn, gmx] = range(res.rawFloats);
-      ok(`${id}: stored range is ${wmn}..${wmx}`, gmn === wmn && gmx === wmx, `got ${gmn}..${gmx}`);
+      ok(`${id}: output-unit range is ${wmn}..${wmx}`, gmn === wmn && gmx === wmx, `got ${gmn}..${gmx}`);
     }
 
     // A ramp is monotonic across a row; a byte-order or masking slip breaks that
@@ -98,7 +116,8 @@ window.addEventListener('load', () => (async () => {
     }
 
     // ---- colour ------------------------------------------------------------
-    for (const id of ['rgb-planar0', 'rgb-planar1', 'ybr-full', 'palette-color']) {
+    for (const id of ['rgb-planar0', 'rgb-planar1', 'ybr-full', 'palette-color',
+                      'ybr-422-jpeg', 'mono1-jpeg']) {
       const c = byId[id];
       let res = null, err = '';
       try { ({ res } = await dec(id)); } catch (e) { err = e.message || String(e); }

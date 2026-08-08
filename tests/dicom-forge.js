@@ -301,6 +301,20 @@
     return blob.arrayBuffer();
   }
 
+  async function jpegOfRgb(rgb /* Uint8Array w*h*3 */, w, h) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    const img = ctx.createImageData(w, h);
+    for (let i = 0; i < w * h; i++) {
+      img.data[i * 4] = rgb[i * 3]; img.data[i * 4 + 1] = rgb[i * 3 + 1];
+      img.data[i * 4 + 2] = rgb[i * 3 + 2]; img.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 1));
+    return blob.arrayBuffer();
+  }
+
   async function corpus() {
     const cases = [];
     const add = (c) => { cases.push(c); return c; };
@@ -485,11 +499,15 @@
     {
       const rgb = colorPattern(W, H);
       const ybr = new Uint8Array(n * 3);
+      // Cr for pure red comes out at 255.5, and Cb for pure blue likewise, so
+      // clamp the way a real encoder does — letting it wrap would produce a
+      // file no decoder could get right.
+      const c8 = (v) => { v = Math.round(v); return v < 0 ? 0 : v > 255 ? 255 : v; };
       for (let i = 0; i < n; i++) {
         const r = rgb[i * 3], g = rgb[i * 3 + 1], b = rgb[i * 3 + 2];
-        ybr[i * 3]     = Math.round( 0.299 * r + 0.587 * g + 0.114 * b);
-        ybr[i * 3 + 1] = Math.round(-0.1687 * r - 0.3313 * g + 0.5 * b + 128);
-        ybr[i * 3 + 2] = Math.round( 0.5 * r - 0.4187 * g - 0.0813 * b + 128);
+        ybr[i * 3]     = c8( 0.299 * r + 0.587 * g + 0.114 * b);
+        ybr[i * 3 + 1] = c8(-0.1687 * r - 0.3313 * g + 0.5 * b + 128);
+        ybr[i * 3 + 2] = c8( 0.5 * r - 0.4187 * g - 0.0813 * b + 128);
       }
       add({
         id: 'ybr-full',
@@ -675,6 +693,69 @@
         bytes: build({ ts: '1.2.840.10008.1.2.4.50', rows: H, cols: W, pi: 'MONOCHROME2',
                        ba: 8, bs: 8, hb: 7, pr: 0, frames: F, encapsulated: jpgs }),
         ref: { kind: 'rgb', rgb: asRgb(grays[0]) },
+      });
+    }
+
+    // ---- MONOCHROME1 inside a JPEG -----------------------------------------
+    {
+      const gray = new Uint8Array(n);
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) gray[y * W + x] = ((x >> 2) * 32) & 0xFF;
+      }
+      const jpg = await jpegOf(gray, W, H);
+      // The browser hands the fragment back as it was encoded; the inversion
+      // MONOCHROME1 asks for is still the viewer's job.
+      const rgb = new Uint8Array(n * 3);
+      for (let i = 0; i < n; i++) {
+        rgb[i * 3] = rgb[i * 3 + 1] = rgb[i * 3 + 2] = 255 - gray[i];
+      }
+      add({
+        id: 'mono1-jpeg',
+        title: 'MONOCHROME1 carried by a baseline JPEG',
+        note: 'Compression does not change the photometric interpretation — this still ' +
+              'has to come out the other way round.',
+        w: W, h: H, tol: 12,
+        bytes: build({ ts: '1.2.840.10008.1.2.4.50', rows: H, cols: W, pi: 'MONOCHROME1',
+                       ba: 8, bs: 8, hb: 7, pr: 0, modality: 'CR', encapsulated: [jpg] }),
+        ref: { kind: 'rgb', rgb },
+      });
+    }
+
+    // ---- YBR_FULL_422 inside a JPEG — the ordinary ultrasound cine ---------
+    {
+      // Flat colour: JPEG's chroma subsampling has nothing to blur, so any
+      // difference left is a channel swap rather than a compression artefact.
+      const rgb = new Uint8Array(n * 3);
+      for (let i = 0; i < n; i++) { rgb[i * 3] = 230; rgb[i * 3 + 1] = 120; rgb[i * 3 + 2] = 40; }
+      const jpg = await jpegOfRgb(rgb, W, H);
+      add({
+        id: 'ybr-422-jpeg',
+        title: 'YBR_FULL_422 in a baseline JPEG',
+        note: 'What almost every ultrasound cine actually is. The JPEG decoder returns ' +
+              'RGB, so the photometric name must not be a reason to refuse the file.',
+        w: W, h: H, tol: 6,
+        bytes: build({ ts: '1.2.840.10008.1.2.4.50', rows: H, cols: W, pi: 'YBR_FULL_422',
+                       spp: 3, ba: 8, bs: 8, hb: 7, pr: 0, planar: 0, modality: 'US',
+                       encapsulated: [jpg] }),
+        ref: { kind: 'rgb', rgb },
+      });
+    }
+
+    // ---- YBR_FULL_422 raw, which we genuinely cannot do --------------------
+    {
+      // Subsampled chroma: two luma samples share one Cb/Cr pair, so the buffer
+      // is two thirds the interleaved size.
+      const s = new Uint8Array(n * 2);
+      for (let i = 0; i < s.length; i++) s[i] = i & 0xFF;
+      add({
+        id: 'ybr-422-raw',
+        title: 'YBR_FULL_422 uncompressed',
+        note: 'Needs chroma upsampling we do not do. Refusing it with a reason beats ' +
+              'drawing two thirds of an image.',
+        w: W, h: H, broken: true, expectError: /YBR_FULL_422/i,
+        bytes: build({ rows: H, cols: W, pi: 'YBR_FULL_422', spp: 3, ba: 8, bs: 8, hb: 7,
+                       pr: 0, planar: 0, modality: 'US', pixels: s }),
+        ref: null,
       });
     }
 

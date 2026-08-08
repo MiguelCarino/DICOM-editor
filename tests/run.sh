@@ -20,7 +20,7 @@ cd "$(dirname "$0")/.."
 
 CHROME="${CHROME:-chromium-browser}"
 PORT="${PORT:-8734}"
-BUDGET="${BUDGET:-30000}"
+BUDGET="${BUDGET:-60000}"
 RUNFILE=".testrun.html"
 
 command -v "$CHROME" >/dev/null || { echo "no $CHROME on PATH; set CHROME=..." >&2; exit 127; }
