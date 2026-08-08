@@ -174,17 +174,23 @@ then apply.
 
 ```bash
 curl -sL https://raw.githubusercontent.com/innolitics/dicom-standard/master/standard/confidentiality_profile_attributes.json -o /tmp/conf.json
-node tools/make-deid-profile.mjs /tmp/conf.json > deid-profile.js
+node tools/make-deid-profile.mjs /tmp/conf.json deid-profile.js > /tmp/new.js && mv /tmp/new.js deid-profile.js
 ```
 
-[`tools/make-deid-profile.mjs`](tools/make-deid-profile.mjs) takes the `basicProfile` column
-into `window.DEID_PROFILE` and the ten option columns into `window.DEID_OPTIONS`, skipping
-the four rows whose `id` is not concrete hex (`50xxxxxx`, `60xx3000`, `60xx4000` and the
-odd-group private one — all handled in code instead). It re-adds `(0002,0013)` Implementation
-Version Name, which is file-meta and so is *not* in Table E.1-1: that one entry is the
-difference between the 617 rows upstream and the 618 the file ships, and a regeneration that
-drops it silently changes behaviour. Node only, run by hand; nothing at runtime touches the
-network.
+**The existing file is the second argument, and it is not optional.**
+[`tools/make-deid-profile.mjs`](tools/make-deid-profile.mjs) reads it back in as the
+authority on the Basic Profile column and lets the Innolitics extract only *add* to it,
+reporting on stderr what it added, what upstream does not carry, and any row where the two
+disagree — where the existing action wins. Innolitics is the only machine-readable source
+for the ten **option** columns, which is why it is used at all, but its extract tracks an
+older edition of Annex E than the Basic Profile column here: it is short 39 of the 656 rows
+this file ships, including the whole `(0010,0011)`–`(0010,0047)` pronoun and gender-identity
+block, the four diagnosis code sequences, both SR observer names and `(0002,0013)`
+Implementation Version Name (file-meta, so legitimately not in Table E.1-1). Regenerating
+from Innolitics alone once dropped all of them, thirty-five of which are `X` — Anonymize
+simply stopped removing them, and nothing failed. Hence the merge, and hence
+`tests/suites/deid.js` naming those rows rather than counting them. Node only, run by hand;
+nothing at runtime touches the network.
 
 ### Not covered / limitations
 

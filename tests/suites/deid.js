@@ -116,10 +116,40 @@
          Object.keys(DEID_OPTION_CODES).every(n => count(n, 'K') > 0) &&
          names.filter(n => count(n, 'K') > 0).length === Object.keys(DEID_OPTION_CODES).length,
          Object.keys(DEID_OPTION_CODES).join(','));
-      ok('the Basic Profile table is untouched by the regeneration',
-         window.DEID_PROFILE_META?.attributes === 618 &&
-         Object.keys(window.DEID_PROFILE).length === 618,
-         String(Object.keys(window.DEID_PROFILE || {}).length));
+      // A count is exactly what failed to catch this. Adding the optional-profile
+      // columns meant regenerating from the Innolitics extract, which tracks an
+      // older edition of Annex E than the Basic Profile column here does, and 38
+      // attributes went out of the table — 35 of them X. Anonymize stopped
+      // removing the patient pronoun and gender-identity block, the four
+      // diagnosis code sequences, two SR observer names and the waveform
+      // annotator, and nothing failed, because the assertion that was supposed to
+      // guard the table had been written from the regenerated file and pinned the
+      // new, shorter number.
+      //
+      // So this names rows instead of counting them, and the floor is a floor:
+      // the table may grow, and any regeneration that shrinks it fails here.
+      const MUST_REMOVE = [
+        '00081301', '00081302', '00081303', '00081304',       // diagnosis code sequences
+        '00100011', '00100012', '00100013', '00100014', '00100015', '00100016',
+        '00100033', '00100034', '00100035',                   // alternative-calendar birth date
+        '00100041', '00100042', '00100043', '00100044', '00100045', '00100046', '00100047',
+        '00102161', '00102162',                               // pronouns / gender identity
+        '00181010', '00181011',                               // capture / hardcopy device id
+        '003A0203', '003A020C',                               // waveform annotator
+        '0040A034', '0040A035', '0040B034', '0040B036',        // SR observer / participant
+        '0040E012', '00400556',
+      ];
+      const absent = MUST_REMOVE.filter(t => !window.DEID_PROFILE?.[t]);
+      ok('the Basic Profile still removes every attribute a regeneration once dropped',
+         absent.length === 0, absent.join(' '));
+      ok('and none of them was downgraded to something that keeps a value',
+         MUST_REMOVE.every(t => /^X/.test(window.DEID_PROFILE?.[t] || '')),
+         MUST_REMOVE.filter(t => !/^X/.test(window.DEID_PROFILE?.[t] || ''))
+           .map(t => `${t}=${window.DEID_PROFILE[t]}`).join(' '));
+      ok('the table is at least as large as the edition it was curated from',
+         Object.keys(window.DEID_PROFILE).length >= 656 &&
+         window.DEID_PROFILE_META?.attributes === Object.keys(window.DEID_PROFILE).length,
+         `${Object.keys(window.DEID_PROFILE || {}).length} attributes, meta says ${window.DEID_PROFILE_META?.attributes}`);
       ok('and it still carries the hand-added (0002,0013)',
          window.DEID_PROFILE['00020013'] === 'D', String(window.DEID_PROFILE['00020013']));
       // Verified against PS3.16 CID 7050 (UID 1.2.840.10008.6.1.925).
