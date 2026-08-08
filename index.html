@@ -1117,63 +1117,36 @@
     .batch-select:focus { outline: none; border-color: var(--accent); }
     .batch-select option { background: var(--surface-solid); }
 
-    /* ─── COMPARE TAB ───────────────────────── */
-    .compare-tab-panel {
-      display: grid;
-      grid-template-columns: 1fr minmax(240px, 300px);
-      gap: 16px;
-      padding: 16px 20px;
-      overflow: hidden;
-      min-height: 0;
+    /* ─── COMPARE ───────────────────────────── */
+    /* Comparing is a second column in the editor's own table, so all that is
+       left here is the bar that turns it on and reports what it found. */
+    .cmp-select {
+      padding: 5px 10px; background: var(--surface); color: var(--text);
+      border: 1px solid var(--border); border-radius: var(--r-sm);
+      font: 500 11px var(--font); cursor: pointer; max-width: 210px;
     }
-    @media (max-width: 1000px) {
-      .compare-tab-panel { grid-template-columns: 1fr; }
-      .compare-tab-sidebar { display: none; }
+    .cmp-select:focus { outline: none; border-color: var(--accent); }
+    .cmp-select option { background: var(--surface-solid); }
+    /* Two groups — what was found on the left, what you can do on the right —
+       so a narrow window breaks between them instead of mid-sentence. */
+    .cmp-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px 16px; flex-wrap: wrap;
+      padding: 8px 10px; margin-bottom: 8px;
+      border: 1px solid var(--border-glow); border-radius: var(--r-sm);
+      background: var(--accent-faint);
     }
-    .compare-tab-left {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-height: 0;
-      overflow: hidden;
+    .cmp-bar-side { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .cmp-bar.hidden { display: none; }
+    .cmp-bar-title { font: 700 11px var(--mono); color: var(--accent); }
+    .cmp-check { display: flex; align-items: center; gap: 5px; font: 500 11px var(--font); color: var(--text-dim); cursor: pointer; }
+    .cmp-check input { accent-color: var(--accent); cursor: pointer; }
+    .cmp-copy-btn {
+      padding: 2px 7px; background: var(--surface); color: var(--text-dim);
+      border: 1px solid var(--border); border-radius: var(--r-sm);
+      font: 700 12px var(--mono); cursor: pointer; line-height: 1.4;
     }
-    .compare-tab-sidebar {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      overflow-y: auto;
-    }
-    /* Two-pane drop state */
-    .cmp-empty-state {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      min-height: 0;
-    }
-    .cmp-drop-pane {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      border: 2px dashed var(--border);
-      border-radius: 4px;
-      gap: 10px;
-      cursor: pointer;
-      transition: all 0.2s;
-      padding: 40px 20px;
-    }
-    .cmp-drop-pane:hover, .cmp-drop-pane.drag-over {
-      border-color: var(--accent);
-      background: rgba(234,179,8,0.04);
-    }
-    .cmp-pane-label {
-      font: 900 3rem var(--font);
-      color: var(--accent);
-      line-height: 1;
-    }
-    .cmp-pane-sub { font: 13px var(--mono); color: var(--text-muted); text-align: center; }
-    @media (max-width: 700px) { .cmp-empty-state { grid-template-columns: 1fr; } }
+    .cmp-copy-btn:hover { border-color: var(--accent); color: var(--accent); }
     /* Mini preview in sidebar */
     .cmp-preview-mini {
       width: 100%; aspect-ratio: 1;
@@ -1231,7 +1204,7 @@
        The editor (.main) is the 2nd child → gets the 1fr row automatically.
        Every other panel falls into implicit auto-height rows, killing internal
        scroll. Force them all into row 2 so flex:1 / overflow-y:auto work. */
-    .create-panel, .extractor-panel, .compare-tab-panel,
+    .create-panel, .extractor-panel,
     .val-panel, .batch-panel, .macro-panel {
       grid-row: 2;
       overflow: hidden;
@@ -1340,7 +1313,6 @@
       <nav class="tab-nav">
         <button class="tab-btn active" id="overviewTabBtn" data-i18n>Overview</button>
         <button class="tab-btn" id="editorTabBtn" data-i18n>Edit</button>
-        <button class="tab-btn" id="compareTabBtn" data-i18n>Compare</button>
         <button class="tab-btn" id="extractorTabBtn" data-i18n>Extract</button>
         <button class="tab-btn" id="createTabBtn" data-i18n>Create</button>
       </nav>
@@ -1545,10 +1517,36 @@
           <button class="filter-btn" data-cat="other"><span class="dot"></span><span data-i18n>Other</span></button>
           
           <div style="flex:1"></div>
-          
+
+          <select id="compareWith" class="cmp-select hidden" title="Show a second loaded file beside this one">
+            <option value="" data-i18n>Compare with…</option>
+          </select>
+
           <div class="search-box">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             <input type="text" id="searchInput" placeholder="Search..." />
+          </div>
+        </div>
+
+        <!-- Only while a comparison is open: what the second column is, how the
+             two differ, and the things you can only do with two files. -->
+        <div class="cmp-bar hidden" id="cmpBar">
+          <div class="cmp-bar-side">
+            <span class="cmp-bar-title" id="cmpBarTitle"></span>
+            <div class="cmp-stat-row" id="cmpStatRow"></div>
+            <div class="compare-legend">
+              <span><span class="legend-dot match"></span><span data-i18n>Match</span></span>
+              <span><span class="legend-dot diff"></span><span data-i18n>Diff</span></span>
+              <span><span class="legend-dot only-a"></span><span data-i18n>Only here</span></span>
+              <span><span class="legend-dot only-b"></span><span data-i18n>Only there</span></span>
+            </div>
+          </div>
+          <div class="cmp-bar-side">
+            <label class="cmp-check"><input type="checkbox" id="cmpDiffOnly" /><span data-i18n>Differences only</span></label>
+            <button class="btn" id="cmpApplyToB" data-i18n>Copy all →</button>
+            <button class="btn" id="cmpApplyToA" data-i18n>Copy all ←</button>
+            <button class="btn primary" id="cmpDownloadB" data-i18n>⬇ Download other</button>
+            <button class="btn" id="cmpClose" title="Close the comparison">✕</button>
           </div>
         </div>
 
@@ -1562,6 +1560,8 @@
                 <th data-i18n>Description</th>
                 <th style="width:50px">VR</th>
                 <th style="width:40%" data-i18n>Value</th>
+                <th class="cmp-col hidden" style="width:40%" id="cmpHeadB"></th>
+                <th class="cmp-col hidden" style="width:56px"></th>
               </tr>
             </thead>
             <tbody id="tagBody"></tbody>
@@ -1603,6 +1603,10 @@
             <div class="px-hover" id="pxHover">—</div>
           </div>
           <div id="srView" class="sr-view hidden"></div>
+          <div class="cmp-preview-mini" id="previewBWrap">
+            <canvas id="previewB"></canvas>
+          </div>
+          <div class="cmp-file-badge hidden" id="previewBBadge"></div>
           <div class="preview-nav hidden" id="previewNav">
             <button class="preview-nav-btn" id="prevFileBtn" disabled>◀</button>
             <span class="preview-nav-info" id="previewNavInfo"></span>
@@ -1797,98 +1801,6 @@
   </div>
 
   <!-- Compare Tab -->
-  <div class="compare-tab-panel" id="compareTab" style="display:none">
-    <div class="compare-tab-left">
-      <div class="top-bar">
-        <div class="pill" id="cmpStatusPill">Load two files to compare</div>
-        <label style="font:500 11px var(--mono);color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:5px">
-          <input type="checkbox" id="cmpDiffOnly" style="accent-color:var(--accent)" /> <span data-i18n>Diffs only</span>
-        </label>
-        <div class="search-box">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-          <input type="text" id="cmpSearch" placeholder="Search tags…" />
-        </div>
-        <div style="flex:1"></div>
-        <button class="btn" id="cmpClearAll" data-i18n>Clear All</button>
-      </div>
-      <!-- Empty state: two drop zones -->
-      <div class="cmp-empty-state" id="cmpEmptyState">
-        <div class="cmp-drop-pane" id="cmpDropPaneA">
-          <div class="cmp-pane-label">A</div>
-          <div class="cmp-pane-sub"><span data-i18n>Drop first .dcm file</span><br><span data-i18n>or click to browse</span></div>
-          <input type="file" id="cmpFileInputA" accept=".dcm,.dicom" hidden />
-        </div>
-        <div class="cmp-drop-pane" id="cmpDropPaneB">
-          <div class="cmp-pane-label">B</div>
-          <div class="cmp-pane-sub"><span data-i18n>Drop second .dcm file</span><br><span data-i18n>or click to browse</span></div>
-          <input type="file" id="cmpFileInputB" accept=".dcm,.dicom" hidden />
-        </div>
-      </div>
-      <!-- Comparison table -->
-      <div class="table-wrap hidden" id="cmpTableWrap">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:130px">Tag</th>
-              <th data-i18n>Description</th>
-              <th style="width:44px">VR</th>
-              <th data-i18n>File A</th>
-              <th data-i18n>File B</th>
-              <th style="width:54px"></th>
-            </tr>
-          </thead>
-          <tbody id="cmpBody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="compare-tab-sidebar">
-      <!-- File A card -->
-      <div class="card">
-        <div class="card-title" data-i18n>File A</div>
-        <div class="compare-drop" id="cmpSideDropA" style="cursor:pointer" data-i18n>
-          Drop .dcm or click
-        </div>
-        <div class="cmp-preview-mini" id="cmpPreviewA">
-          <canvas id="cmpCanvasA"></canvas>
-        </div>
-        <div class="cmp-file-badge hidden" id="cmpBadgeA"></div>
-        <button class="btn hidden" id="cmpClearA" style="width:100%;margin-top:6px;font-size:11px" data-i18n>Clear A</button>
-      </div>
-      <!-- File B card -->
-      <div class="card">
-        <div class="card-title" data-i18n>File B</div>
-        <div class="compare-drop" id="cmpSideDropB" style="cursor:pointer" data-i18n>
-          Drop .dcm or click
-        </div>
-        <div class="cmp-preview-mini" id="cmpPreviewB">
-          <canvas id="cmpCanvasB"></canvas>
-        </div>
-        <div class="cmp-file-badge hidden" id="cmpBadgeB"></div>
-        <button class="btn hidden" id="cmpClearB" style="width:100%;margin-top:6px;font-size:11px" data-i18n>Clear B</button>
-      </div>
-      <!-- Stats card -->
-      <div class="card hidden" id="cmpStatsCard">
-        <div class="card-title" data-i18n>Summary</div>
-        <div class="cmp-stat-row" id="cmpStatRow"></div>
-        <div class="compare-legend" style="margin-top:10px">
-          <span><span class="legend-dot match"></span><span data-i18n>Match</span></span>
-          <span><span class="legend-dot diff"></span><span data-i18n>Diff</span></span>
-          <span><span class="legend-dot only-a"></span><span data-i18n>Only A</span></span>
-          <span><span class="legend-dot only-b"></span><span data-i18n>Only B</span></span>
-        </div>
-      </div>
-      <!-- Export card -->
-      <div class="card hidden" id="cmpExportCard">
-        <div class="card-title" data-i18n>Apply &amp; Export</div>
-        <button class="btn" id="cmpApplyAtoB" style="width:100%;margin-bottom:6px" data-i18n>Apply all A→B diffs</button>
-        <button class="btn" id="cmpApplyBtoA" style="width:100%;margin-bottom:10px" data-i18n>Apply all B→A diffs</button>
-        <button class="btn primary" id="cmpDownloadA" style="width:100%;margin-bottom:6px" data-i18n>⬇ Download A</button>
-        <button class="btn primary" id="cmpDownloadB" style="width:100%" data-i18n>⬇ Download B</button>
-      </div>
-    </div>
-  </div>
-
   </div><!-- end .app -->
 
   <div class="load-overlay" id="loadOverlay">
@@ -2848,6 +2760,11 @@ let meta = null;
 // by name still reads the file on screen — but the maps outlive the switch, and
 // no file can be written with another file's values.
 let pendingEdits = new Map();
+// Index into files[] of the file shown beside the current one, or null. Comparing
+// is a mode of the editor, so both sides are ordinary loaded files and both are
+// editable — there is no separate copy of anything.
+let compareIdx = null;
+let cmpDiffOnly = false;
 let sharedUIDPrefix = '';
 let detectedPattern = '';
 let activeCat = 'all';
@@ -3187,45 +3104,169 @@ function printAllTags() {
 window.printAllTags = printAllTags;
 document.getElementById('printTagsBtn')?.addEventListener('click', printAllTags);
 
+// ============ COMPARE ============
+// The file on the right, if there is one. Guarded because files[] is rebuilt
+// under it whenever a new study is dropped.
+function compareEntry() {
+  if (compareIdx == null || compareIdx === currentFileIdx) return null;
+  return files[compareIdx] || null;
+}
+
+function renderCompareStats(n) {
+  const row = document.getElementById('cmpStatRow');
+  if (!row) return;
+  const T = window.t || String;
+  row.innerHTML =
+    `<span class="cmp-stat s-match">${n.match} ${T('match')}</span>` +
+    `<span class="cmp-stat s-diff">${n.diff} ${T('differ')}</span>` +
+    `<span class="cmp-stat s-only">${n.onlyA} ${T('only here')}</span>` +
+    `<span class="cmp-stat s-only">${n.onlyB} ${T('only there')}</span>`;
+}
+
+// Thumbnail of the other file, so a comparison is not purely textual.
+async function drawCompareThumb() {
+  const other = compareEntry();
+  const cv = document.getElementById('previewB');
+  if (!other || !cv) return;
+  try {
+    const res = await decodeDicomPixels(other.dict, 0, { meta: other.meta });
+    if (!res || res.error || !res.pixels) { cv.width = cv.height = 1; return; }
+    cv.width = res.cols; cv.height = res.rows;
+    const img = cv.getContext('2d').createImageData(res.cols, res.rows);
+    img.data.set(res.pixels);
+    cv.getContext('2d').putImageData(img, 0, 0);
+  } catch (_) { cv.width = cv.height = 1; }
+}
+
+// Keeps the picker, the bar, the extra columns and the thumbnail agreeing with
+// compareIdx. Safe to call whenever the loaded set or the selection changes.
+function renderCompareUI() {
+  const sel = document.getElementById('compareWith');
+  const bar = document.getElementById('cmpBar');
+  if (!sel || !bar) return;
+
+  if (compareIdx != null && (compareIdx === currentFileIdx || !files[compareIdx])) compareIdx = null;
+  sel.classList.toggle('hidden', files.length < 2);
+
+  const T = window.t || String;
+  sel.replaceChildren(new Option(T('Compare with…'), ''));
+  files.forEach((f, i) => { if (i !== currentFileIdx) sel.appendChild(new Option(f.name, String(i))); });
+  sel.value = compareIdx == null ? '' : String(compareIdx);
+
+  const on = compareEntry() != null;
+  bar.classList.toggle('hidden', !on);
+  document.querySelectorAll('.cmp-col').forEach(el => el.classList.toggle('hidden', !on));
+
+  const head  = document.getElementById('cmpHeadB');
+  const title = document.getElementById('cmpBarTitle');
+  const wrap  = document.getElementById('previewBWrap');
+  const badge = document.getElementById('previewBBadge');
+  if (head)  head.textContent = on ? files[compareIdx].name : '';
+  if (title) title.textContent = on ? `${files[currentFileIdx]?.name || ''} ↔ ${files[compareIdx].name}` : '';
+  if (wrap)  wrap.style.display = on ? 'block' : 'none';
+  if (badge) { badge.classList.toggle('hidden', !on); badge.textContent = on ? files[compareIdx].name : ''; }
+  if (on) drawCompareThumb();
+}
+
+// Copy every differing value one way. Tags missing on the receiving side are
+// created there, which is how you make one file match another.
+function cmpApplyAll(toOther) {
+  const other = compareEntry();
+  if (!other) return;
+  const src = toOther ? { tags: tagsOf(files[currentFileIdx]), pend: pendingEdits }
+                      : { tags: tagsOf(other), pend: pendingOf(other) };
+  const dst = toOther ? { tags: tagsOf(other), pend: pendingOf(other) }
+                      : { tags: tagsOf(files[currentFileIdx]), pend: pendingEdits };
+  let n = 0;
+  for (const [tag, el] of src.tags) {
+    const vr = el.vr || '';
+    if (isReadOnly(tag, vr)) continue;
+    const from = shownValue(tag, el, src.pend);
+    const to   = shownValue(tag, dst.tags.get(tag), dst.pend);
+    if (from !== null && from !== to) { dst.pend.set(tag, { vr, valueString: from }); n++; }
+  }
+  if (!toOther) trackEditStart?.();
+  renderTable();
+  showDownload();
+  toast?.(`${(window.t||String)('Copied')} ${n}`);
+}
+
+// Every tag of a file, keyed the way the file keys them, with File Meta folded
+// in. Dataset wins on the (never seen in practice) collision.
+function tagsOf(entry) {
+  const isHex = t => t.startsWith('x') || /^[0-9a-f]{8}$/i.test(t);
+  const m = new Map();
+  if (!entry) return m;
+  for (const [t, el] of Object.entries(entry.meta || {})) if (isHex(t)) m.set(t, el);
+  for (const [t, el] of Object.entries(entry.dict || {})) if (isHex(t)) m.set(t, el);
+  return m;
+}
+
+// The value a side is showing: its own edit if it has one, otherwise the tag as
+// loaded. null means the tag is not in that file at all — which is a different
+// thing from an empty value, and is why this is not just ''.
+function shownValue(tag, el, pend) {
+  if (pend && pend.has(tag)) return pend.get(tag).valueString;
+  return el ? elToString(el) : null;
+}
+
 function renderTable() {
   if (!dict) { tagBody.innerHTML = ''; return; }
 
-  const isHex = t => t.startsWith('x') || /^[0-9a-f]{8}$/i.test(t);
-  const metaEntries = Object.entries(meta || {}).filter(([t]) => isHex(t));
-  const entries = [...metaEntries, ...Object.entries(dict)].filter(([t]) => isHex(t));
-  entries.sort(([a], [b]) => a.localeCompare(b));
+  // Comparing is this same table with a second value column, not a second
+  // screen: one row builder, one set of filters, one search box.
+  const other = compareEntry();
+  const mine  = tagsOf(files[currentFileIdx] || { dict, meta });
+  const theirs = tagsOf(other);
+  const oPend = other ? pendingOf(other) : null;
+
+  const tags = [...new Set([...mine.keys(), ...theirs.keys()])].sort((a, b) => a.localeCompare(b));
 
   const q = searchQuery.toLowerCase();
   const rows = [];
+  const tally = { match: 0, diff: 0, onlyA: 0, onlyB: 0 };
 
-  for (const [tag, el] of entries) {
-    const vr   = el.vr || '';
+  for (const tag of tags) {
+    const elA = mine.get(tag), elB = theirs.get(tag);
+    const vr   = (elA || elB)?.vr || '';
     const desc = descFor(tag);
     const cat  = catFor(tag, vr);
+    const ro   = isReadOnly(tag, vr);
 
-    if (activeCat !== 'all' && cat !== activeCat) continue;
+    const valA = shownValue(tag, elA, pendingEdits);
+    const valB = other ? shownValue(tag, elB, oPend) : undefined;
 
-    const valStr = pendingEdits.has(tag)
-      ? pendingEdits.get(tag).valueString
-      : elToString(el);
-
-    if (q) {
-      if (!`${fmtTag(tag)} ${desc || ''} ${valStr}`.toLowerCase().includes(q)) continue;
+    let cls = '';
+    if (other) {
+      if (valA !== null && valB !== null) cls = valA === valB ? 'cmp-match' : 'cmp-diff';
+      else if (valA !== null)             cls = 'cmp-only-a';
+      else                                cls = 'cmp-only-b';
+      // Counted over the whole file, before any filter — the bar answers "how do
+      // these two differ", not "how do the rows I am looking at differ".
+      tally[cls === 'cmp-match' ? 'match' : cls === 'cmp-diff' ? 'diff' : cls === 'cmp-only-a' ? 'onlyA' : 'onlyB']++;
     }
 
+    if (activeCat !== 'all' && cat !== activeCat) continue;
+    if (other && cmpDiffOnly && cls === 'cmp-match') continue;
+    if (q && !`${fmtTag(tag)} ${desc || ''} ${valA ?? ''} ${valB ?? ''}`.toLowerCase().includes(q)) continue;
+
     const tr = document.createElement('tr');
-    if (isReadOnly(tag, vr)) tr.className = 'readonly-row';
+    tr.className = [ro ? 'readonly-row' : '', cls].filter(Boolean).join(' ');
     tr.innerHTML = `
       <td><div class="tag-cell"><span class="tag-cat" data-cat="${cat}"></span><span class="tag-code">${fmtTag(tag)}</span></div></td>
       <td><span class="${desc ? 'desc-cell' : 'desc-cell desc-unknown'}">${desc || 'Unknown tag'}</span></td>
       <td><span class="vr-badge">${vr}</span></td>
-      <td></td>`;
+      <td></td>${other ? '<td></td><td></td>' : ''}`;
 
+    const binary = (elA || elB)?.InlineBinary || isBinaryVR(vr);
+
+    // ── this file ──
     const inp = document.createElement('input');
-    inp.className = 'val-input' + (el.InlineBinary || isBinaryVR(vr) ? ' binary' : '');
-    inp.value = valStr;
+    inp.className = 'val-input' + (binary ? ' binary' : '');
+    inp.value = valA ?? '';
+    if (valA === null) inp.placeholder = '— not present —';
     inp.dataset.tag = tag;
-    inp.disabled = isReadOnly(tag, vr);
+    inp.disabled = ro || !elA;
     if (!inp.disabled) {
       inp.addEventListener('input', () => {
         trackEditStart?.();
@@ -3236,11 +3277,52 @@ function renderTable() {
         if (files.length === 1 && dict) drawPreview(dict, currentFrame);
       });
     }
-    tr.lastElementChild.appendChild(inp);
+    tr.children[3].appendChild(inp);
+
+    if (!other) { rows.push(tr); continue; }
+
+    // ── the file being compared against ──
+    const inpB = document.createElement('input');
+    inpB.className = 'val-input' + (binary ? ' binary' : '');
+    inpB.value = valB ?? '';
+    if (valB === null) inpB.placeholder = '— not present —';
+    inpB.disabled = ro || !elB;
+    if (!inpB.disabled) {
+      inpB.addEventListener('input', () => { oPend.set(tag, { vr, valueString: inpB.value }); showDownload(); });
+    }
+    tr.children[4].appendChild(inpB);
+
+    // ── copy across ──
+    const acts = document.createElement('div');
+    acts.className = 'cmp-actions-cell';
+    const copyBtn = (label, title, run) => {
+      const b = document.createElement('button');
+      b.className = 'cmp-copy-btn';
+      b.textContent = label;
+      b.title = title;
+      b.addEventListener('click', run);
+      return b;
+    };
+    if (!ro && valA !== null) {
+      acts.appendChild(copyBtn('→', 'Copy this value to the other file', () => {
+        oPend.set(tag, { vr, valueString: valA });
+        renderTable(); showDownload();
+      }));
+    }
+    if (!ro && valB !== null) {
+      acts.appendChild(copyBtn('←', 'Copy the other file\'s value to this one', () => {
+        trackEditStart?.();
+        pendingEdits.set(tag, { vr, valueString: valB });
+        renderTable(); showDownload();
+        if (files.length === 1 && dict) drawPreview(dict, currentFrame);
+      }));
+    }
+    tr.children[5].appendChild(acts);
     rows.push(tr);
   }
 
   tagBody.replaceChildren(...rows);
+  if (other) renderCompareStats(tally);
   showDownload();
   detectUIDPattern();
 }
@@ -4074,6 +4156,7 @@ function remapUIDs() {
 
 function syncToUI() {
   usePendingOf(files[currentFileIdx]);
+  renderCompareUI();
   currentFrame = 0;
   wlSection?.classList.add('hidden');
   updateHistoryBtns?.();
@@ -4127,6 +4210,8 @@ async function handleFiles(list) {
   files = [];
   dict = meta = null;
   currentFileIdx = 0;
+  compareIdx = null;
+  cmpDiffOnly = false;
   pendingEdits = new Map();
   tagBody.innerHTML = '';
   previewCard.style.display = 'none';
@@ -4216,23 +4301,24 @@ function buildEditedFile(entry) {
   return new Blob([out.buffer || out], { type: 'application/dicom' });
 }
 
+function downloadOne(entry) {
+  try {
+    const blob = buildEditedFile(entry);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${entry.name.replace(/\.[^.]+$/, '')}.edited.dcm`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    log(`⬇ ${entry.name}`);
+  } catch (e) {
+    log(`✗ Download ${entry.name}: ${e.message || e}`);
+  }
+}
+
 function downloadRange(start, end) {
   if (!files.length) return;
-  for (let i = start; i < end; i++) {
-    const f = files[i];
-    try {
-      const blob = buildEditedFile(f);
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${f.name.replace(/\.[^.]+$/, '')}.edited.dcm`;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
-      log(`⬇ ${f.name}`);
-    } catch (e) {
-      log(`✗ Download ${f.name}: ${e.message || e}`);
-    }
-  }
+  for (let i = start; i < end; i++) downloadOne(files[i]);
 }
 
 // ============ EVENTS ============
@@ -4291,6 +4377,34 @@ randomizeBtn.addEventListener('click', () => {
 });
 
 
+document.getElementById('compareWith')?.addEventListener('change', e => {
+  compareIdx = e.target.value === '' ? null : Number(e.target.value);
+  cmpDiffOnly = false;
+  const cb = document.getElementById('cmpDiffOnly');
+  if (cb) cb.checked = false;
+  renderCompareUI();
+  renderTable();
+});
+document.getElementById('cmpClose')?.addEventListener('click', () => {
+  compareIdx = null; renderCompareUI(); renderTable();
+});
+document.getElementById('cmpDiffOnly')?.addEventListener('change', e => {
+  cmpDiffOnly = e.target.checked; renderTable();
+});
+document.getElementById('cmpDownloadB')?.addEventListener('click', () => {
+  const other = compareEntry(); if (other) downloadOne(other);
+});
+document.getElementById('cmpApplyToB')?.addEventListener('click', () => {
+  const other = compareEntry(); if (!other) return;
+  confirmDanger(`Copy every differing value onto ${other.name}? This overwrites its values.`,
+                () => cmpApplyAll(true), 'Copy →');
+});
+document.getElementById('cmpApplyToA')?.addEventListener('click', () => {
+  const other = compareEntry(); if (!other) return;
+  confirmDanger(`Copy every differing value from ${other.name} onto this file? This overwrites its values.`,
+                () => cmpApplyAll(false), 'Copy ←');
+});
+
 searchInput.addEventListener('input', e => { searchQuery = e.target.value; renderTable(); });
 
 filterBtns.forEach(btn => btn.addEventListener('click', () => {
@@ -4317,11 +4431,9 @@ let activeTab = 'overview';   // Overview is the default landing tab (see static
 const editorTabBtn    = document.getElementById('editorTabBtn');
 const createTabBtn    = document.getElementById('createTabBtn');
 const extractorTabBtn = document.getElementById('extractorTabBtn');
-const compareTabBtn   = document.getElementById('compareTabBtn');
 const editorTabPanel    = document.getElementById('editorTab');
 const createTabPanel    = document.getElementById('createTab');
 const extractorTabPanel = document.getElementById('extractorTab');
-const compareTabPanel   = document.getElementById('compareTab');
 const overviewTabBtn    = document.getElementById('overviewTabBtn');
 const overviewTabPanel  = document.getElementById('overviewTab');
 
@@ -4330,7 +4442,6 @@ const ALL_TABS = [
   ['editor',    editorTabBtn,    editorTabPanel,    'grid'],
   ['create',    createTabBtn,    createTabPanel,    'grid'],
   ['extractor', extractorTabBtn, extractorTabPanel, 'grid'],
-  ['compare',   compareTabBtn,   compareTabPanel,   'grid'],
 ];
 
 function switchTab(tab) {
@@ -4847,328 +4958,6 @@ document.getElementById('addSeriesBtn').addEventListener('click', addSeries);
 
 // Initialize series panel
 renderSeriesPanel();
-
-// ================================================================
-// COMPARE TAB
-// ================================================================
-
-// ── State ────────────────────────────────────────────────────────
-let cmpA = null;      // { name, dict, meta, pending: Map }
-let cmpB = null;      // { name, dict, meta, pending: Map }
-let cmpDiffOnly  = false;
-let cmpSearchStr = '';
-
-// ── Element refs ─────────────────────────────────────────────────
-const cmpStatusPill  = document.getElementById('cmpStatusPill');
-const cmpEmptyState  = document.getElementById('cmpEmptyState');
-const cmpTableWrap   = document.getElementById('cmpTableWrap');
-const cmpBody        = document.getElementById('cmpBody');
-const cmpStatsCard   = document.getElementById('cmpStatsCard');
-const cmpExportCard  = document.getElementById('cmpExportCard');
-const cmpStatRow     = document.getElementById('cmpStatRow');
-const cmpPreviewA    = document.getElementById('cmpPreviewA');
-const cmpPreviewB    = document.getElementById('cmpPreviewB');
-const cmpCanvasA     = document.getElementById('cmpCanvasA');
-const cmpCanvasB     = document.getElementById('cmpCanvasB');
-const cmpBadgeA      = document.getElementById('cmpBadgeA');
-const cmpBadgeB      = document.getElementById('cmpBadgeB');
-const cmpClearA      = document.getElementById('cmpClearA');
-const cmpClearB      = document.getElementById('cmpClearB');
-
-// ── File loading ─────────────────────────────────────────────────
-async function cmpLoadFile(file, side) {
-  if (!file) return;
-  try {
-    showLoading(true, `Loading ${side === 'A' ? 'File A' : 'File B'}: ${file.name}`);
-    const buf = await file.arrayBuffer();
-    const msg = DicomMessage.readFile(buf);
-    normBin(msg.dict);
-    const obj = { name: file.name, dict: msg.dict, meta: msg.meta || {}, pending: new Map() };
-    if (side === 'A') cmpA = obj;
-    else              cmpB = obj;
-    await cmpRenderSidebar(side);
-    cmpRenderTable();
-  } catch (e) {
-    toast?.(`Failed to load ${file.name}: ${e.message}`);
-  } finally {
-    showLoading(false);
-  }
-}
-
-async function cmpRenderSidebar(side) {
-  const obj     = side === 'A' ? cmpA : cmpB;
-  const preview = side === 'A' ? cmpPreviewA : cmpPreviewB;
-  const canvas  = side === 'A' ? cmpCanvasA  : cmpCanvasB;
-  const badge   = side === 'A' ? cmpBadgeA   : cmpBadgeB;
-  const clearBtn= side === 'A' ? cmpClearA   : cmpClearB;
-  const dropEl  = document.getElementById(side === 'A' ? 'cmpSideDropA' : 'cmpSideDropB');
-
-  if (!obj) {
-    preview.style.display = 'none';
-    badge.classList.add('hidden');
-    clearBtn.classList.add('hidden');
-    dropEl.textContent = (window.t||String)('Drop .dcm or click');
-    return;
-  }
-
-  badge.textContent = obj.name;
-  badge.classList.remove('hidden');
-  clearBtn.classList.remove('hidden');
-  dropEl.textContent = obj.name.length > 28 ? obj.name.slice(0, 26) + '…' : obj.name;
-
-  // Render mini preview
-  const result = await decodeDicomPixels(obj.dict, 0, { meta: obj.meta });
-  if (result && !result.error) {
-    const { pixels, rows, cols } = result;
-    canvas.width = cols; canvas.height = rows;
-    const ctx = canvas.getContext('2d');
-    const imgData = ctx.createImageData(cols, rows);
-    imgData.data.set(pixels);
-    ctx.putImageData(imgData, 0, 0);
-    preview.style.display = 'block';
-  } else {
-    preview.style.display = 'none';
-  }
-}
-
-// ── Table rendering ───────────────────────────────────────────────
-function cmpRenderTable() {
-  const bothLoaded = cmpA && cmpB;
-
-  // Empty state vs table
-  cmpEmptyState.classList.toggle('hidden', bothLoaded);
-  cmpTableWrap.classList.toggle('hidden', !bothLoaded);
-  cmpStatsCard.classList.toggle('hidden', !bothLoaded);
-  cmpExportCard.classList.toggle('hidden', !bothLoaded);
-
-  // Status pill
-  if (!cmpA && !cmpB)      cmpStatusPill.textContent = (window.t||String)('Load two files to compare');
-  else if (!cmpA)           cmpStatusPill.textContent = (window.t||String)('File B loaded — load File A');
-  else if (!cmpB)           cmpStatusPill.textContent = (window.t||String)('File A loaded — load File B');
-  else                      cmpStatusPill.textContent = `${cmpA.name}  vs  ${cmpB.name}`;
-
-  if (!bothLoaded) { cmpBody.innerHTML = ''; return; }
-
-  // Build union of all tags
-  const isTag = t => t.startsWith('x') || /^[0-9a-f]{8}$/i.test(t);
-  const tagSet = new Set([
-    ...Object.keys(cmpA.dict).filter(isTag),
-    ...Object.keys(cmpB.dict).filter(isTag),
-  ]);
-  const allTags = [...tagSet].sort();
-
-  const q = cmpSearchStr.toLowerCase();
-  const rows = [];
-  let nMatch = 0, nDiff = 0, nOnlyA = 0, nOnlyB = 0;
-
-  for (const tag of allTags) {
-    const elA = cmpA.dict[tag];
-    const elB = cmpB.dict[tag];
-    const vr  = (elA || elB)?.vr || '';
-    const desc = descFor(tag);
-    const cat  = catFor(tag, vr);
-
-    const valA = cmpA.pending.has(tag)
-      ? cmpA.pending.get(tag).valueString
-      : elA ? elToString(elA) : null;
-    const valB = cmpB.pending.has(tag)
-      ? cmpB.pending.get(tag).valueString
-      : elB ? elToString(elB) : null;
-
-    let cls = '';
-    if      (valA !== null && valB !== null && valA === valB) { cls = 'cmp-match'; nMatch++; }
-    else if (valA !== null && valB !== null)                  { cls = 'cmp-diff';  nDiff++; }
-    else if (valA !== null)                                   { cls = 'cmp-only-a'; nOnlyA++; }
-    else                                                      { cls = 'cmp-only-b'; nOnlyB++; }
-
-    if (cmpDiffOnly && cls === 'cmp-match') continue;
-
-    if (q && !`${fmtTag(tag)} ${desc || ''} ${valA || ''} ${valB || ''}`.toLowerCase().includes(q)) continue;
-
-    const tr = document.createElement('tr');
-    tr.className = cls;
-
-    // Tag | Desc | VR
-    tr.innerHTML = `
-      <td><div class="tag-cell"><span class="tag-cat" data-cat="${cat}"></span><span class="tag-code">${fmtTag(tag)}</span></div></td>
-      <td><span class="${desc ? 'desc-cell' : 'desc-cell desc-unknown'}">${desc || 'Unknown tag'}</span></td>
-      <td><span class="vr-badge">${vr}</span></td>
-      <td></td><td></td><td></td>`;
-
-    const binary = isBinaryVR(vr) || elA?.InlineBinary || elB?.InlineBinary;
-    const ro     = isReadOnly(tag, vr);
-
-    // File A input
-    const inpA = document.createElement('input');
-    inpA.className = 'val-input' + (binary ? ' binary' : '');
-    inpA.value = valA ?? '';
-    inpA.placeholder = valA === null ? '— not present —' : '';
-    inpA.disabled = ro || binary || !elA;
-    if (!inpA.disabled) {
-      inpA.addEventListener('change', () => {
-        cmpA.pending.set(tag, { vr, valueString: inpA.value });
-        cmpRenderTable();
-      });
-    }
-    tr.children[3].appendChild(inpA);
-
-    // File B input
-    const inpB = document.createElement('input');
-    inpB.className = 'val-input' + (binary ? ' binary' : '');
-    inpB.value = valB ?? '';
-    inpB.placeholder = valB === null ? '— not present —' : '';
-    inpB.disabled = ro || binary || !elB;
-    if (!inpB.disabled) {
-      inpB.addEventListener('change', () => {
-        cmpB.pending.set(tag, { vr, valueString: inpB.value });
-        cmpRenderTable();
-      });
-    }
-    tr.children[4].appendChild(inpB);
-
-    // Copy buttons (only for diff rows with editable values)
-    if (cls === 'cmp-diff' && !ro && !binary) {
-      const actionsTd = tr.children[5];
-      actionsTd.className = 'cmp-actions-cell';
-
-      if (elB && valA !== null) {
-        const btnAB = document.createElement('button');
-        btnAB.className = 'cmp-copy-btn';
-        btnAB.title = 'Copy A → B';
-        btnAB.textContent = '→';
-        btnAB.addEventListener('click', () => {
-          cmpB.pending.set(tag, { vr, valueString: valA });
-          cmpRenderTable();
-          toast?.(`${fmtTag(tag)}: A → B`);
-        });
-        actionsTd.appendChild(btnAB);
-      }
-      if (elA && valB !== null) {
-        const btnBA = document.createElement('button');
-        btnBA.className = 'cmp-copy-btn';
-        btnBA.title = 'Copy B → A';
-        btnBA.textContent = '←';
-        btnBA.addEventListener('click', () => {
-          cmpA.pending.set(tag, { vr, valueString: valB });
-          cmpRenderTable();
-          toast?.(`${fmtTag(tag)}: B → A`);
-        });
-        actionsTd.appendChild(btnBA);
-      }
-    }
-
-    rows.push(tr);
-  }
-
-  cmpBody.replaceChildren(...rows);
-
-  // Stats
-  cmpStatRow.innerHTML =
-    `<span class="cmp-stat s-match">✓ ${nMatch} match</span>` +
-    `<span class="cmp-stat s-diff">≠ ${nDiff} diff</span>` +
-    `<span class="cmp-stat s-only">+A ${nOnlyA}</span>` +
-    `<span class="cmp-stat s-only">+B ${nOnlyB}</span>`;
-}
-
-// ── Bulk apply ───────────────────────────────────────────────────
-function cmpApplyAllDiffs(from, to) {
-  // from/to are 'A' or 'B'
-  const src = from === 'A' ? cmpA : cmpB;
-  const dst = from === 'A' ? cmpB : cmpA;
-  if (!src || !dst) return;
-  const isTag = t => t.startsWith('x') || /^[0-9a-f]{8}$/i.test(t);
-  let count = 0;
-  for (const tag of Object.keys(src.dict).filter(isTag)) {
-    const elDst = dst.dict[tag];
-    if (!elDst) continue;
-    const vr = elDst.vr || src.dict[tag]?.vr || '';
-    if (isReadOnly(tag, vr) || isBinaryVR(vr)) continue;
-    const valSrc = src.pending.get(tag)?.valueString ?? elToString(src.dict[tag]);
-    const valDst = dst.pending.get(tag)?.valueString ?? elToString(elDst);
-    if (valSrc !== valDst) { dst.pending.set(tag, { vr, valueString: valSrc }); count++; }
-  }
-  cmpRenderTable();
-  toast?.(`Applied ${count} ${from}→${to} differences`);
-}
-
-// ── Download ─────────────────────────────────────────────────────
-function cmpDownload(side) {
-  const obj = side === 'A' ? cmpA : cmpB;
-  if (!obj) return;
-  try {
-    const blob = buildEditedFile(obj);
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = obj.name.replace(/\.[^.]+$/, '') + '.modified.dcm';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 0);
-    toast?.(`Downloaded modified ${side === 'A' ? 'File A' : 'File B'}`);
-  } catch (e) {
-    toast?.(`Download failed: ${e.message}`);
-  }
-}
-
-// ── Drop zone helpers ─────────────────────────────────────────────
-function cmpWireDropZone(el, fileInput, side) {
-  el.addEventListener('click', () => fileInput.click());
-  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
-  el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
-  el.addEventListener('drop', e => {
-    e.preventDefault(); el.classList.remove('drag-over');
-    const f = e.dataTransfer?.files?.[0];
-    if (f) cmpLoadFile(f, side);
-  });
-  fileInput.addEventListener('change', e => {
-    if (e.target.files?.[0]) cmpLoadFile(e.target.files[0], side);
-    e.target.value = '';
-  });
-}
-
-// Main drop panes (empty state)
-cmpWireDropZone(document.getElementById('cmpDropPaneA'), document.getElementById('cmpFileInputA'), 'A');
-cmpWireDropZone(document.getElementById('cmpDropPaneB'), document.getElementById('cmpFileInputB'), 'B');
-
-// Sidebar drop zones (always visible)
-const cmpSideInputA = document.createElement('input');
-cmpSideInputA.type = 'file'; cmpSideInputA.accept = '.dcm,.dicom'; cmpSideInputA.hidden = true;
-document.body.appendChild(cmpSideInputA);
-cmpWireDropZone(document.getElementById('cmpSideDropA'), cmpSideInputA, 'A');
-
-const cmpSideInputB = document.createElement('input');
-cmpSideInputB.type = 'file'; cmpSideInputB.accept = '.dcm,.dicom'; cmpSideInputB.hidden = true;
-document.body.appendChild(cmpSideInputB);
-cmpWireDropZone(document.getElementById('cmpSideDropB'), cmpSideInputB, 'B');
-
-// Clear buttons
-cmpClearA.addEventListener('click', () => { cmpA = null; cmpRenderSidebar('A'); cmpRenderTable(); });
-cmpClearB.addEventListener('click', () => { cmpB = null; cmpRenderSidebar('B'); cmpRenderTable(); });
-document.getElementById('cmpClearAll').addEventListener('click', () => {
-  cmpA = cmpB = null;
-  cmpRenderSidebar('A'); cmpRenderSidebar('B'); cmpRenderTable();
-  toast?.('Comparison cleared');
-});
-
-// Filters
-document.getElementById('cmpDiffOnly').addEventListener('change', e => { cmpDiffOnly = e.target.checked; cmpRenderTable(); });
-document.getElementById('cmpSearch').addEventListener('input', e => { cmpSearchStr = e.target.value; cmpRenderTable(); });
-
-// Export
-document.getElementById('cmpApplyAtoB').addEventListener('click', () => {
-  if (!cmpA || !cmpB) return;
-  confirmDanger('Apply all differing tag values from A onto B? This overwrites B’s values.', () => cmpApplyAllDiffs('A', 'B'), 'Apply A→B');
-});
-document.getElementById('cmpApplyBtoA').addEventListener('click', () => {
-  if (!cmpA || !cmpB) return;
-  confirmDanger('Apply all differing tag values from B onto A? This overwrites A’s values.', () => cmpApplyAllDiffs('B', 'A'), 'Apply B→A');
-});
-document.getElementById('cmpDownloadA').addEventListener('click', () => cmpDownload('A'));
-document.getElementById('cmpDownloadB').addEventListener('click', () => cmpDownload('B'));
-
-// Also accept files dropped anywhere on the compare tab
-window.addEventListener('drop', e => {
-  if (activeTab !== 'compare') return;
-  // Already handled by individual pane listeners
-}, { capture: false });
 
 // ================================================================
 // NEW FEATURES

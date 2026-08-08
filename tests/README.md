@@ -22,7 +22,7 @@ Every case carries two things that never touch each other:
 
 So a case passes only when the app's decoder and PS3.3 agree. A decoder that is
 wrong in a self-consistent way still fails, which is the whole point — comparing
-the app against itself would have found none of the six problems below.
+the app against itself would have found none of the problems below.
 
 `tests/gallery.html` is the same corpus with the reference images drawn out and a
 download button on each. Open it, save a case, drop it into
@@ -32,17 +32,28 @@ the quickest way to confirm a fix on the real site.
 ## The suites
 
 **`pixels`** — `decodeDicomPixels()` on its own. For greyscale it asserts on
-`rawFloats`, the stored values the decoder recovered, because that is what has to
-be right regardless of which layer later applies rescale or inversion; sign
-handling, bit masking, byte order and frame offsets all surface here as a wrong
-minimum or maximum. Colour has nothing applied after it, so colour cases are
-compared pixel for pixel.
+`rawFloats`, the decoder's buffer of values in output units, because sign
+handling, bit masking, byte order, rescale and frame offsets all surface there as
+a wrong minimum or maximum before any windowing can hide them. Colour has nothing
+applied after it, so colour cases are compared pixel for pixel.
 
 **`viewer`** — what a person actually sees. Installs each forged file into the
 app's own state and drives both display surfaces: the Overview viewer
 (`renderOverview`) and the editor's preview thumbnail (`drawPreview`). It also
 checks the two against *each other*, independent of which one is right — a file
 cannot legitimately look like two different images in two panels of one page.
+
+**`edits`** — whose edits are whose. Loads a three-slice series through the real
+drop handler and checks that each file keeps its own working copy: that an edit
+does not follow you when you switch files, that it is still there when you come
+back, and above all that downloading writes each file's own identity rather than
+the one you happened to be looking at.
+
+**`compare`** — what happens when a second file is shown beside the first.
+Comparing is a mode of the editor's table rather than a separate screen, so this
+asserts the things that only hold if it really is the same table — the category
+filter and search still rule it, both columns are editable and belong to their own file, and
+closing the comparison leaves the editor exactly as it was.
 
 ## What the corpus covers
 
@@ -57,8 +68,11 @@ two bytes are `FF D8` and so look like a JPEG SOI marker).
 
 ## What it caught
 
-The first run was 20 of 196 assertions red, from six defects. All six are fixed;
-the entries below are what the suite is now holding in place.
+The first run was 20 of 196 assertions red, from six rendering defects. Those are
+fixed, and the suites have since grown into the editor, where they found three
+more. Everything below is what the tests now hold in place.
+
+### Rendering
 
 | Case | The defect | The fix |
 | --- | --- | --- |
@@ -69,3 +83,11 @@ the entries below are what the suite is now holding in place.
 | `ybr-full` | YBR_FULL was matched as if it were RGB and copied channel for channel, with no YCbCr conversion. | Convert per PS3.3 C.7.6.3.1.2. |
 | `palette-color` | PALETTE COLOR was refused outright — "No renderable pixel data in this file" — with the lookup tables in the file never read. | `readPaletteLut` reads the descriptor/data pairs, including 16-bit tables and the first-mapped offset. |
 | `ybr-422-jpeg` | Found while fixing the above: JPEG ultrasound cine is almost always YBR_FULL_422, and the old photometric test refused it before the JPEG decoder — which returns RGB anyway — ever ran. | Accept every YBR flavour at the gate; uncompressed subsampled chroma still refuses, but now says which photometric it cannot handle. |
+
+### Edits
+
+| The defect | The fix |
+| --- | --- |
+| `pendingEdits` was one map for the session, wiped and reseeded on every file switch — so unsaved work vanished, and Download All applied the visible file's values to every file in the range: one SOP Instance UID and one patient identity across a whole series. | The map lives on the file entry; `pendingEdits` is a pointer at the current one. `buildEditedFile` takes the entry, so a file can only ever be written with its own values. |
+| Window/Level stored its edits under a hard-coded `x0028105x` key. The vendored dcmjs keys datasets without the prefix, so the slider never read its own value back and the writer emitted a second, bogus element beside the real Window Center. | `editKey` resolves whichever form the loaded file uses. |
+| Editing a PersonName wrote the literal text `[object Object]` into the file — dcmjs reads PN as a string here and its writer stringifies whatever it is handed, so the `{Alphabetic}` objects never survived the round trip. Invisible in the UI, which renders both shapes. | `parseByVR` follows the shape the element is already in. |
