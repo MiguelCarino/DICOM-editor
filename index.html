@@ -2843,7 +2843,11 @@ const { DicomMessage, DicomMetaDictionary, DicomDict } = dcmjs.data;
 let files = [];
 let dict = null;
 let meta = null;
-const pendingEdits = new Map();
+// Working copy of the tag values, one map per loaded file, kept on the file
+// entry itself. pendingEdits points at the current file's — so every reference
+// by name still reads the file on screen — but the maps outlive the switch, and
+// no file can be written with another file's values.
+let pendingEdits = new Map();
 let sharedUIDPrefix = '';
 let detectedPattern = '';
 let activeCat = 'all';
@@ -2851,6 +2855,46 @@ let searchQuery = '';
 let previewImageData = null;
 let currentFrame = 0;
 let totalFrames = 1;
+
+// ============ PER-FILE EDITS ============
+// A file's working copy starts as every editable tag at its current value, so
+// "pending" here means the whole editable dataset, not just what changed.
+function seedPending(d) {
+  const m = new Map();
+  if (d) for (const [t, el] of Object.entries(d)) {
+    if (el && el.vr !== 'SQ' && !isBinaryVR(el.vr)) m.set(t, { vr: el.vr, valueString: elToString(el) });
+  }
+  return m;
+}
+// A file's own map, built on first use. Does not move the pendingEdits pointer,
+// so it is safe to reach for a file that is not the one on screen.
+function pendingOf(entry) {
+  if (!entry) return new Map();
+  if (!entry.pending) entry.pending = seedPending(entry.dict);
+  return entry.pending;
+}
+// Point pendingEdits at a file's own map.
+function usePendingOf(entry) {
+  pendingEdits = pendingOf(entry);
+  return pendingEdits;
+}
+// Depending on the dcmjs version a dataset is keyed "00281050" or "x00281050",
+// and the working copy inherits whichever it used. Anything reaching for a tag
+// by literal has to resolve the form the loaded file actually uses — writing
+// the other one adds a second, bogus entry instead of editing the real tag.
+function editKey(tag8) {
+  const lo = String(tag8).toLowerCase();
+  if (pendingEdits.has(lo)) return lo;
+  if (pendingEdits.has('x' + lo)) return 'x' + lo;
+  if (dict && dict['x' + lo] && !dict[lo]) return 'x' + lo;
+  return lo;
+}
+// Anonymize, randomize and the UID prefix remap rewrite every file's dataset in
+// place, which leaves every working copy stale — not just the visible one.
+function reseedAllPending() {
+  for (const f of files) f.pending = seedPending(f.dict);
+  usePendingOf(files[currentFileIdx]);
+}
 
 // ============ UTILITIES ============
 function isBinaryVR(vr) { return ['OB','OW','OF','UN','OD','OL'].includes(vr); }
@@ -2882,13 +2926,20 @@ function elToString(el) {
   }).join('\\');
   return String(v);
 }
-function parseByVR(vr, str) {
+// `sample` is the value the element already holds, when there is one. PersonName
+// is the reason: dcmjs reads it as a plain string in the build we vendor, and
+// its writer stringifies whatever it is handed — so always returning
+// {Alphabetic} objects wrote the literal text "[object Object]" into the file as
+// the patient's name, while the editor went on displaying it correctly. Follow
+// the shape the element is already in, and default to a string.
+function parseByVR(vr, str, sample) {
   if (str == null) return [];
   const parts = String(str).split('\\').map(s => s.trim());
   switch (vr) {
     case 'US': case 'UL': case 'SS': case 'SL': case 'FL': case 'FD':
       return parts.map(x => { const n = Number(x); return Number.isFinite(n) ? n : 0; });
     case 'PN':
+      if (!sample || typeof sample !== 'object') return parts;
       return parts.map(s => {
         const [a = '', i = '', p = ''] = s.split('=');
         const obj = { Alphabetic: a };
@@ -3018,14 +3069,7 @@ function applyPrefixToAll(newP) {
       });
     });
   }
-  pendingEdits.clear();
-  if (dict) {
-    Object.entries(dict).forEach(([t, el]) => {
-      if (el && el.vr !== 'SQ' && !isBinaryVR(el.vr)) {
-        pendingEdits.set(t, { vr: el.vr, valueString: elToString(el) });
-      }
-    });
-  }
+  reseedAllPending();
   sharedUIDPrefix = newP;
   uidPrefixInput.value = newP;
   uidPatternDisplay.textContent = `${newP}.*`;
@@ -3186,8 +3230,8 @@ function renderTable() {
       inp.addEventListener('input', () => {
         trackEditStart?.();
         pendingEdits.set(tag, { vr, valueString: inp.value });
-        if (tag === 'x00281050') { const v = parseFloat(inp.value); if (!isNaN(v) && wcSlider) { wcSlider.value = v; if (wcNum) wcNum.value = Math.round(v); if (wcDisplay) wcDisplay.textContent = Math.round(v); } }
-        if (tag === 'x00281051') { const v = parseFloat(inp.value); if (!isNaN(v) && wwSlider) { wwSlider.value = Math.max(1,v); if (wwNum) wwNum.value = Math.round(Math.max(1,v)); if (wwDisplay) wwDisplay.textContent = Math.round(Math.max(1,v)); } }
+        if (editKey('00281050') === tag) { const v = parseFloat(inp.value); if (!isNaN(v) && wcSlider) { wcSlider.value = v; if (wcNum) wcNum.value = Math.round(v); if (wcDisplay) wcDisplay.textContent = Math.round(v); } }
+        if (editKey('00281051') === tag) { const v = parseFloat(inp.value); if (!isNaN(v) && wwSlider) { wwSlider.value = Math.max(1,v); if (wwNum) wwNum.value = Math.round(Math.max(1,v)); if (wwDisplay) wwDisplay.textContent = Math.round(Math.max(1,v)); } }
         showDownload();
         if (files.length === 1 && dict) drawPreview(dict, currentFrame);
       });
@@ -3716,8 +3760,8 @@ function redrawWL(wcOvr, wwOvr) {
 }
 
 async function drawPreview(d, frameIndex = 0) {
-  const wcPending = pendingEdits.get('x00281050');
-  const wwPending = pendingEdits.get('x00281051');
+  const wcPending = pendingEdits.get(editKey('00281050'));
+  const wwPending = pendingEdits.get(editKey('00281051'));
   const wcOvr = wcPending ? parseFloat(wcPending.valueString) : undefined;
   const wwOvr = wwPending ? parseFloat(wwPending.valueString) : undefined;
 
@@ -4029,16 +4073,9 @@ function remapUIDs() {
 }
 
 function syncToUI() {
-  pendingEdits.clear();
+  usePendingOf(files[currentFileIdx]);
   currentFrame = 0;
   wlSection?.classList.add('hidden');
-  if (dict) {
-    Object.entries(dict).forEach(([t, el]) => {
-      if (el && el.vr !== 'SQ' && !isBinaryVR(el.vr)) {
-        pendingEdits.set(t, { vr: el.vr, valueString: elToString(el) });
-      }
-    });
-  }
   updateHistoryBtns?.();
   renderTable();
   if (dict) drawPreview(dict, 0);
@@ -4090,7 +4127,7 @@ async function handleFiles(list) {
   files = [];
   dict = meta = null;
   currentFileIdx = 0;
-  pendingEdits.clear();
+  pendingEdits = new Map();
   tagBody.innerHTML = '';
   previewCard.style.display = 'none';
   logArea.textContent = '';
@@ -4121,7 +4158,7 @@ async function handleFiles(list) {
       normBin(msg.dict);
       // Retain a handle to the original File (cheap — not the bytes) so the
       // loaded-file hash can be (re)computed on demand; hash small files now.
-      const entry = { name: file.name, dict: msg.dict, meta: msg.meta || {}, file, size: file.size, sha: null, shaState: file.size <= SHA_AUTO_LIMIT ? 'idle' : 'deferred' };
+      const entry = { name: file.name, dict: msg.dict, meta: msg.meta || {}, pending: seedPending(msg.dict), file, size: file.size, sha: null, shaState: file.size <= SHA_AUTO_LIMIT ? 'idle' : 'deferred' };
       files.push(entry);
       if (entry.shaState === 'idle') computeEntrySha(entry, buf);   // fire-and-forget
       log(`✓ ${file.name}`);
@@ -4155,28 +4192,36 @@ async function handleFiles(list) {
 }
 
 
+// Encodes one file with its own working edits. Every download goes through
+// here: reaching for the global pendingEdits instead would write the file the
+// user happens to be looking at over every other file in the range — same
+// Instance UID on every slice of a series.
+function buildEditedFile(entry) {
+  const d = typeof structuredClone === 'function' ? structuredClone(entry.dict) : { ...entry.dict };
+  pendingOf(entry).forEach(({ vr, valueString }, t) => {
+    if (!isReadOnly(t, vr)) d[t] = { vr, Value: parseByVR(vr, valueString, entry.dict[t]?.Value?.[0]) };
+  });
+  // Remove deprecated group length tags (element 0000) — their byte-count values
+  // become stale after any edit, and dcmjs throws for private groups like (000F,0000).
+  Object.keys(d).forEach(t => {
+    const hex = (t.startsWith('x') ? t.slice(1) : t).toLowerCase();
+    if (hex.length === 8 && hex.slice(4) === '0000') delete d[t];
+  });
+  const m = ensureMeta(d, entry.meta);
+  normBin(d);
+  normBin(m);
+  const dd = new DicomDict(m);
+  dd.dict = d;
+  const out = dd.write();
+  return new Blob([out.buffer || out], { type: 'application/dicom' });
+}
+
 function downloadRange(start, end) {
   if (!files.length) return;
   for (let i = start; i < end; i++) {
     const f = files[i];
     try {
-      const d = typeof structuredClone === 'function' ? structuredClone(f.dict) : {...f.dict};
-      pendingEdits.forEach(({ vr, valueString }, t) => {
-        if (!isReadOnly(t, vr)) d[t] = { vr, Value: parseByVR(vr, valueString) };
-      });
-      // Remove deprecated group length tags (element 0000) — their byte-count values
-      // become stale after any edit, and dcmjs throws for private groups like (000F,0000).
-      Object.keys(d).forEach(t => {
-        const hex = (t.startsWith('x') ? t.slice(1) : t).toLowerCase();
-        if (hex.length === 8 && hex.slice(4) === '0000') delete d[t];
-      });
-      const m = ensureMeta(d, f.meta);
-      normBin(d);
-      normBin(m);
-      const dd = new DicomDict(m);
-      dd.dict = d;
-      const out = dd.write();
-      const blob = new Blob([out.buffer || out], { type: 'application/dicom' });
+      const blob = buildEditedFile(f);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `${f.name.replace(/\.[^.]+$/, '')}.edited.dcm`;
@@ -4221,6 +4266,7 @@ anonymizeBtn.addEventListener('click', () => {
     if (!window.DEID_PROFILE) log('⚠ deid-profile.js failed to load — only private tags and core identifiers will be removed.');
     files.forEach(f => anonymize(f.dict));
     remapUIDs();
+    reseedAllPending();
     syncToUI();
     // Warn about identity that lives in the pixels, which a tag editor cannot remove.
     const burned = files.filter(f => /^YES/i.test(String(getTag(f.dict, '00280301')?.Value?.[0] || '')));
@@ -4237,6 +4283,7 @@ randomizeBtn.addEventListener('click', () => {
     pushHistory?.();
     files.forEach(f => randomize(f.dict));
     remapUIDs();
+    reseedAllPending();
     syncToUI();
     log('Randomized all files');
     toast?.('All files randomized');
@@ -5049,21 +5096,7 @@ function cmpDownload(side) {
   const obj = side === 'A' ? cmpA : cmpB;
   if (!obj) return;
   try {
-    const d = typeof structuredClone === 'function'
-      ? structuredClone(obj.dict) : { ...obj.dict };
-    obj.pending.forEach(({ vr, valueString }, tag) => {
-      if (!isReadOnly(tag, vr)) d[tag] = { vr, Value: parseByVR(vr, valueString) };
-    });
-    Object.keys(d).forEach(t => {
-      const hex = (t.startsWith('x') ? t.slice(1) : t).toLowerCase();
-      if (hex.length === 8 && hex.slice(4) === '0000') delete d[t];
-    });
-    const m = ensureMeta(d, obj.meta);
-    normBin(d); normBin(m);
-    const dd = new DicomDict(m);
-    dd.dict = d;
-    const out = dd.write();
-    const blob = new Blob([out.buffer || out], { type: 'application/dicom' });
+    const blob = buildEditedFile(obj);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = obj.name.replace(/\.[^.]+$/, '') + '.modified.dcm';
@@ -5352,8 +5385,8 @@ function initWLSliders() {
   wwOriginal = parseFloat(lookupTag(dict, '00281051')?.Value?.[0]) || null;
 
   // Prefer pending edits if WL was already changed this session
-  const wc = parseFloat(pendingEdits.get('x00281050')?.valueString ?? wcOriginal ?? 40);
-  const ww = Math.max(1, parseFloat(pendingEdits.get('x00281051')?.valueString ?? wwOriginal ?? 400));
+  const wc = parseFloat(pendingEdits.get(editKey('00281050'))?.valueString ?? wcOriginal ?? 40);
+  const ww = Math.max(1, parseFloat(pendingEdits.get(editKey('00281051'))?.valueString ?? wwOriginal ?? 400));
 
   setWL(wc, ww, false);
   wlSection.classList.remove('hidden');
@@ -5375,11 +5408,11 @@ function setWL(wc, ww, updatePending = true) {
   wwDisplay.textContent = ww;
 
   if (updatePending) {
-    pendingEdits.set('x00281050', { vr: 'DS', valueString: String(wc) });
-    pendingEdits.set('x00281051', { vr: 'DS', valueString: String(ww) });
+    pendingEdits.set(editKey('00281050'), { vr: 'DS', valueString: String(wc) });
+    pendingEdits.set(editKey('00281051'), { vr: 'DS', valueString: String(ww) });
     // Sync table inputs if visible
-    const wcInp = tagBody.querySelector('[data-tag="x00281050"]');
-    const wwInp = tagBody.querySelector('[data-tag="x00281051"]');
+    const wcInp = tagBody.querySelector(`[data-tag="${editKey('00281050')}"]`);
+    const wwInp = tagBody.querySelector(`[data-tag="${editKey('00281051')}"]`);
     if (wcInp) wcInp.value = String(wc);
     if (wwInp) wwInp.value = String(ww);
     showDownload();
@@ -5389,10 +5422,10 @@ function setWL(wc, ww, updatePending = true) {
 
 function _applyWLInput(wc, ww) {
   trackEditStart();
-  pendingEdits.set('x00281050', { vr: 'DS', valueString: String(wc) });
-  pendingEdits.set('x00281051', { vr: 'DS', valueString: String(ww) });
-  const wcInp = tagBody.querySelector('[data-tag="x00281050"]');
-  const wwInp = tagBody.querySelector('[data-tag="x00281051"]');
+  pendingEdits.set(editKey('00281050'), { vr: 'DS', valueString: String(wc) });
+  pendingEdits.set(editKey('00281051'), { vr: 'DS', valueString: String(ww) });
+  const wcInp = tagBody.querySelector(`[data-tag="${editKey('00281050')}"]`);
+  const wwInp = tagBody.querySelector(`[data-tag="${editKey('00281051')}"]`);
   if (wcInp) wcInp.value = String(wc);
   if (wwInp) wwInp.value = String(ww);
   showDownload();
@@ -5465,7 +5498,7 @@ addTagConfirm.addEventListener('click', () => {
   const vr  = addTagVR.value;
   const val = addTagVal.value.trim();
   pushHistory();
-  dict[key] = { vr, Value: parseByVR(vr, val) };
+  dict[key] = { vr, Value: parseByVR(vr, val, dict[key]?.Value?.[0]) };
   pendingEdits.set(key, { vr, valueString: val });
   addTagRow.classList.add('hidden');
   addTagCode.value = '';
