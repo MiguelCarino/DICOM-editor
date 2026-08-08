@@ -257,7 +257,6 @@ const I18N = {
         'Click anywhere to close': 'Haz clic en cualquier lugar para cerrar',
         // Attributes (titles / placeholders)
         'Search...': 'Buscar...',
-        'Search tags…': 'Buscar tags…',
         'e.g. Chest X-Ray': 'p. ej. Radiografía de tórax',
         'Invert grayscale': 'Invertir escala de grises',
         'Rotate 90°': 'Rotar 90°',
@@ -548,7 +547,6 @@ const I18N = {
         'Load files': 'Carregar arquivos',
         'Click anywhere to close': 'Clique em qualquer lugar para fechar',
         'Search...': 'Buscar...',
-        'Search tags…': 'Buscar tags…',
         'e.g. Chest X-Ray': 'ex.: Raio-X de tórax',
         'Invert grayscale': 'Inverter escala de cinza',
         'Rotate 90°': 'Girar 90°',
@@ -839,7 +837,6 @@ const I18N = {
         'Load files': 'ファイルを読み込む',
         'Click anywhere to close': 'クリックで閉じる',
         'Search...': '検索...',
-        'Search tags…': 'タグを検索…',
         'e.g. Chest X-Ray': '例: 胸部X線',
         'Invert grayscale': 'グレースケールを反転',
         'Rotate 90°': '90°回転',
@@ -1130,7 +1127,6 @@ const I18N = {
         'Load files': 'Загрузить файлы',
         'Click anywhere to close': 'Нажмите в любом месте, чтобы закрыть',
         'Search...': 'Поиск...',
-        'Search tags…': 'Поиск тегов…',
         'e.g. Chest X-Ray': 'напр. рентген грудной клетки',
         'Invert grayscale': 'Инвертировать оттенки серого',
         'Rotate 90°': 'Повернуть на 90°',
@@ -1201,7 +1197,6 @@ function applyStaticI18n() {
 // Prominent title / placeholder attributes: [id, attribute, English key].
 const ATTR_I18N = [
     ['searchInput', 'placeholder', 'Search...'],
-    ['cmpSearch', 'placeholder', 'Search tags…'],
     ['addTagVal', 'placeholder', 'Value'],
     ['cdStudyDesc', 'placeholder', 'e.g. Chest X-Ray'],
     ['ovInvert', 'title', 'Invert grayscale'],

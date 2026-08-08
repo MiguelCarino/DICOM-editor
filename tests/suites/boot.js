@@ -70,6 +70,47 @@
     ok('suite ran to completion', false, (e && e.stack ? e.stack.split('\n')[0] : String(e)));
   }
 
+  // ---- every string on the page reaches all four locales -------------------
+  // Each feature's own suite lists the strings it added, which catches a new
+  // string that was never translated. It cannot catch the other direction: a
+  // string being rewritten, or a control being replaced by a different one, and
+  // the old locale entries left behind while the new markup falls back silently
+  // to English. Only the finished page knows what it is actually asking for, so
+  // ask the page.
+  try {
+    const LOCALES = ['es', 'pt-BR', 'ja', 'ru'];
+    const keys = new Set();
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const k = el.dataset.i18nKey || el.textContent.trim();
+      if (k) keys.add(k);
+    });
+    ok('the page carries translatable markup at all', keys.size > 100, `${keys.size} keys`);
+    for (const loc of LOCALES) {
+      const missing = [...keys].filter(k => !I18N[loc] || I18N[loc][k] === undefined);
+      ok(`every data-i18n string on the page is translated into ${loc}`, missing.length === 0,
+         missing.join(' | ').slice(0, 200));
+    }
+    const attrMissing = [];
+    for (const [id, attr, key] of ATTR_I18N) {
+      if (!document.getElementById(id)) { attrMissing.push(`${id} (no such element)`); continue; }
+      for (const loc of LOCALES) if (!I18N[loc] || I18N[loc][key] === undefined) attrMissing.push(`${key} @ ${loc}`);
+    }
+    ok('every ATTR_I18N entry names a real element and a translated string',
+       attrMissing.length === 0, attrMissing.join(' | ').slice(0, 200));
+    // A loose alarm rather than a real check, and it cannot be more than that:
+    // a great many entries are reached from JS through t() at a call site the
+    // DOM cannot show us, so an entry missing from the markup is not evidence it
+    // is dead. What the number does catch is drift — a dictionary growing while
+    // the page does not, which is what happens when controls are rewritten and
+    // their old entries are left behind. It was 107 when this was written.
+    const jsOwned = new Set(ATTR_I18N.map(([, , k]) => k));
+    const unseen = Object.keys(I18N.es).filter(k => !keys.has(k) && !jsOwned.has(k));
+    ok('the dictionaries have not drifted far ahead of the page',
+       unseen.length < 125, `${unseen.length} keys reached from JS or no longer reached at all`);
+  } catch (e) {
+    ok('the i18n audit ran', false, (e && e.message) || String(e));
+  }
+
   return out;
 };
 
