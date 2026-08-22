@@ -203,6 +203,23 @@ rotated-bounding-box mistake straight through — drives the real pointer handle
 and the Apply button, and checks that a codec with no decoder is refused by name
 with the dataset left byte-identical.
 
+**`imgedit`** — rotate and flip written into the stored pixels, the other thing
+here that writes them. Two questions again, and they are different: the PIXELS
+have to be a permutation — every sample still in the image, at the one place the
+op maps it to, nothing resampled — checked against the forge's reference picture;
+and the GEOMETRY has to still describe the same patient, checked against numbers
+worked out by hand in the suite's own comments, because a rotation that renumbers
+`(0020,0032)` to agree with itself would pass any test that only compared the app
+against the app. Both are asked again of the file `buildEditedFile` writes. Two
+of the assertions exist only to pin the handedness — every other one addresses
+the moved pixels through `PIXEL_OPS`, so swapping the clockwise and
+counter-clockwise definitions would leave them all passing; these say by hand
+which corner the top-left pixel lands in. The rest covers the non-square case the
+32×32 corpus cannot catch, four quarter turns being the identity byte for byte,
+enhanced multi-frame functional groups, a position inside a Referenced Image
+Sequence being left alone, and the two orderings of a redaction and a turn —
+neither of which may leave an undo button that puts un-redacted pixels back.
+
 **`boot`** — where the three library `<script>` tags sit. They are 1.4 MB of
 classic, parser-blocking script, and in `<head>` they held the first paint for
 three seconds on a 5 Mbps cold load; below the markup they hold nothing. No

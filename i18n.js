@@ -276,6 +276,24 @@ const I18N = {
         'Print / save all tags as a PDF': 'Imprimir / guardar todos los tags como PDF',
         'Redact burned-in annotation': 'Censurar anotación grabada en los píxeles',
 
+        // Image edits (rotate / flip, into the pixels)
+        'Image edits': 'Ediciones de imagen',
+        'Applied to the stored pixels of this file, every frame. Rows, Columns, Pixel Spacing and the patient geometry follow.': 'Se aplica a los píxeles guardados de este archivo, en todos los fotogramas. Rows, Columns, Pixel Spacing y la geometría del paciente se ajustan en consecuencia.',
+        '↺ Undo last image edit': '↺ Deshacer la última edición',
+        '⬇ Download this file': '⬇ Descargar este archivo',
+        '⬇ This file': '⬇ Este archivo',
+        'Rotate 90° clockwise': 'Rotar 90° en sentido horario',
+        'Rotate 90° counter-clockwise': 'Rotar 90° en sentido antihorario',
+        'Rotate 180°': 'Rotar 180°',
+        'Invert (MONOCHROME1 ⇄ MONOCHROME2)': 'Invertir (MONOCHROME1 ⇄ MONOCHROME2)',
+        "Download the file on screen, with this session's edits": 'Descargar el archivo en pantalla, con las ediciones de esta sesión',
+        'Only MONOCHROME1 and MONOCHROME2 images can be inverted this way.': 'Solo las imágenes MONOCHROME1 y MONOCHROME2 se pueden invertir de esta forma.',
+        'Not moved with the pixels:': 'No se mueve con los píxeles:',
+        'These are not moved with the pixels and will no longer line up:': 'Esto no se mueve con los píxeles y dejará de coincidir con la imagen:',
+        'This image will be decompressed to uncompressed Explicit VR Little Endian: the file will be larger and its Transfer Syntax will change.': 'Esta imagen se descomprimirá a Explicit VR Little Endian sin comprimir: el archivo será más grande y cambiará su sintaxis de transferencia.',
+        'This image was compressed with lossy JPEG; rewriting it will store 8 bits per sample.': 'Esta imagen se comprimió con JPEG con pérdida; al reescribirla se guardarán 8 bits por muestra.',
+        'image edit undone (this session only).': 'edición de imagen deshecha (solo en esta sesión).',
+
         // Pixel redaction
         'Redact': 'Censurar',
         'Undo redaction': 'Deshacer censura',
@@ -565,6 +583,24 @@ const I18N = {
         'Export tags as CSV': 'Exportar tags como CSV',
         'Print / save all tags as a PDF': 'Imprimir / salvar todos os tags como PDF',
         'Redact burned-in annotation': 'Tarjar anotação gravada nos pixels',
+
+        // Image edits (rotate / flip, into the pixels)
+        'Image edits': 'Edições de imagem',
+        'Applied to the stored pixels of this file, every frame. Rows, Columns, Pixel Spacing and the patient geometry follow.': 'Aplicado aos pixels armazenados deste arquivo, em todos os quadros. Rows, Columns, Pixel Spacing e a geometria do paciente acompanham.',
+        '↺ Undo last image edit': '↺ Desfazer a última edição',
+        '⬇ Download this file': '⬇ Baixar este arquivo',
+        '⬇ This file': '⬇ Este arquivo',
+        'Rotate 90° clockwise': 'Girar 90° no sentido horário',
+        'Rotate 90° counter-clockwise': 'Girar 90° no sentido anti-horário',
+        'Rotate 180°': 'Girar 180°',
+        'Invert (MONOCHROME1 ⇄ MONOCHROME2)': 'Inverter (MONOCHROME1 ⇄ MONOCHROME2)',
+        "Download the file on screen, with this session's edits": 'Baixar o arquivo na tela, com as edições desta sessão',
+        'Only MONOCHROME1 and MONOCHROME2 images can be inverted this way.': 'Somente imagens MONOCHROME1 e MONOCHROME2 podem ser invertidas assim.',
+        'Not moved with the pixels:': 'Não acompanha os pixels:',
+        'These are not moved with the pixels and will no longer line up:': 'Isto não acompanha os pixels e deixará de coincidir com a imagem:',
+        'This image will be decompressed to uncompressed Explicit VR Little Endian: the file will be larger and its Transfer Syntax will change.': 'Esta imagem será descomprimida para Explicit VR Little Endian sem compressão: o arquivo ficará maior e sua sintaxe de transferência mudará.',
+        'This image was compressed with lossy JPEG; rewriting it will store 8 bits per sample.': 'Esta imagem foi comprimida com JPEG com perdas; ao reescrevê-la serão gravados 8 bits por amostra.',
+        'image edit undone (this session only).': 'edição de imagem desfeita (apenas nesta sessão).',
 
         // Pixel redaction
         'Redact': 'Tarjar',
@@ -856,6 +892,24 @@ const I18N = {
         'Print / save all tags as a PDF': '全タグをPDFとして印刷・保存',
         'Redact burned-in annotation': '画像に焼き込まれた注記を塗りつぶす',
 
+        // Image edits (rotate / flip, into the pixels)
+        'Image edits': '画像の編集',
+        'Applied to the stored pixels of this file, every frame. Rows, Columns, Pixel Spacing and the patient geometry follow.': 'このファイルの保存済みピクセルに、全フレームへ適用します。Rows・Columns・Pixel Spacing と患者座標も合わせて書き換えます。',
+        '↺ Undo last image edit': '↺ 直前の画像編集を取り消す',
+        '⬇ Download this file': '⬇ このファイルをダウンロード',
+        '⬇ This file': '⬇ このファイル',
+        'Rotate 90° clockwise': '時計回りに90°回転',
+        'Rotate 90° counter-clockwise': '反時計回りに90°回転',
+        'Rotate 180°': '180°回転',
+        'Invert (MONOCHROME1 ⇄ MONOCHROME2)': '白黒反転 (MONOCHROME1 ⇄ MONOCHROME2)',
+        "Download the file on screen, with this session's edits": '表示中のファイルを、このセッションの編集込みでダウンロード',
+        'Only MONOCHROME1 and MONOCHROME2 images can be inverted this way.': 'この方法で反転できるのは MONOCHROME1 と MONOCHROME2 の画像だけです。',
+        'Not moved with the pixels:': 'ピクセルと一緒には移動しないもの:',
+        'These are not moved with the pixels and will no longer line up:': '次のものはピクセルと一緒には移動しないため、画像と位置が合わなくなります:',
+        'This image will be decompressed to uncompressed Explicit VR Little Endian: the file will be larger and its Transfer Syntax will change.': 'この画像は非圧縮の Explicit VR Little Endian に展開されます。ファイルは大きくなり、転送構文も変わります。',
+        'This image was compressed with lossy JPEG; rewriting it will store 8 bits per sample.': 'この画像は非可逆 JPEG で圧縮されています。書き換えると1サンプルあたり8ビットで保存されます。',
+        'image edit undone (this session only).': '画像編集を取り消しました (このセッションのみ)。',
+
         // Pixel redaction
         'Redact': '塗りつぶし',
         'Undo redaction': '塗りつぶしを元に戻す',
@@ -1146,6 +1200,24 @@ const I18N = {
         'Print / save all tags as a PDF': 'Печать / сохранить все теги в PDF',
         'Redact burned-in annotation': 'Закрасить надписи, впечатанные в изображение',
 
+        // Image edits (rotate / flip, into the pixels)
+        'Image edits': 'Правка изображения',
+        'Applied to the stored pixels of this file, every frame. Rows, Columns, Pixel Spacing and the patient geometry follow.': 'Применяется к сохранённым пикселям этого файла, ко всем кадрам. Rows, Columns, Pixel Spacing и геометрия пациента изменяются вместе с ними.',
+        '↺ Undo last image edit': '↺ Отменить последнюю правку',
+        '⬇ Download this file': '⬇ Скачать этот файл',
+        '⬇ This file': '⬇ Этот файл',
+        'Rotate 90° clockwise': 'Повернуть на 90° по часовой стрелке',
+        'Rotate 90° counter-clockwise': 'Повернуть на 90° против часовой стрелки',
+        'Rotate 180°': 'Повернуть на 180°',
+        'Invert (MONOCHROME1 ⇄ MONOCHROME2)': 'Инвертировать (MONOCHROME1 ⇄ MONOCHROME2)',
+        "Download the file on screen, with this session's edits": 'Скачать открытый файл с правками этой сессии',
+        'Only MONOCHROME1 and MONOCHROME2 images can be inverted this way.': 'Так можно инвертировать только изображения MONOCHROME1 и MONOCHROME2.',
+        'Not moved with the pixels:': 'Не перемещается вместе с пикселями:',
+        'These are not moved with the pixels and will no longer line up:': 'Это не перемещается вместе с пикселями и перестанет совпадать с изображением:',
+        'This image will be decompressed to uncompressed Explicit VR Little Endian: the file will be larger and its Transfer Syntax will change.': 'Изображение будет распаковано в несжатый Explicit VR Little Endian: файл станет больше, а его Transfer Syntax изменится.',
+        'This image was compressed with lossy JPEG; rewriting it will store 8 bits per sample.': 'Изображение было сжато JPEG с потерями; при перезаписи будет сохранено 8 бит на отсчёт.',
+        'image edit undone (this session only).': 'правка изображения отменена (только в этой сессии).',
+
         // Pixel redaction
         'Redact': 'Закрасить',
         'Undo redaction': 'Отменить закрашивание',
@@ -1226,6 +1298,13 @@ const ATTR_I18N = [
     ['exportJsonBtn', 'title', 'Export tags as JSON'],
     ['exportCsvBtn', 'title', 'Export tags as CSV'],
     ['printTagsBtn', 'title', 'Print / save all tags as a PDF'],
+    ['downloadOneBtn', 'title', "Download the file on screen, with this session's edits"],
+    ['imgRotCW', 'title', 'Rotate 90° clockwise'],
+    ['imgRotCCW', 'title', 'Rotate 90° counter-clockwise'],
+    ['imgRot180', 'title', 'Rotate 180°'],
+    ['imgFlipH', 'title', 'Flip horizontal'],
+    ['imgFlipV', 'title', 'Flip vertical'],
+    ['imgInvert', 'title', 'Invert (MONOCHROME1 ⇄ MONOCHROME2)'],
 ];
 
 function applyAttrI18n() {

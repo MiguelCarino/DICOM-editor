@@ -68,6 +68,50 @@ In the Overview viewer:
   chained, so a stack the machine cannot hold at the requested rate plays slower rather
   than falling behind a queue.
 
+## Basic image edits
+
+The Overview viewer's ⟳ ⇋ ⇅ turn the picture on screen and change nothing in the file,
+which is what a PACS viewer does. **Image edits**, in the Edit tab's sidebar under the
+preview, are the other kind: they move the **stored pixels**, so what comes out of
+Download is a file every other reader — another viewer, a printer, an archive — opens the
+right way up. Rotate 90° either way, rotate 180°, flip horizontally or vertically, and
+**Invert**, which swaps `MONOCHROME1` ⇄ `MONOCHROME2`.
+
+- **Nothing is resampled.** Every op is a permutation of whole samples: no value is ever
+  computed from its neighbours, so a rotation is lossless whatever the depth, the sign or
+  the photometric interpretation, and four quarter turns give back the original bytes.
+  `PALETTE COLOR`, `YBR` and planar-configuration-1 data need no special case.
+- **Every frame**, as with redaction. There is no per-frame option.
+- **The geometry follows the pixels.** `(0028,0010)` Rows and `(0028,0011)` Columns are
+  exchanged by a quarter turn, and so are `(0028,0030)` Pixel Spacing, `(0018,1164)`
+  Imager Pixel Spacing, `(0018,2010)` Nominal Scanned Pixel Spacing and `(0028,0034)`
+  Pixel Aspect Ratio. `(0020,0037)` Image Orientation (Patient) is [row direction, column
+  direction] — the unit vectors increasing Column and increasing Row walk along in patient
+  space (PS3.3 C.7.6.2.1.1) — so moving the pixels permutes exactly those two vectors with
+  a sign, which is exact rather than rounded. `(0020,0032)` Image Position (Patient) is
+  then walked to whichever original pixel has become the top-left one, and `(0020,0020)`
+  Patient Orientation is turned with the axes (`L`,`F` → `H`,`L` for a clockwise quarter
+  turn). Enhanced multi-frame objects are handled through their functional groups —
+  Plane Position, Plane Orientation and Pixel Measures, per frame — and geometry that
+  belongs to a *different* instance (a Referenced Image Sequence, an Original Attributes
+  Sequence) is deliberately left alone.
+- **Compressed images are decompressed**, through the same decoders and with the same
+  refusals as redaction below; the file grows and its Transfer Syntax changes, and you are
+  told before it happens.
+- **Afterwards the instance says so**: `(0008,0008)` Image Type value 1 becomes `DERIVED`,
+  `(0008,2111)` Derivation Description gains a line per edit, and a fresh `(0008,0018)`
+  SOP Instance UID is assigned — these are no longer the pixels the old UID identified.
+- **Undo is one step deep and session-only.** Applying an edit gives up the redaction undo
+  and vice versa: a button that could put back the pixels a redaction removed is not a
+  thing this tool offers, whatever it is labelled.
+- **Invert** touches no pixel at all. `MONOCHROME1` stores its black at the maximum value
+  and `MONOCHROME2` at zero, so swapping the two inverts what every reader draws; it is
+  one `CS` value, exactly reversible, and refused for anything else.
+
+**⬇ This file** (beside Download All, and again under the edit buttons) exports the file
+on screen alone, with this session's edits — a slice that has just been turned no longer
+has to go through an archive or the Range picker to come back out.
+
 ## De-identification
 
 The **Anonymize** action implements the **DICOM PS3.15 Annex E, Table E.1‑1 — Basic
@@ -205,6 +249,14 @@ nothing at runtime touches the network.
 - Redaction applies to the editor's copy of the file. A file dropped separately into the
   **Extract** tab keeps its own copy, and a PNG exported from there will still show the
   banner.
+- Rotating and flipping reach the pixel data and the image geometry, and **nothing else
+  that names a position**. Overlay planes (`60xx,3000`), Sequence of Ultrasound Regions
+  (`0018,6011`) and Graphic Annotation Sequence (`0070,0001`) are left where they are, and
+  the confirm dialog names whichever of them the file carries before the turn is applied —
+  an annotation that no longer sits over what it annotates is worse than one you were told
+  about. `(0020,0032)` is left unmoved, with a line in the log, when the file carries a
+  position but neither an orientation nor a spacing to walk it along.
+- The same codec limits as redaction apply, for the same reason: it is one decoder set.
 - Five of the ten optional profiles are exposed as toggles (above); the other five —
   Clean Descriptors, Clean Graphics, Clean Structured Content, Retain Longitudinal
   Modified Dates and Retain Safe Private — are deliberately not, because every attribute
