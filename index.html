@@ -644,7 +644,9 @@
       overflow-x: hidden;
       min-height: 0;
     }
-    #imgEditCard { flex: 0 0 auto; }
+    /* The tools and the drop zone hold their height; only the picture and the
+       Log give any up. A squeezed drop target cannot be aimed at. */
+    #imgEditCard, #loadFilesCard { flex: 0 0 auto; }
     /* Shrink factor 1 against the tail's 100: the tail gives up its height first
        and keeps a scrollbar of its own, and the picture only starts shrinking
        once the tail has nothing left to give. Not flex-basis 0 on the tail —
@@ -1978,7 +1980,6 @@
             <button class="btn danger" id="imgRedact" title="Redact burned-in annotation" data-i18n>▣ Redact burned-in text</button>
             <button class="btn" id="imgEditUndo" data-i18n>↺ Undo last image edit</button>
             <button class="btn hidden" id="imgRedactUndo" data-i18n>↺ Undo redaction</button>
-            <button class="btn primary" id="imgEditDownload" data-i18n>⬇ Download this file</button>
           </div>
           <div class="img-edit-note" id="imgEditNote" data-i18n>Applied to the stored pixels of this file, every frame. Rows, Columns, Pixel Spacing and the patient geometry follow.</div>
         </div>
@@ -2040,19 +2041,28 @@
           </div>
         </div>
 
-        <div class="sidebar-rest">
-          <div class="card" id="loadFilesCard">
-            <div class="card-title" data-i18n>Load Files</div>
-            <div class="drop-zone" id="dropZone">
-              <h4 data-i18n>Drop DICOM files</h4>
-              <p data-i18n>or click to browse</p>
-              <div class="drop-zone-actions">
-                <button class="drop-zone-btn" id="filesBtn" data-i18n>📄 Open files</button>
-                <button class="drop-zone-btn folder" id="folderBtn" data-i18n>📁 Open folder</button>
-              </div>
+        <!-- Not in the shrinking tail: it is a drop target, and a drop target
+             squeezed to nothing is worse than no drop target at all — you cannot
+             aim at it and there is nothing on screen saying files can be dropped.
+             It keeps its own height and the picture above gives up the space.
+             (A drop anywhere in the window loads too; this is the visible say-so
+             for it, and the click target for the two pickers.) -->
+        <div class="card" id="loadFilesCard">
+          <div class="card-title" data-i18n>Load Files</div>
+          <div class="drop-zone" id="dropZone">
+            <h4 data-i18n>Drop DICOM files</h4>
+            <p data-i18n>or click to browse</p>
+            <div class="drop-zone-actions">
+              <button class="drop-zone-btn" id="filesBtn" data-i18n>📄 Open files</button>
+              <button class="drop-zone-btn folder" id="folderBtn" data-i18n>📁 Open folder</button>
             </div>
           </div>
+        </div>
 
+        <!-- The Log is the one thing here that may be squeezed away: it is a
+             transcript of what already happened, and it scrolls inside whatever
+             it is left. -->
+        <div class="sidebar-rest">
           <div class="card" id="logCard" style="display:none">
             <div class="card-title" data-i18n>Log</div>
             <pre class="log-area" id="logArea"></pre>
@@ -8179,15 +8189,16 @@ imgRedactUndo?.addEventListener('click', () => {
 window.imgRedaction = { pointToImage: redactPointToImage, open: openRedactWorkspace,
                         close: closeRedactWorkspace, redraw: redactDraw, state: redactUI };
 
-// One file, one click, from either end of the panel. Download All exists for a
-// study; a single slice that has just been turned should not have to go through
-// an archive — or through the Range picker, which was the only other way to
-// reach one file out of many.
-for (const id of ['downloadOneBtn', 'imgEditDownload'])
-  document.getElementById(id)?.addEventListener('click', () => {
-    const entry = files[currentFileIdx];
-    if (entry) downloadOne(entry);
-  });
+// One file, one click, one button. The Image edits card carried a second
+// "Download this file" that called exactly this — two buttons on screen at once
+// running the same line, which reads as a choice and is not one. Downloads live
+// in the actions row, next to Download All, which is the other thing you can
+// save; a single slice that has just been turned still does not have to go
+// through an archive or through the Range picker to come back out.
+document.getElementById('downloadOneBtn')?.addEventListener('click', () => {
+  const entry = files[currentFileIdx];
+  if (entry) downloadOne(entry);
+});
 
 // ── De-identification options ────────────────────────────────────
 // A disclosure panel rather than a dialog: the boxes stay ticked between runs,

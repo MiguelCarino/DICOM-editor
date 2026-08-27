@@ -476,7 +476,7 @@
       ok('the Edit sidebar carries the image edit card', !!document.getElementById('imgEditCard'));
       for (const id of ['imgRotCW', 'imgRotCCW', 'imgRot180', 'imgFlipH', 'imgFlipV',
                         'imgInvert', 'imgRedact', 'imgRedactUndo', 'imgEditUndo',
-                        'imgEditDownload', 'downloadOneBtn']) {
+                        'downloadOneBtn']) {
         ok(`the card carries #${id}`, !!document.getElementById(id));
       }
       ok('the card is inside the editor tab, not the overview',
@@ -588,6 +588,32 @@
         ok('and it carries the primary styling while it is the only one',
            one().classList.contains('primary'));
 
+        // The Image edits card used to carry a second "Download this file"
+        // wired to the same downloadOne() call. Two buttons running one line
+        // read as a choice between them, and there was none to make.
+        ok('and it is the only download control on screen',
+           [...document.querySelectorAll('button')]
+             .filter(b => b.offsetParent && /download|this file/i.test(b.textContent))
+             .map(b => b.id).join(',') === 'downloadOneBtn',
+           [...document.querySelectorAll('button')]
+             .filter(b => b.offsetParent && /download|this file/i.test(b.textContent))
+             .map(b => b.id).join(','));
+        ok('the image tools no longer carry one of their own',
+           document.getElementById('imgEditDownload') === null);
+
+        // A drop target squeezed to nothing cannot be aimed at, and nothing on
+        // screen then says files may be dropped at all. It keeps its height
+        // while the picture and the Log give theirs up.
+        {
+          const dz = document.getElementById('dropZone');
+          const sb = document.querySelector('.sidebar');
+          ok('the drop zone is in the sidebar proper, not the shrinking tail',
+             !document.querySelector('.sidebar-rest')?.contains(dz) && sb.contains(dz));
+          ok('and it has a real height with a file loaded',
+             dz.getBoundingClientRect().height > 20,
+             `${dz.getBoundingClientRect().height.toFixed(0)}px`);
+        }
+
         await handleFiles(['a', 'b', 'c'].map((n, i) =>
           new File([bytesOf(geoBytes())], `dl-${n}.dcm`, { type: 'application/dicom' })));
         ok('several files: Download All is offered', shown(all()) && files.length > 1,
@@ -612,11 +638,14 @@
            at('#imgEditCard') >= 0 && at('#imgEditCard') < at('#previewCard'),
            `tools@${at('#imgEditCard')} preview@${at('#previewCard')}`);
         ok('and both come before Load Files and the Log',
-           at('#previewCard') < at('.sidebar-rest'),
-           `preview@${at('#previewCard')} rest@${at('.sidebar-rest')}`);
-        ok('Load Files and the Log are the ones in the scrolling tail',
-           !!document.querySelector('.sidebar-rest #loadFilesCard') &&
-           !!document.querySelector('.sidebar-rest #logCard'));
+           at('#previewCard') < at('#loadFilesCard') &&
+           at('#loadFilesCard') < at('.sidebar-rest'),
+           `preview@${at('#previewCard')} load@${at('#loadFilesCard')} rest@${at('.sidebar-rest')}`);
+        // Only the Log may be squeezed away — it is a transcript of what already
+        // happened. The drop zone is a target and has to stay aimable.
+        ok('the Log is the only thing in the scrolling tail',
+           !!document.querySelector('.sidebar-rest #logCard') &&
+           !document.querySelector('.sidebar-rest #loadFilesCard'));
         // The card is a flex column at runtime, not the display:block the JS
         // used to set — the picture cannot give up height inside a block.
         const entry = files[currentFileIdx];
