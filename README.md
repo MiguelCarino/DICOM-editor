@@ -151,12 +151,17 @@ Original Attributes, SR content, etc. is cleaned), and additionally:
 - warns when **`(0028,0301)` Burned In Annotation = YES** and points at the pixel
   redaction tool below.
 
-For clinical usability, and regardless of the options below, three values are written back
-after the compliant pass: the original **Patient's Sex**, a readable dummy **Patient's
-Name**, and **Patient's Age** `000Y`. None of them identifies anyone, and a study whose
-every patient is `ANON^ANON` is needlessly miserable to read. This is *not* the PS3.15
-Retain Patient Characteristics option — that one is the checkbox below and keeps nine real
-attributes, age included.
+**Patient's Name** becomes `ANONYMOUS` — the same value in every file, every time. It is
+deliberately not a name: **Randomize** is the action that invents a plausible patient, and
+the name is the first place a reader looks to tell one from the other. It is also the one
+attribute that has to stay constant across a study, since a set of instances sharing a
+PatientID but naming several people is not a study any reader will reassemble.
+
+Two more values are written back after the compliant pass regardless of the options below:
+the original **Patient's Sex** and **Patient's Age** `000Y`. Neither identifies anyone, and
+a study whose every patient is sexless and ageless is needlessly miserable to read. This is
+*not* the PS3.15 Retain Patient Characteristics option — that one is the checkbox below and
+keeps nine real attributes, age included.
 
 ### Optional profiles
 
