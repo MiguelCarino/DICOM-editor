@@ -1365,6 +1365,30 @@
       100%    { border-color: var(--border); box-shadow: none; }
     }
     .wl-section { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+    .wl-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+    }
+    .wl-toggle:hover .wl-toggle-name { text-decoration: underline; }
+    .wl-caret { font-size: 9px; transition: transform 0.15s; transform: rotate(90deg); }
+    .wl-section.collapsed .wl-caret { transform: none; }
+    /* The window itself, on the header, so collapsing hides the controls and not
+       the reading — the numbers are most of why it would be left open. */
+    .wl-summary { margin-left: auto; font: 500 11px var(--mono); color: var(--text-muted); letter-spacing: 0; text-transform: none; }
+    .wl-body { margin-top: 8px; }
+    .wl-section.collapsed .wl-body { display: none; }
     .wl-group { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
     .wl-label { display: flex; justify-content: space-between; align-items: center; font: 700 10px var(--mono); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
     .wl-value { color: var(--accent); }
@@ -2010,8 +2034,19 @@
               <span class="frame-nav-label" id="frameLabel">1/1</span>
             </div>
           </div>
-          <div class="wl-section hidden" id="wlSection">
-            <div class="card-title" style="margin-bottom:8px" data-i18n>Window / Level</div>
+          <!-- Collapsed by default. Expanded it is 159px of preset box and two
+               slider rows, permanently taller than the picture it adjusts in a
+               column this size, and it is reached occasionally rather than
+               constantly. The header carries the current window so the numbers
+               are readable without opening it, which is what it was mostly being
+               left open for. -->
+          <div class="wl-section hidden collapsed" id="wlSection">
+            <button class="wl-toggle" id="wlToggle" aria-expanded="false" aria-controls="wlBody">
+              <span class="wl-caret" aria-hidden="true">▸</span>
+              <span class="wl-toggle-name" data-i18n>Window / Level</span>
+              <span class="wl-summary" id="wlSummary">—</span>
+            </button>
+            <div class="wl-body" id="wlBody">
             <div style="display:flex;gap:4px;margin-bottom:8px">
               <select id="wlPreset" class="batch-select" style="flex:1;font-size:11px">
                 <option value="" data-i18n>— CT Preset —</option>
@@ -2037,6 +2072,7 @@
                 <input type="range" class="wl-slider" id="wwSlider" min="1" max="8192" step="1" value="400" />
                 <input type="number" id="wwNum" class="wl-num" value="400" />
               </div>
+            </div>
             </div>
           </div>
         </div>
@@ -7718,6 +7754,23 @@ const wcDisplay    = document.getElementById('wcDisplay');
 const wwDisplay    = document.getElementById('wwDisplay');
 const wlPreset     = document.getElementById('wlPreset');
 const wlResetBtn   = document.getElementById('wlResetBtn');
+const wlToggle     = document.getElementById('wlToggle');
+const wlSummary    = document.getElementById('wlSummary');
+
+// Collapsed unless this browser has been told otherwise. The choice is worth
+// keeping — someone windowing a CT stack opens it once and wants it open — but
+// the default is closed, which is what the column can afford.
+const WL_OPEN_KEY = 'carino_dicom_wl_open';
+const wlOpenStored = () => { try { return localStorage.getItem(WL_OPEN_KEY) === '1'; } catch (_) { return false; } };
+
+function setWLOpen(open) {
+  wlSection?.classList.toggle('collapsed', !open);
+  wlToggle?.setAttribute('aria-expanded', String(!!open));
+  try { localStorage.setItem(WL_OPEN_KEY, open ? '1' : '0'); } catch (_) { /* private mode */ }
+}
+
+wlToggle?.addEventListener('click', () => setWLOpen(wlSection.classList.contains('collapsed')));
+setWLOpen(wlOpenStored());
 
 function initWLSliders() {
   if (!wlSection) return;
@@ -7750,6 +7803,8 @@ function setWL(wc, ww, updatePending = true) {
   wwNum.value       = ww;
   wcDisplay.textContent = wc;
   wwDisplay.textContent = ww;
+  // Readable with the body collapsed, which is how it starts.
+  if (wlSummary) wlSummary.textContent = `${wc} / ${ww}`;
 
   if (updatePending) {
     pendingEdits.set(editKey('00281050'), { vr: 'DS', valueString: String(wc) });
