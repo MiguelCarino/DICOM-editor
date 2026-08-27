@@ -247,25 +247,16 @@
     .ov-fps { width: 48px; flex-shrink: 0; padding: 3px 4px; border: 1px solid var(--border); background: #0a0a0a; color: var(--text-dim); border-radius: 6px; font: 500 11px var(--mono); }
     .ov-cine-loop { display: flex; align-items: center; gap: 4px; flex-shrink: 0; cursor: pointer; }
     .ov-cine-loop input { accent-color: var(--accent); }
-    .ov-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .ov-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+    /* Says out loud what the row is, because the buttons in it are the same
+       glyphs as the ones in the Edit tab that rewrite the file. */
+    .ov-tools-lbl { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted); margin-right: 2px; }
     .ov-tool { padding: 6px 12px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); border-radius: 6px; cursor: pointer; font: 500 12px var(--font); transition: .15s; }
     .ov-tool:hover { border-color: var(--accent); color: var(--accent); }
     .ov-tool.active { background: var(--accent-faint); border-color: var(--accent); color: var(--accent); }
     .ov-sel { padding: 6px 8px; border: 1px solid var(--border); background: #0a0a0a; color: var(--text-dim); border-radius: 6px; font: 500 12px var(--font); cursor: pointer; }
-    .ov-tool.danger { border-color: #7f2626; color: #ef4444; }
-    .ov-tool.danger:hover { border-color: #ef4444; color: #ef4444; background: rgba(239, 68, 68, .1); }
-    .ov-tool.danger.active { background: rgba(239, 68, 68, .16); border-color: #ef4444; color: #ef4444; }
     .ov-tool:disabled { opacity: .4; cursor: not-allowed; }
     .ov-tool:disabled:hover { border-color: var(--border); color: var(--text-dim); background: transparent; }
-    /* Crosshair while placing boxes: the same surface pans at every other time,
-       so the cursor is the only thing telling the user which mode they are in. */
-    .ov-viewer.redacting { cursor: crosshair; }
-    .ov-redact-panel { margin-top: 8px; padding: 10px; border: 1px solid #7f2626; border-radius: 8px; background: rgba(239, 68, 68, .06); }
-    .ov-redact-hint { font: 500 11px var(--font); color: var(--text-muted); line-height: 1.5; margin-bottom: 8px; }
-    .ov-redact-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-    .ov-redact-row label { font: 500 11px var(--font); color: var(--text-muted); }
-    .ov-redact-count { margin-left: auto; font: 500 11px var(--font); color: var(--text-muted); }
-    .ov-redact-count b { color: var(--text); font-family: var(--mono); }
     .ov-wl { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
     .ov-wl-row { display: flex; align-items: center; gap: 10px; }
     .ov-wl-row label { font-size: 12px; color: var(--text-muted); width: 74px; flex-shrink: 0; }
@@ -338,17 +329,17 @@
     .btn.danger:hover { background: var(--err); border-color: var(--err); color: #0a0a0a; box-shadow: 0 0 16px rgba(239,68,68,0.3); }
     
     /* Main Content */
+    /* Two thirds tags, one third image. The sidebar used to be a 240–300px
+       strip whatever the screen was, which made the preview in it a thumbnail on
+       a monitor with room for a picture. A floor of 280px keeps it usable just
+       above the stacking breakpoint, where a third of the width is not much. */
     .main {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
+      grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
       gap: 16px;
       padding: 16px 20px;
       overflow: hidden;
       min-height: 0;
-    }
-    @media (max-width: 1000px) {
-      .main { grid-template-columns: minmax(0, 1fr); }
-      .sidebar { display: none; }
     }
 
     /* Left Panel */
@@ -633,11 +624,61 @@
     .actions-spacer { flex: 1; }
     
     /* Right Sidebar */
+    /* The column itself never scrolls. Its first two children — the image tools
+       and the image — are what the tab is for, and a scrollbar in front of them
+       is what made them hard to find. Everything is sized to fit instead: the
+       tools keep their natural height and never shrink, the tail (Load Files,
+       Log) gives up its height first and scrolls inside whatever it is left, and
+       the preview absorbs the remainder. On a short window that means a smaller
+       picture rather than a picture below the fold — and the enlarge overlay is
+       one click away when the small one is not enough. */
     .sidebar {
       display: flex;
       flex-direction: column;
       gap: 12px;
-      overflow: hidden;
+      /* auto, not hidden: shrinking is what keeps the pair on screen, and it
+         does on any normal window — but a 720p laptop cannot fit tools, a
+         usable picture and Window/Level however the space is divided, and a
+         scrollbar in that case beats silently clipping them off the bottom. */
+      overflow-y: auto;
+      overflow-x: hidden;
+      min-height: 0;
+    }
+    #imgEditCard { flex: 0 0 auto; }
+    /* Shrink factor 1 against the tail's 100: the tail gives up its height first
+       and keeps a scrollbar of its own, and the picture only starts shrinking
+       once the tail has nothing left to give. Not flex-basis 0 on the tail —
+       that wins the picture another 100px and leaves Load Files and the Log in a
+       zero-height box, present but unreachable, which is the bug this whole
+       column has been about. */
+    #previewCard {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Everything in the card keeps its own height — the title, the frame
+       slider, Window/Level — and the picture takes what is left over. */
+    #previewCard > * { flex: 0 0 auto; }
+    #previewCard > .sr-view { flex: 1 1 auto; min-height: 0; }
+    /* align-self keeps it from stretching to the column width: with the height
+       flexed and the cross size free, aspect-ratio derives the width from the
+       height and the box stays square instead of growing side bars. */
+    #previewCard > .preview-box {
+      flex: 1 1 auto;
+      align-self: center;
+      width: auto;
+      max-width: 100%;
+      min-height: 140px;   /* below this it is not a picture any more */
+    }
+    .sidebar-rest {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 0 100 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
     }
     
     /* Card style */
@@ -656,6 +697,8 @@
       color: var(--accent);
       margin-bottom: 12px;
     }
+    .card-title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .card-title-sub { color: var(--text-muted); letter-spacing: .04em; font-size: 10px; }
     
     /* Drop Zone */
     .drop-zone {
@@ -686,9 +729,22 @@
     .drop-zone.compact p { display: none; }
     
     /* Image Preview */
+    /* Square, and sized by the column rather than pinned to 280px: the canvas is
+       object-fit: contain, so a box wider than it is tall spends the extra width
+       on black bars instead of on the picture. The caps stop it from taking the
+       whole sidebar on a large monitor, and from becoming a full-width slab once
+       the sidebar stacks under the table on a narrow one. */
+    /* One cap, on the width, with aspect-ratio deriving the height from it — so
+       the box is square at every size. Capping the height as well would let the
+       shorter of the two bind and leave the picture letterboxed inside a box
+       that is not square, which is the thing this is trying to avoid. */
     .preview-box {
       position: relative;
       aspect-ratio: 1;
+      width: 100%;
+      max-width: min(560px, 56vh);
+      min-height: 120px;
+      margin-inline: auto;
       background: #000;
       border-radius: 8px;
       overflow: hidden;
@@ -746,6 +802,76 @@
       font-size: 12px;
       color: var(--text-dim);
     }
+
+    /* ─── REDACTION WORKSPACE ─────────────────
+       Lives on the enlarge overlay. While it is up, a click is a box and not a
+       way out: the overlay's click-to-close and the "click anywhere" hint are
+       both suppressed, and Cancel / Esc are the exits. The canvas gives up the
+       height the panel takes so the picture is never underneath it. */
+    /* Two rows rather than a picture with a panel floated over it: the panel
+       wraps to two lines on a narrow window, and any height reserved for it by
+       hand is wrong at some width. The canvas gets what is left, whatever that
+       is, and the bottom of the image is never underneath the controls. */
+    .fullscreen-overlay.redacting {
+      cursor: crosshair;
+      grid-template-rows: minmax(0, 1fr) auto;
+      padding: 16px;
+      row-gap: 12px;
+    }
+    .fullscreen-overlay.redacting .redact-panel {
+      position: static;
+      transform: none;
+      grid-row: 2;
+      justify-self: center;
+    }
+    /* An enlarge never scales a small image up; the workspace does. The images
+       that carry a burned-in banner are the small ones — secondary captures and
+       ultrasound frames, often 256 square — and those are exactly the ones whose
+       text is unplaceable at 1:1. Height drives it and max-width clamps it, so
+       the aspect ratio stays the browser's to keep. Pixelated because the samples
+       are the thing being covered: a smoothed upscale blurs the edge of the text
+       and with it the edge of the box you are trying to put over it. */
+    .fullscreen-overlay.redacting canvas {
+      grid-row: 1;
+      cursor: crosshair;
+      width: auto;
+      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
+      border-radius: 0;
+      image-rendering: pixelated;
+    }
+    .redact-panel {
+      position: absolute;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      width: min(720px, 94vw);
+      padding: 12px 14px;
+      border: 1px solid #7f2626;
+      border-radius: 10px;
+      background: rgba(20, 8, 8, 0.96);
+      cursor: default;
+    }
+    .redact-panel.hidden { display: none; }
+    .redact-hint { font: 500 11px var(--font); color: var(--text-muted); line-height: 1.5; margin-bottom: 6px; }
+    .redact-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+    .redact-row label { font: 500 11px var(--font); color: var(--text-muted); }
+    .redact-btn, .redact-sel {
+      padding: 5px 11px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-dim);
+      font: 500 11px var(--font);
+      cursor: pointer;
+      transition: 0.15s;
+    }
+    .redact-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .redact-btn.danger { color: var(--err); border-color: #7f2626; }
+    .redact-btn.danger:hover { background: var(--err); border-color: var(--err); color: #0a0a0a; }
+    .redact-count { margin-left: auto; font: 500 11px var(--font); color: var(--text-muted); }
+    .redact-count b { color: var(--text); font-family: var(--mono); }
     
     /* Compare Panel */
     .compare-drop {
@@ -861,10 +987,6 @@
       padding: 16px 20px;
       overflow: hidden;
       min-height: 0;
-    }
-    @media (max-width: 1000px) {
-      .create-panel { grid-template-columns: 1fr; }
-      .create-sidebar { display: none; }
     }
     .create-left {
       display: flex;
@@ -1035,10 +1157,6 @@
       padding: 16px 20px;
       overflow: hidden;
       min-height: 0;
-    }
-    @media (max-width: 1000px) {
-      .extractor-panel { grid-template-columns: 1fr; }
-      .extractor-sidebar { display: none; }
     }
     .extractor-left {
       display: flex;
@@ -1229,9 +1347,21 @@
     .cmp-stat.s-only  { color: var(--text-muted); }
 
     /* ─── WINDOW / LEVEL ─────────────────────── */
-    .img-edit-row { display: flex; gap: 6px; margin-bottom: 6px; }
-    .img-edit-row .btn { flex: 1; padding: 6px 4px; font-size: 12px; }
+    /* Sized to their labels and wrapped, not stretched to an equal share of the
+       row and not one per line. The column is a third of the window, so three
+       equal thirds put "180°" alone in the middle of a 190px box, and a button
+       on a line of its own left 200px empty beside it. Both cost card height,
+       which this column takes out of the picture below. */
+    .img-edit-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .img-edit-row .btn { flex: 0 0 auto; padding: 6px 12px; font-size: 12px; }
     .img-edit-note { font: 500 10px var(--font); color: var(--text-muted); line-height: 1.5; margin-top: 8px; }
+    /* A card arrived at from the Overview's "Edit image" says so for a moment,
+       so the click has a visible answer even when it was already on screen. */
+    .card-called-out { animation: cardCallout 1.6s ease-out 1; }
+    @keyframes cardCallout {
+      0%, 55% { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+      100%    { border-color: var(--border); box-shadow: none; }
+    }
     .wl-section { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
     .wl-group { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
     .wl-label { display: flex; justify-content: space-between; align-items: center; font: 700 10px var(--mono); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
@@ -1314,7 +1444,6 @@
     .val-fix-btn    { flex-shrink:0; padding:3px 9px; font-size:10px; border-radius:4px; border:1px solid var(--border); background:transparent; color:var(--accent); cursor:pointer; transition:0.15s; }
     .val-fix-btn:hover { background:rgba(234,179,8,0.1); border-color:var(--accent); }
     .val-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1; gap:8px; color:var(--text-muted); font:13px var(--mono); }
-    @media (max-width:1000px) { .val-panel { grid-template-columns:1fr; } .val-sidebar { display:none; } }
 
     /* ─── SR VIEWER ──────────────────────────── */
     .sr-view { padding:4px 0; overflow-y:auto; font-size:12px; }
@@ -1400,6 +1529,61 @@
     .st-acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .st-acts a.btn { text-decoration: none; }
     .st-env { font: 400 11px/1.6 var(--mono); color: var(--text-muted); word-break: break-word; white-space: pre-wrap; }
+
+    /* ═══ NARROW LAYOUT ═══════════════════════════════════════════════════
+       Last in the sheet on purpose, and it has to stay last. A media query adds
+       nothing to specificity, so these are ties with the base rules they undo —
+       `.left-panel { overflow: hidden }`, `.table-wrap { flex: 1 }` — and a tie
+       is settled by source order. Written up beside each panel, as this was at
+       first, half of it silently lost: the layout went to one column and then
+       kept the height constraints of the two-column one, which squeezed the tag
+       table to 78px with 2500px of rows inside it.
+
+       What the narrow layout is: every panel becomes one column and scrolls as a
+       whole, and the sidebar goes underneath rather than away. It used to be
+       display:none on all four sidebars, which on the Edit tab took Load Files,
+       Preview, Window/Level and Image edits off the screen with nothing left to
+       say they had been there, on the Create tab took away every input the tab
+       has, and on Extract took away the Export buttons.
+
+       Each scrolling region inside keeps a bounded height so its own scrollbar —
+       and, for the table, its sticky header — still work inside the page scroll. */
+    @media (max-width: 1000px) {
+      .main, .create-panel, .extractor-panel, .val-panel {
+        grid-template-columns: minmax(0, 1fr);
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+      /* min-height:auto matters as much as the overflow. These carry
+         `min-height: 0` so they can be squeezed as columns of a full-height
+         grid; left in place once each becomes a row of its own, it removes the
+         automatic minimum and the row collapses to 0px — the panel then paints
+         its whole 584px of content on top of the sidebar below it. */
+      .left-panel, .sidebar,
+      .create-left, .create-sidebar,
+      .extractor-left, .extractor-sidebar,
+      .val-left, .val-sidebar { overflow: visible; min-height: auto; }
+
+      .table-wrap           { flex: none; max-height: 55vh; }
+      .img-grid-wrap        { flex: none; max-height: 45vh; }
+      .extractor-grid-wrap  { flex: none; max-height: 50vh; }
+
+      /* Stacked, nothing is fighting for a fixed height any more: the page
+         scrolls, so the sidebar goes back to being a plain stack of cards and
+         the preview back to being sized by its width rather than by what the
+         column has left. The order still puts the tools above the image. */
+      .sidebar, .sidebar-rest { flex: none; overflow: visible; }
+      #imgEditCard, #previewCard { flex: none; }
+      #previewCard > .preview-box {
+        flex: none;
+        align-self: auto;
+        width: 100%;
+        /* full width of the page here, and a square preview would be a screen
+           and a half of mostly black */
+        max-width: min(560px, 45vh);
+      }
+      #previewCard > .sr-view { flex: none; }
+    }
   </style>
 </head>
 <body>
@@ -1516,6 +1700,11 @@
           <button class="ov-nav-btn hidden" id="ovNextStudy" title="Next study">▶</button>
           <div class="ov-actions">
             <button class="ov-act" id="ovActEdit" data-tab="editor" title="Browse &amp; edit every DICOM tag" data-i18n>✎ Edit tags</button>
+            <!-- The Overview shows the picture and never rewrites it. This is
+                 the one way from here to the tools that do, and it is a
+                 navigation, not an edit: it opens the Edit tab with the Image
+                 edits card called out. -->
+            <button class="ov-act" id="ovActImage" data-tab="editor" title="Rotate, flip, invert or redact the stored pixels" data-i18n>▣ Edit image</button>
             <button class="ov-act" id="ovActCompare" data-tab="editor" title="Diff two files side by side" data-i18n>⇄ Compare</button>
             <button class="ov-act" id="ovActExtract" data-tab="extractor" title="Export frames as PNG / JPEG" data-i18n>⤓ Extract image</button>
             <button class="ov-act" id="ovActCreate" data-tab="create" title="Build a new file from scratch" data-i18n>＋ Create DICOM</button>
@@ -1540,37 +1729,25 @@
               <input type="number" class="ov-fps" id="ovCineFps" min="1" max="60" step="1" value="15" title="Frames per second">
               <label class="ov-cine-loop"><input type="checkbox" id="ovCineLoop" checked><span data-i18n>Loop</span></label>
             </div>
+            <!-- Everything in this row is viewport state. The ⟳ ⇋ ⇅ in the Edit
+                 tab's Image edits card are the same glyphs on the same picture
+                 and move the stored pixels instead, which is a difference no
+                 tooltip on its own ever carried — hence the leading label, and
+                 hence titles that say "the view" rather than repeating the Edit
+                 tab's wording word for word. -->
             <div class="ov-tools" id="ovTools">
-              <button class="ov-tool" id="ovInvert" title="Invert grayscale" data-i18n>Invert</button>
+              <span class="ov-tools-lbl" data-i18n>View</span>
+              <button class="ov-tool" id="ovInvert" title="Invert the view — the file is not changed" data-i18n>Invert</button>
               <select class="ov-sel" id="ovColormap" title="Colormap">
                 <option value="gray" data-i18n>Gray</option>
                 <option value="hot" data-i18n>Hot</option>
                 <option value="jet" data-i18n>Jet</option>
                 <option value="bone" data-i18n>Bone</option>
               </select>
-              <button class="ov-tool" id="ovRotate" title="Rotate 90°">⟳</button>
-              <button class="ov-tool" id="ovFlipH" title="Flip horizontal">⇋</button>
-              <button class="ov-tool" id="ovFlipV" title="Flip vertical">⇅</button>
+              <button class="ov-tool" id="ovRotate" title="Turn the view 90° — the file is not changed">⟳</button>
+              <button class="ov-tool" id="ovFlipH" title="Flip the view horizontally — the file is not changed">⇋</button>
+              <button class="ov-tool" id="ovFlipV" title="Flip the view vertically — the file is not changed">⇅</button>
               <button class="ov-tool" id="ovResetView" title="Reset zoom / pan / rotation" data-i18n>Reset view</button>
-              <button class="ov-tool danger" id="ovRedact" title="Redact burned-in annotation" data-i18n>Redact</button>
-              <button class="ov-tool hidden" id="ovRedactUndo" data-i18n>Undo redaction</button>
-            </div>
-            <div class="ov-redact-panel hidden" id="ovRedactPanel">
-              <div class="ov-redact-hint" data-i18n>Drag a box over any burned-in text. Drag a box to move it; double-click to delete it.</div>
-              <div class="ov-redact-hint" data-i18n>Redaction covers every frame of this image.</div>
-              <div class="ov-redact-hint" data-i18n>Redaction cannot be undone once the file is exported.</div>
-              <div class="ov-redact-row">
-                <label for="ovRedactFill" data-i18n>Fill</label>
-                <select class="ov-sel" id="ovRedactFill">
-                  <option value="black" data-i18n>Black</option>
-                  <option value="white" data-i18n>White</option>
-                </select>
-                <button class="ov-tool" id="ovRedactTop" data-i18n>Cover top rows</button>
-                <button class="ov-tool" id="ovRedactClear" data-i18n>Clear boxes</button>
-                <button class="ov-tool danger" id="ovRedactApply" data-i18n>Apply redaction</button>
-                <button class="ov-tool" id="ovRedactCancel" data-i18n>Cancel</button>
-                <span class="ov-redact-count"><span data-i18n>Boxes</span> <b id="ovRedactCount">0</b></span>
-              </div>
             </div>
             <div class="ov-wl hidden" id="ovWL">
               <select id="ovPreset" class="ov-sel">
@@ -1763,16 +1940,47 @@
            bare numbers, and an accept list of extensions makes those unpickable. -->
       <input id="fileInput" type="file" multiple hidden />
       <input id="folderInput" type="file" webkitdirectory multiple hidden />
-        <div class="card">
-          <div class="card-title" data-i18n>Load Files</div>
-          <div class="drop-zone" id="dropZone">
-            <h4 data-i18n>Drop DICOM files</h4>
-            <p data-i18n>or click to browse</p>
-            <div class="drop-zone-actions">
-              <button class="drop-zone-btn" id="filesBtn" data-i18n>📄 Open files</button>
-              <button class="drop-zone-btn folder" id="folderBtn" data-i18n>📁 Open folder</button>
-            </div>
+
+        <!-- Tools above the picture they act on, and both above everything else
+             in this column: they are what the tab is for, and they were the two
+             things you had to scroll to reach. Neither scrolls now — the column
+             does not, and the preview gives up height to keep the pair inside it
+             (see .sidebar in the stylesheet). Load Files and the Log are not
+             image tools, so they take the scrolling tail underneath. -->
+        <!-- Rotate / flip written into the stored pixels, not into a view
+             state: what the sidebar shows after a click is what the exported
+             .dcm holds. The Overview viewer's ⟳ ⇋ ⇅ are the other kind, and
+             say so in their own titles. -->
+        <div class="card" id="imgEditCard" style="display:none">
+          <div class="card-title card-title-row">
+            <span data-i18n>Image edits</span>
+            <span class="card-title-sub" data-i18n>stored pixels</span>
           </div>
+          <!-- Every control in one wrapping row. Split across a row each, the
+               short ones left most of a 600px column empty beside them and cost
+               a line of card height apiece — height this column takes straight
+               out of the picture below. They wrap by width instead, and what
+               separates the destructive one and the terminal one from the rest
+               is their colour, which does not need a line of its own.
+
+               Redaction is here rather than on the Overview, which is the tab
+               that changes nothing, because every other write to the pixel data
+               is here and it is the most destructive of them. It opens a
+               workspace big enough to draw a box on, which this preview is not.
+               Both undos are hidden until there is something to undo. -->
+          <div class="img-edit-row">
+            <button class="btn" id="imgRotCW" title="Rotate 90° clockwise">⟳ 90°</button>
+            <button class="btn" id="imgRotCCW" title="Rotate 90° counter-clockwise">⟲ 90°</button>
+            <button class="btn" id="imgRot180" title="Rotate 180°">180°</button>
+            <button class="btn" id="imgFlipH" title="Flip horizontal">⇋ H</button>
+            <button class="btn" id="imgFlipV" title="Flip vertical">⇅ V</button>
+            <button class="btn" id="imgInvert" title="Invert (MONOCHROME1 ⇄ MONOCHROME2)" data-i18n>Invert</button>
+            <button class="btn danger" id="imgRedact" title="Redact burned-in annotation" data-i18n>▣ Redact burned-in text</button>
+            <button class="btn" id="imgEditUndo" data-i18n>↺ Undo last image edit</button>
+            <button class="btn hidden" id="imgRedactUndo" data-i18n>↺ Undo redaction</button>
+            <button class="btn primary" id="imgEditDownload" data-i18n>⬇ Download this file</button>
+          </div>
+          <div class="img-edit-note" id="imgEditNote" data-i18n>Applied to the stored pixels of this file, every frame. Rows, Columns, Pixel Spacing and the patient geometry follow.</div>
         </div>
 
         <div class="card" id="previewCard" style="display:none">
@@ -1780,7 +1988,7 @@
             <span data-i18n>Preview</span>
             <button class="sr-toggle-btn hidden" id="srToggleBtn" data-i18n>View Report</button>
           </div>
-          <div class="preview-box visible" id="previewBox" style="aspect-ratio:unset;min-height:200px;max-height:280px">
+          <div class="preview-box visible" id="previewBox">
             <canvas id="preview" style="width:100%;height:100%;object-fit:contain"></canvas>
             <div class="px-hover" id="pxHover">—</div>
           </div>
@@ -1832,30 +2040,23 @@
           </div>
         </div>
 
-        <!-- Rotate / flip written into the stored pixels, not into a view
-             state: what the sidebar shows after a click is what the exported
-             .dcm holds. The Overview viewer's ⟳ ⇋ ⇅ are the other kind, and
-             say so in their own titles. -->
-        <div class="card" id="imgEditCard" style="display:none">
-          <div class="card-title" data-i18n>Image edits</div>
-          <div class="img-edit-row">
-            <button class="btn" id="imgRotCW" title="Rotate 90° clockwise">⟳ 90°</button>
-            <button class="btn" id="imgRotCCW" title="Rotate 90° counter-clockwise">⟲ 90°</button>
-            <button class="btn" id="imgRot180" title="Rotate 180°">180°</button>
+        <div class="sidebar-rest">
+          <div class="card" id="loadFilesCard">
+            <div class="card-title" data-i18n>Load Files</div>
+            <div class="drop-zone" id="dropZone">
+              <h4 data-i18n>Drop DICOM files</h4>
+              <p data-i18n>or click to browse</p>
+              <div class="drop-zone-actions">
+                <button class="drop-zone-btn" id="filesBtn" data-i18n>📄 Open files</button>
+                <button class="drop-zone-btn folder" id="folderBtn" data-i18n>📁 Open folder</button>
+              </div>
+            </div>
           </div>
-          <div class="img-edit-row">
-            <button class="btn" id="imgFlipH" title="Flip horizontal">⇋ H</button>
-            <button class="btn" id="imgFlipV" title="Flip vertical">⇅ V</button>
-            <button class="btn" id="imgInvert" title="Invert (MONOCHROME1 ⇄ MONOCHROME2)" data-i18n>Invert</button>
-          </div>
-          <div class="img-edit-note" id="imgEditNote" data-i18n>Applied to the stored pixels of this file, every frame. Rows, Columns, Pixel Spacing and the patient geometry follow.</div>
-          <button class="btn" id="imgEditUndo" style="width:100%;margin-top:6px" data-i18n>↺ Undo last image edit</button>
-          <button class="btn primary" id="imgEditDownload" style="width:100%;margin-top:6px" data-i18n>⬇ Download this file</button>
-        </div>
 
-        <div class="card" id="logCard" style="display:none">
-          <div class="card-title" data-i18n>Log</div>
-          <pre class="log-area" id="logArea"></pre>
+          <div class="card" id="logCard" style="display:none">
+            <div class="card-title" data-i18n>Log</div>
+            <pre class="log-area" id="logArea"></pre>
+          </div>
         </div>
       </div>
     </div>
@@ -2048,9 +2249,32 @@
     </div>
   </div>
 
+  <!-- Doubles as the redaction workspace. The enlarge view already put the
+       current frame on a canvas at 95vw/95vh with no CSS transform on it, so the
+       layout box and the pixel grid line up one-to-one and a box drawn here
+       lands on the samples it covers with no matrix to invert. It is also the
+       only surface in the app big enough to place a box over two lines of
+       burned-in text accurately. -->
   <div class="fullscreen-overlay" id="fullscreenOverlay">
     <canvas id="fullscreenCanvas"></canvas>
-    <div class="fullscreen-hint" data-i18n>Click anywhere to close</div>
+    <div class="fullscreen-hint" id="fullscreenHint" data-i18n>Click anywhere to close</div>
+    <div class="redact-panel hidden" id="redactPanel">
+      <div class="redact-hint" data-i18n>Drag a box over any burned-in text. Drag a box to move it; double-click to delete it.</div>
+      <div class="redact-hint" data-i18n>Redaction covers every frame of this image.</div>
+      <div class="redact-hint" data-i18n>Redaction cannot be undone once the file is exported.</div>
+      <div class="redact-row">
+        <label for="redactFill" data-i18n>Fill</label>
+        <select class="redact-sel" id="redactFill">
+          <option value="black" data-i18n>Black</option>
+          <option value="white" data-i18n>White</option>
+        </select>
+        <button class="redact-btn" id="redactTop" data-i18n>Cover top rows</button>
+        <button class="redact-btn" id="redactClear" data-i18n>Clear boxes</button>
+        <button class="redact-btn danger" id="redactApply" data-i18n>Apply redaction</button>
+        <button class="redact-btn" id="redactCancel" data-i18n>Cancel</button>
+        <span class="redact-count"><span data-i18n>Boxes</span> <b id="redactCount">0</b></span>
+      </div>
+    </div>
   </div>
 
 <!-- These three are 1.4 MB of parser-blocking script (225 KB gzipped) and none
@@ -3746,11 +3970,20 @@ function renderTable(opts) {
 }
 
 function showDownload() {
-  const has = files.length > 0;
-  downloadAllBtn.classList.toggle('hidden', !has);
-  // Only alongside a study: with one file loaded, Download All already IS this
-  // file, and two buttons that do the same thing is a question, not a shortcut.
-  document.getElementById('downloadOneBtn')?.classList.toggle('hidden', files.length <= 1);
+  const has  = files.length > 0;
+  const many = files.length > 1;
+  // "Download All" only appears when there is more than one file for "all" to
+  // mean. These two used to be the other way round: with a single file loaded it
+  // was the only download button on screen, named for a batch that did not
+  // exist, while the per-file button — the one that described what would
+  // actually happen — was the one being hidden. Nothing is lost by the swap,
+  // because downloadRange() already hands a range of one to downloadOne().
+  downloadAllBtn.classList.toggle('hidden', !many);
+  const one = document.getElementById('downloadOneBtn');
+  one?.classList.toggle('hidden', !has);
+  // It carries the primary styling while it is the only way to save the file,
+  // and gives it back to Download All once there is a study to save.
+  one?.classList.toggle('primary', has && !many);
   batchButtonsContainer.classList.toggle('hidden', !has || files.length <= 10);
   if (files.length > 10) rebuildBatch();
 }
@@ -4710,7 +4943,7 @@ function showPreviewError(msg, numFrames, frameIndex) {
   ctx.font = '10px monospace';
   ctx.textAlign = 'center';
   ctx.fillText(msg, 130, 38);
-  previewCard.style.display = 'block';
+  previewCard.style.display = 'flex';
   syncImgEditCard?.();
   previewImageData = null;
   totalFrames = numFrames || 1;
@@ -4785,7 +5018,7 @@ async function drawPreview(d, frameIndex = 0) {
   }
 
   _paintPixels(pixels, rows, cols);
-  previewCard.style.display = 'block';
+  previewCard.style.display = 'flex';
   syncImgEditCard?.();
   initWLSliders?.();   // safe to call here — pixel data confirmed, dict in scope
 
@@ -4800,8 +5033,12 @@ async function drawPreview(d, frameIndex = 0) {
   }
 }
 
+// The overlay is also the redaction workspace, and while that is up it owns the
+// canvas and the pointer: enlarging again would repaint over the boxes, and the
+// backdrop click that closes an enlarge is a box that missed. Both refuse, and
+// Cancel / Esc are the workspace's own way out.
 function showFullscreen() {
-  if (!previewImageData) return;
+  if (!previewImageData || redactUI.active) return;
   fullscreenCanvas.width = previewImageData.width;
   fullscreenCanvas.height = previewImageData.height;
   const ctx = fullscreenCanvas.getContext('2d');
@@ -4810,6 +5047,7 @@ function showFullscreen() {
 }
 
 function hideFullscreen() {
+  if (redactUI.active) return;
   fullscreenOverlay.classList.remove('visible');
 }
 
@@ -6536,13 +6774,13 @@ anonymizeBtn.addEventListener('click', () => {
     // bulk action over every loaded file, so it points at the tool rather than
     // guessing where the banner is and redacting on the user's behalf.
     const burned = files.filter(f => /^YES/i.test(String(getTag(f.dict, '00280301')?.Value?.[0] || '')));
-    if (burned.length) log(`⚠ ${burned.length} file(s) have Burned In Annotation = YES: identity may remain in the image pixels. Open the Overview tab and use Redact to overwrite it.`);
+    if (burned.length) log(`⚠ ${burned.length} file(s) have Burned In Annotation = YES: identity may remain in the image pixels. Use Redact in the Image edits card to overwrite it.`);
     const n = window.DEID_PROFILE_META?.attributes || 0;
     const opts = [...deidOptions].map(o => DEID_OPTION_CODES[o][1]);
     log(`Anonymized all files — DICOM PS3.15 Basic Profile${n ? ` (${n} attributes)` : ''}`
         + (opts.length ? ` + ${opts.join(' + ')}` : ''));
     toast?.(burned.length
-      ? (window.t || String)('Burned In Annotation = YES — identity may be burned into the pixels. Use Redact on the Overview tab.')
+      ? (window.t || String)('Burned In Annotation = YES — identity may be burned into the pixels. Use Redact in the Edit tab.')
       : 'All files anonymized');
   }, 'Anonymize');
 });
@@ -7603,6 +7841,15 @@ function syncImgEditCard() {
     const pi = String(lookupTag(entry.dict, '00280004')?.Value?.[0] || '').trim().toUpperCase();
     inv.disabled = pi !== 'MONOCHROME1' && pi !== 'MONOCHROME2';
   }
+  // Redaction goes through the same decoder as the transforms, so it is offered
+  // exactly when they are, with the same reason on the title when it is not.
+  const rb = document.getElementById('imgRedact');
+  if (rb) {
+    rb.disabled = !sup.ok;
+    rb.title = sup.ok ? (window.t || String)('Redact burned-in annotation') : why;
+  }
+  document.getElementById('imgRedactUndo')
+    ?.classList.toggle('hidden', !entry.redactBackup);
   // The button says what it undoes on its title rather than in its label: the
   // label is static markup i18n owns, and a five-word op name in it would wrap.
   const b = entry.pixelBackup;
@@ -7632,7 +7879,7 @@ async function runImgEdit(opKey) {
     // it on after baking a turn would show the two composed — a 90 baked under
     // a 90 viewed reads as 180 — so the view goes back to showing the file as
     // it is now stored.
-    const ov = window.ovRedaction;
+    const ov = window.ovView;
     if (ov?.view) {
       ov.view.rotate = 0; ov.view.flipH = false; ov.view.flipV = false;
       document.getElementById('ovFlipH')?.classList.remove('active');
@@ -7684,6 +7931,253 @@ imgEditUndo?.addEventListener('click', () => {
   currentFrame = 0;
   syncImgEditCard();
 });
+
+// The Image edits card is the last thing in a scrollable sidebar, so arriving
+// from the Overview's "Edit image" can land with it below the fold. Marked, not
+// just scrolled: on a tall screen it is already visible and a silent scroll to
+// something already on screen looks like the click did nothing.
+window.revealImgEditCard = function () {
+  if (!imgEditCard || imgEditCard.style.display === 'none') return;
+  imgEditCard.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  imgEditCard.classList.remove('card-called-out');
+  void imgEditCard.offsetWidth;                 // restart the animation on a repeat click
+  imgEditCard.classList.add('card-called-out');
+};
+
+// ── Redaction workspace (burned-in text, into the pixels) ────────
+// Identity printed into the image is the one kind of PHI no tag edit can reach,
+// so the tool that removes it belongs beside the other writes to the pixel data
+// rather than on the tab that changes nothing.
+//
+// It borrows the enlarge overlay for a drawing surface, for two reasons. The
+// sidebar preview is 280px tall at most, which is not enough to place a box over
+// two lines of burned-in text and see what you covered. And that canvas carries
+// no CSS transform and is not object-fit, so its layout box and its pixel grid
+// are the same rectangle: a screen point maps to a sample by one scale factor,
+// with no matrix to invert and no letterbox to subtract. Boxes are held in
+// IMAGE coordinates throughout, which is what applyRedaction() takes.
+const redactPanel    = document.getElementById('redactPanel');
+const fullscreenHint = document.getElementById('fullscreenHint');
+const imgRedactUndo  = document.getElementById('imgRedactUndo');
+
+// Ultrasound and secondary-capture devices burn their patient banner into a
+// strip along the top of the frame; a tenth of the height covers the usual two
+// or three lines of it without eating into the image itself.
+const TOP_BANNER_FRACTION = 0.10;
+const MIN_BOX = 2;   // image pixels — under this it was a click, not a drag
+
+const redactUI = { active: false, boxes: [], drag: null, metrics: null, fill: 'black', base: null };
+
+function redactDraw() {
+  if (!redactUI.active || !redactUI.base) return;
+  const ctx = fullscreenCanvas.getContext('2d');
+  ctx.putImageData(redactUI.base, 0, 0);
+  const live = redactUI.drag && redactUI.drag.mode === 'new' ? [redactUI.drag.box] : [];
+  ctx.lineWidth = Math.max(1, fullscreenCanvas.width / 300);
+  for (const b of redactUI.boxes.concat(live)) {
+    ctx.fillStyle = 'rgba(220, 38, 38, .35)';
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.strokeStyle = '#ef4444';
+    ctx.strokeRect(b.x, b.y, b.w, b.h);
+  }
+}
+
+function redactPointToImage(clientX, clientY, box) {
+  const c = fullscreenCanvas;
+  if (!c.width || !c.height) return null;
+  const b = box || c.getBoundingClientRect();
+  if (!b.width || !b.height) return null;
+  return { x: (clientX - b.left) * c.width  / b.width,
+           y: (clientY - b.top)  * c.height / b.height };
+}
+
+// Intersect with the picture; never relocate. A pointer captured by the canvas
+// keeps reporting after it has left the canvas, so a drag can end well outside
+// the image. Clamping the origin and re-deriving the extent from it would slide
+// such a box back onto the picture and stretch it; intersecting keeps only the
+// part that was actually over the image, which is what was drawn.
+function redactClamp(b) {
+  const w = fullscreenCanvas.width, h = fullscreenCanvas.height;
+  if (b.w < 0) { b.x += b.w; b.w = -b.w; }
+  if (b.h < 0) { b.y += b.h; b.h = -b.h; }
+  const x0 = Math.max(0, b.x), y0 = Math.max(0, b.y);
+  const x1 = Math.min(w, b.x + b.w), y1 = Math.min(h, b.y + b.h);
+  b.x = x0; b.y = y0;
+  b.w = Math.max(0, x1 - x0); b.h = Math.max(0, y1 - y0);
+  return b;
+}
+
+function redactBoxAt(pt) {
+  for (let i = redactUI.boxes.length - 1; i >= 0; i--) {
+    const b = redactUI.boxes[i];
+    if (pt.x >= b.x && pt.x <= b.x + b.w && pt.y >= b.y && pt.y <= b.y + b.h) return b;
+  }
+  return null;
+}
+
+function redactUpdateCount() {
+  const el = document.getElementById('redactCount');
+  if (el) el.textContent = String(redactUI.boxes.length);
+}
+
+function openRedactWorkspace() {
+  const entry = files[currentFileIdx];
+  if (!entry || !previewImageData) return;
+  const sup = redactionSupport(entry.meta);
+  if (!sup.ok) {
+    toast(`${(window.t || String)('This image cannot be redacted: its pixel data uses a compression this browser cannot decode.')} (${sup.codec})`);
+    return;
+  }
+  redactUI.active = true;
+  redactUI.drag = null;
+  redactUI.boxes = [];
+  redactUI.metrics = null;
+  // The frame the preview is showing, windowed as the user has it. Redaction
+  // covers every frame regardless; this is only what the boxes are drawn over.
+  redactUI.base = previewImageData.data;
+  fullscreenCanvas.width  = previewImageData.width;
+  fullscreenCanvas.height = previewImageData.height;
+  redactUpdateCount();
+  redactPanel?.classList.remove('hidden');
+  fullscreenHint?.classList.add('hidden');
+  fullscreenOverlay.classList.add('redacting');
+  fullscreenOverlay.classList.add('visible');
+  redactDraw();
+}
+
+function closeRedactWorkspace() {
+  redactUI.active = false;
+  redactUI.drag = null;
+  redactUI.boxes = [];
+  redactUI.base = null;
+  redactUpdateCount();
+  redactPanel?.classList.add('hidden');
+  fullscreenHint?.classList.remove('hidden');
+  fullscreenOverlay.classList.remove('redacting');
+  fullscreenOverlay.classList.remove('visible');
+}
+
+document.getElementById('imgRedact')?.addEventListener('click', openRedactWorkspace);
+document.getElementById('redactCancel')?.addEventListener('click', closeRedactWorkspace);
+document.getElementById('redactClear')?.addEventListener('click', () => {
+  redactUI.boxes = []; redactUpdateCount(); redactDraw();
+});
+document.getElementById('redactFill')?.addEventListener('change', e => { redactUI.fill = e.target.value; });
+document.getElementById('redactTop')?.addEventListener('click', () => {
+  if (!redactUI.active) return;
+  redactUI.boxes.push({ x: 0, y: 0, w: fullscreenCanvas.width,
+                        h: Math.max(1, Math.round(fullscreenCanvas.height * TOP_BANNER_FRACTION)) });
+  redactUpdateCount(); redactDraw();
+});
+
+// The box being drawn is measured against the canvas box taken at pointerdown,
+// not re-measured per move: it cannot change mid-drag, and one forced layout per
+// gesture beats one per pointer event.
+fullscreenCanvas.addEventListener('pointerdown', e => {
+  if (!redactUI.active) return;
+  const metrics = fullscreenCanvas.getBoundingClientRect();
+  const pt = redactPointToImage(e.clientX, e.clientY, metrics);
+  if (!pt) return;
+  redactUI.metrics = metrics;
+  const hit = redactBoxAt(pt);
+  redactUI.drag = hit
+    ? { mode: 'move', box: hit, dx: pt.x - hit.x, dy: pt.y - hit.y }
+    : { mode: 'new', box: { x: pt.x, y: pt.y, w: 0, h: 0 }, ox: pt.x, oy: pt.y };
+  try { fullscreenCanvas.setPointerCapture(e.pointerId); } catch (_) {}
+});
+fullscreenCanvas.addEventListener('pointermove', e => {
+  if (!redactUI.active || !redactUI.drag) return;
+  const pt = redactPointToImage(e.clientX, e.clientY, redactUI.metrics);
+  if (!pt) return;
+  const dr = redactUI.drag;
+  if (dr.mode === 'new') {
+    dr.box.x = Math.min(dr.ox, pt.x); dr.box.y = Math.min(dr.oy, pt.y);
+    dr.box.w = Math.abs(pt.x - dr.ox); dr.box.h = Math.abs(pt.y - dr.oy);
+  } else {
+    dr.box.x = pt.x - dr.dx; dr.box.y = pt.y - dr.dy;
+  }
+  redactClamp(dr.box);
+  redactDraw();
+});
+const endRedactDrag = () => {
+  const dr = redactUI.drag;
+  redactUI.drag = null;
+  if (!dr) return;
+  // Measure the box AFTER clipping it to the picture, not before: a drag that
+  // ended far outside the image is a big box that covers few pixels, and only
+  // the clipped size can tell that from a real one. A stray click would
+  // otherwise leave a zero-size box in the list that covers nothing and cannot
+  // be seen well enough to delete again.
+  if (dr.mode === 'new') {
+    const box = redactClamp(dr.box);
+    if (box.w >= MIN_BOX && box.h >= MIN_BOX) redactUI.boxes.push(box);
+  }
+  redactUpdateCount(); redactDraw();
+};
+fullscreenCanvas.addEventListener('pointerup', endRedactDrag);
+fullscreenCanvas.addEventListener('pointercancel', endRedactDrag);
+fullscreenCanvas.addEventListener('dblclick', e => {
+  if (!redactUI.active) return;
+  const pt = redactPointToImage(e.clientX, e.clientY);
+  const hit = pt && redactBoxAt(pt);
+  if (!hit) return;
+  redactUI.boxes.splice(redactUI.boxes.indexOf(hit), 1);
+  redactUpdateCount(); redactDraw();
+});
+
+// Esc is the other way out. Cancel and Esc are the only two: while the
+// workspace is up a click on the backdrop is a missed box, not a request to
+// leave, and hideFullscreen() refuses for the same reason.
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && redactUI.active) { e.preventDefault(); closeRedactWorkspace(); }
+});
+
+document.getElementById('redactApply')?.addEventListener('click', () => {
+  const entry = files[currentFileIdx];
+  if (!entry) return;
+  if (!redactUI.boxes.length) { toast((window.t || String)('Draw at least one box first.')); return; }
+  const sup = redactionSupport(entry.meta);
+  // Boxes are captured now: applyRedaction is async and closeRedactWorkspace()
+  // empties the array on its way out.
+  const boxes = redactUI.boxes.map(b => ({ ...b }));
+  const go = async () => {
+    if (sup.depthLoss) {
+      log(`⚠ ${(window.t || String)('This image was compressed with lossy JPEG; redacting it will store 8 bits per sample.')}`);
+    }
+    const res = await applyRedaction(entry, boxes, { fill: redactUI.fill });
+    if (res.error) { log(`✗ ${entry.name}: ${res.error}`); toast(res.error); return; }
+    const msg = (window.t || String)('Redacted {n} region(s) across {m} frame(s) — pixels overwritten.')
+      .replace('{n}', res.boxes).replace('{m}', res.frames);
+    log(`▣ ${entry.name}: ${msg}`);
+    toast(msg);
+    closeRedactWorkspace();
+    renderTable();
+    if (typeof renderOverview === 'function') renderOverview();   // re-decodes from the new pixels
+    if (dict) await drawPreview(dict, currentFrame);
+    syncImgEditCard();
+  };
+  if (sup.converts) {
+    confirmDanger((window.t || String)('Redacting decompresses this image to uncompressed Explicit VR Little Endian. The file will be larger and its Transfer Syntax will change. Continue?'), go, 'Redact pixels');
+  } else go();
+});
+
+imgRedactUndo?.addEventListener('click', () => {
+  const entry = files[currentFileIdx];
+  if (!entry || !undoRedaction(entry)) return;
+  const msg = (window.t || String)('Redaction undone (this session only).');
+  log(`↺ ${entry.name}: ${msg}`);
+  toast(msg);
+  renderTable();
+  if (typeof renderOverview === 'function') renderOverview();
+  if (dict) drawPreview(dict, currentFrame);
+  syncImgEditCard();
+});
+
+// The redaction surface, for the tests. The canvas, the box list and the
+// screen-to-image mapping are all module-local, so the geometry is only
+// checkable through this handle.
+window.imgRedaction = { pointToImage: redactPointToImage, open: openRedactWorkspace,
+                        close: closeRedactWorkspace, redraw: redactDraw, state: redactUI };
 
 // One file, one click, from either end of the panel. Download All exists for a
 // study; a single slice that has just been turned should not have to go through
@@ -9072,11 +9566,6 @@ document.addEventListener('keydown', e => {
   let loadSeq = 0;
   const view = { wc: null, ww: null, invert: false, cmap: 'gray', rotate: 0, flipH: false, flipV: false, zoom: 1, panX: 0, panY: 0, frame: 0 };
   const cine = { playing: false, timer: null, fps: 15, loop: true };
-  // Boxes are in IMAGE pixel coordinates, never screen ones, so they survive
-  // zoom, pan, rotate and flip and land on the same samples whatever the viewer
-  // is doing. `base` is the last painted frame without any box overlay, so a
-  // drag redraws by blitting it rather than re-running the windowing loop.
-  const redact = { active: false, boxes: [], drag: null, metrics: null, fill: 'black', base: null };
 
   const LUT = (function () {
     const clamp = v => v < 0 ? 0 : v > 255 ? 255 : v | 0;
@@ -9112,117 +9601,10 @@ document.addEventListener('keydown', e => {
       const win = applyWindowToFloats(ovRaw.rawFloats, n, view.wc ?? ovRaw.wcTag, view.ww ?? ovRaw.wwTag, ovRaw.mn, ovRaw.mx, ovRaw.invert);
       for (let i = 0; i < n; i++) { let g = win[i*4]; if (view.invert) g = 255 - g; const p = i*4, q = g*3; out[p] = lut[q]; out[p+1] = lut[q+1]; out[p+2] = lut[q+2]; out[p+3] = 255; }
     }
-    redact.base = new ImageData(out, cols, rows);
-    ctx.putImageData(redact.base, 0, 0);
+    ctx.putImageData(new ImageData(out, cols, rows), 0, 0);
     applyTransform();
-    drawBoxes();
   }
 
-  // ---------- burned-in pixel redaction ----------
-  // The forward transform is applyTransform()'s
-  // translate(pan) scale(zoom) rotate() scaleX(±1) scaleY(±1), composed about
-  // transform-origin = the element's centre. Inverting the computed matrix maps
-  // any screen point back exactly, for every combination of the four, so
-  // redaction needs no un-rotated surface of its own.
-  //
-  // getBoundingClientRect() on a transformed element reports the axis-aligned
-  // bounds of the TRANSFORMED shape — under rotation neither the element nor
-  // centred on it — and offsetWidth/offsetHeight are integer-rounded, which is
-  // a sub-pixel error that compounds over a zoom. The box the matrix is
-  // relative to is the untransformed one, so measure with the transform off and
-  // put it back inside the same task, before anything can repaint.
-  function canvasBox() {
-    const prev = canvas.style.transform;
-    canvas.style.transform = 'none';
-    const b = canvas.getBoundingClientRect();
-    canvas.style.transform = prev;
-    return b;
-  }
-
-  function screenToImage(clientX, clientY, box) {
-    if (!canvas || !canvas.width || !canvas.height) return null;
-    const t = getComputedStyle(canvas).transform;
-    let M;
-    try { M = new DOMMatrix(t && t !== 'none' ? t : '').inverse(); } catch (_) { return null; }
-    const b = box || canvasBox();
-    if (!b.width || !b.height) return null;
-    const p = M.transformPoint(new DOMPoint(clientX - (b.left + b.width / 2), clientY - (b.top + b.height / 2)));
-    return { x: (p.x + b.width / 2) * canvas.width / b.width,
-             y: (p.y + b.height / 2) * canvas.height / b.height };
-  }
-
-  // Intersect with the picture; never relocate. The pointer handlers fire
-  // anywhere in .ov-viewer, which is far wider than the canvas — a 512-pixel
-  // image inside a 688-pixel viewer leaves ~90 pixels of dead margin each side —
-  // so a box can legitimately be drawn entirely beside the image. Clamping the
-  // origin and then re-deriving the extent from it slides such a box onto the
-  // picture and stretches it to the full width: a drag that never touched the
-  // image redacts all of it. Intersecting leaves nothing, which is what was drawn.
-  function clampBox(b) {
-    const w = canvas.width, h = canvas.height;
-    if (b.w < 0) { b.x += b.w; b.w = -b.w; }
-    if (b.h < 0) { b.y += b.h; b.h = -b.h; }
-    const x0 = Math.max(0, b.x), y0 = Math.max(0, b.y);
-    const x1 = Math.min(w, b.x + b.w), y1 = Math.min(h, b.y + b.h);
-    b.x = x0; b.y = y0;
-    b.w = Math.max(0, x1 - x0); b.h = Math.max(0, y1 - y0);
-    return b;
-  }
-
-  // Never while redaction is off: printOverview() exports this canvas with
-  // toDataURL, and a preview rectangle baked in would put red boxes in the PDF.
-  function drawBoxes() {
-    if (!ctx || !redact.active || !redact.base) return;
-    ctx.putImageData(redact.base, 0, 0);
-    const live = redact.drag && redact.drag.mode === 'new' ? [redact.drag.box] : [];
-    ctx.lineWidth = Math.max(1, canvas.width / 300);
-    for (const b of redact.boxes.concat(live)) {
-      ctx.fillStyle = 'rgba(220, 38, 38, .35)';
-      ctx.fillRect(b.x, b.y, b.w, b.h);
-      ctx.strokeStyle = '#ef4444';
-      ctx.strokeRect(b.x, b.y, b.w, b.h);
-    }
-  }
-
-  function boxAt(pt) {
-    for (let i = redact.boxes.length - 1; i >= 0; i--) {
-      const b = redact.boxes[i];
-      if (pt.x >= b.x && pt.x <= b.x + b.w && pt.y >= b.y && pt.y <= b.y + b.h) return b;
-    }
-    return null;
-  }
-
-  function updateRedactCount() {
-    const el = $('ovRedactCount');
-    if (el) el.textContent = String(redact.boxes.length);
-  }
-
-  // Split from setRedactMode because renderOverview has to clear the state
-  // BEFORE the new file is decoded: repainting there would put the previous
-  // file's picture back on the canvas at the previous file's size.
-  function clearRedactState() {
-    redact.active = false; redact.drag = null; redact.boxes = [];
-    $('ovRedact')?.classList.remove('active');
-    $('ovRedactPanel')?.classList.add('hidden');
-    viewer?.classList.remove('redacting');
-    updateRedactCount();
-  }
-
-  function setRedactMode(on) {
-    if (!on || !ovRaw) { clearRedactState(); paint(); return; }   // paint drops the overlay
-    redact.active = true;
-    redact.drag = null;
-    $('ovRedact')?.classList.add('active');
-    $('ovRedactPanel')?.classList.remove('hidden');
-    viewer?.classList.add('redacting');
-    updateRedactCount();
-    drawBoxes();
-  }
-
-  // Ultrasound and secondary-capture devices burn their patient banner into a
-  // strip along the top of the frame; a tenth of the height covers the usual
-  // two or three lines of it without eating into the image itself.
-  const TOP_BANNER_FRACTION = 0.10;
 
   function setupWL() {
     const wc = $('ovWC'), ww = $('ovWW');
@@ -9414,121 +9796,12 @@ document.addEventListener('keydown', e => {
       wheelRAF = requestAnimationFrame(flushWheel);
     }, { passive: false });
     let dragging = false, sx = 0, sy = 0;
-    // Redaction takes the drag over; without these two guards drawing a box
-    // pans the image instead. The wheel handler above is deliberately NOT
-    // guarded — zooming in on small burned-in text is exactly when you need it.
-    viewer.addEventListener('pointerdown', e => { if (redact.active) return; dragging = true; sx = e.clientX - view.panX; sy = e.clientY - view.panY; viewer.classList.add('panning'); try { viewer.setPointerCapture(e.pointerId); } catch (_) {} });
-    viewer.addEventListener('pointermove', e => { if (redact.active || !dragging) return; view.panX = e.clientX - sx; view.panY = e.clientY - sy; applyTransform(); });
+    // Nothing contends for the drag here any more: this viewer only ever pans.
+    // Boxes are drawn in the Edit tab's redaction workspace, on its own surface.
+    viewer.addEventListener('pointerdown', e => { dragging = true; sx = e.clientX - view.panX; sy = e.clientY - view.panY; viewer.classList.add('panning'); try { viewer.setPointerCapture(e.pointerId); } catch (_) {} });
+    viewer.addEventListener('pointermove', e => { if (!dragging) return; view.panX = e.clientX - sx; view.panY = e.clientY - sy; applyTransform(); });
     const endPan = () => { dragging = false; viewer.classList.remove('panning'); };
     viewer.addEventListener('pointerup', endPan); viewer.addEventListener('pointercancel', endPan);
-
-    // ---- redaction: mode, boxes, apply ----
-    const MIN_BOX = 2;   // image pixels — under this it was a click, not a drag
-
-    $('ovRedact')?.addEventListener('click', () => setRedactMode(!redact.active));
-    $('ovRedactCancel')?.addEventListener('click', () => setRedactMode(false));
-    $('ovRedactClear')?.addEventListener('click', () => { redact.boxes = []; updateRedactCount(); drawBoxes(); });
-    $('ovRedactFill')?.addEventListener('change', e => { redact.fill = e.target.value; });
-    $('ovRedactTop')?.addEventListener('click', () => {
-      if (!ovRaw) return;
-      redact.boxes.push({ x: 0, y: 0, w: canvas.width,
-                          h: Math.max(1, Math.round(canvas.height * TOP_BANNER_FRACTION)) });
-      updateRedactCount(); drawBoxes();
-    });
-
-    // The box being drawn is measured against the canvas box taken at
-    // pointerdown, not re-measured per move: it cannot change mid-drag, and one
-    // forced layout per gesture beats one per pointer event.
-    viewer.addEventListener('pointerdown', e => {
-      if (!redact.active || !ovRaw) return;
-      const metrics = canvasBox();
-      const pt = screenToImage(e.clientX, e.clientY, metrics);
-      if (!pt) return;
-      redact.metrics = metrics;
-      const hit = boxAt(pt);
-      redact.drag = hit
-        ? { mode: 'move', box: hit, dx: pt.x - hit.x, dy: pt.y - hit.y }
-        : { mode: 'new', box: { x: pt.x, y: pt.y, w: 0, h: 0 }, ox: pt.x, oy: pt.y };
-      try { viewer.setPointerCapture(e.pointerId); } catch (_) {}
-    });
-    viewer.addEventListener('pointermove', e => {
-      if (!redact.active || !redact.drag) return;
-      const pt = screenToImage(e.clientX, e.clientY, redact.metrics);
-      if (!pt) return;
-      const dr = redact.drag;
-      if (dr.mode === 'new') {
-        dr.box.x = Math.min(dr.ox, pt.x); dr.box.y = Math.min(dr.oy, pt.y);
-        dr.box.w = Math.abs(pt.x - dr.ox); dr.box.h = Math.abs(pt.y - dr.oy);
-      } else {
-        dr.box.x = pt.x - dr.dx; dr.box.y = pt.y - dr.dy;
-      }
-      clampBox(dr.box);
-      drawBoxes();
-    });
-    const endRedactDrag = () => {
-      const dr = redact.drag;
-      redact.drag = null;
-      if (!dr) return;
-      // Measure the box AFTER clipping it to the picture, not before: a drag
-      // that happened entirely in the margin beside the image is a big box that
-      // covers no pixels, and only the clipped size can tell the difference.
-      // A stray click would otherwise leave a zero-size box in the list that
-      // covers nothing and cannot be seen well enough to delete again.
-      if (dr.mode === 'new') {
-        const box = clampBox(dr.box);
-        if (box.w >= MIN_BOX && box.h >= MIN_BOX) redact.boxes.push(box);
-      }
-      updateRedactCount(); drawBoxes();
-    };
-    viewer.addEventListener('pointerup', endRedactDrag);
-    viewer.addEventListener('pointercancel', endRedactDrag);
-    viewer.addEventListener('dblclick', e => {
-      if (!redact.active) return;
-      const pt = screenToImage(e.clientX, e.clientY);
-      const hit = pt && boxAt(pt);
-      if (!hit) return;
-      redact.boxes.splice(redact.boxes.indexOf(hit), 1);
-      updateRedactCount(); drawBoxes();
-    });
-
-    $('ovRedactApply')?.addEventListener('click', () => {
-      const entry = files[currentFileIdx];
-      if (!entry) return;
-      if (!redact.boxes.length) { toast?.((window.t || String)('Draw at least one box first.')); return; }
-      const sup = redactionSupport(entry.meta);
-      // Boxes are captured now: applyRedaction is async and setRedactMode()
-      // empties the array on its way out.
-      const boxes = redact.boxes.map(b => ({ ...b }));
-      const go = async () => {
-        if (sup.depthLoss) {
-          log(`⚠ ${(window.t || String)('This image was compressed with lossy JPEG; redacting it will store 8 bits per sample.')}`);
-        }
-        const res = await applyRedaction(entry, boxes, { fill: redact.fill });
-        if (res.error) { log(`✗ ${entry.name}: ${res.error}`); toast?.(res.error); return; }
-        const msg = (window.t || String)('Redacted {n} region(s) across {m} frame(s) — pixels overwritten.')
-          .replace('{n}', res.boxes).replace('{m}', res.frames);
-        log(`▣ ${entry.name}: ${msg}`);
-        toast?.(msg);
-        setRedactMode(false);
-        renderTable();
-        renderOverview();                       // re-decodes from the new pixels
-        if (dict) drawPreview(dict, currentFrame);
-      };
-      if (sup.converts) {
-        confirmDanger((window.t || String)('Redacting decompresses this image to uncompressed Explicit VR Little Endian. The file will be larger and its Transfer Syntax will change. Continue?'), go, 'Redact pixels');
-      } else go();
-    });
-
-    $('ovRedactUndo')?.addEventListener('click', () => {
-      const entry = files[currentFileIdx];
-      if (!entry || !undoRedaction(entry)) return;
-      const msg = (window.t || String)('Redaction undone (this session only).');
-      log(`↺ ${entry.name}: ${msg}`);
-      toast?.(msg);
-      renderTable();
-      renderOverview();
-      if (dict) drawPreview(dict, currentFrame);
-    });
   }
 
   // drop zone (reuses the editor's #fileInput → handleFiles)
@@ -9606,6 +9879,10 @@ document.addEventListener('keydown', e => {
       renderCompareUI();
       renderTable();
     }
+    // Landing on the Edit tab is not enough on its own: the Image edits card is
+    // the last thing in a sidebar that can be scrolled, so the click that asked
+    // for it scrolls it into view and marks it for a moment.
+    if (b.id === 'ovActImage') window.revealImgEditCard?.();
   }));
 
   // Both sit inside #ovDrop, whose background click also opens the file picker.
@@ -9763,18 +10040,6 @@ document.addEventListener('keydown', e => {
     // not a reading, so a user-typed value is only overridden on a file change.
     cine.fps = tagFrameRate();
     const fpsBox = $('ovCineFps'); if (fpsBox) fpsBox.value = cine.fps;
-    // Boxes are image coordinates on one image; carrying them to the next file
-    // would put them over whatever happens to be at those samples there.
-    redact.base = null;
-    clearRedactState();
-    const rb = $('ovRedact'), sup = redactionSupport(meta);
-    if (rb) {
-      rb.disabled = !sup.ok;
-      rb.title = sup.ok
-        ? (window.t || String)('Redact burned-in annotation')
-        : `${(window.t || String)('This image cannot be redacted: its pixel data uses a compression this browser cannot decode.')} (${sup.codec})`;
-    }
-    $('ovRedactUndo')?.classList.toggle('hidden', !files[currentFileIdx]?.redactBackup);
     renderedIdx = currentFileIdx;
     loadImage();
   };
@@ -9783,12 +10048,12 @@ document.addEventListener('keydown', e => {
   // hasn't been drawn for it yet (e.g. file was opened from another tab).
   window.ovEnsureRendered = function () { if (dict && renderedIdx !== currentFileIdx) renderOverview(); };
 
-  // The redaction surface, for anything outside this IIFE. `view`, `canvas` and
-  // the transform are all closed over here, so the screen-to-image mapping and
-  // the box list cannot be reconstructed from the outside — which is also why
-  // the geometry is only testable through this handle.
-  window.ovRedaction = { screenToImage, canvasBox, setMode: setRedactMode,
-                         redraw: drawBoxes, state: redact, view, applyTransform };
+  // The viewport state, for anything outside this IIFE. `view` and the canvas
+  // are closed over here, so a caller that needs to reset the on-screen
+  // orientation — the image edits do, after they have turned the file itself —
+  // has to come through this handle. It carries no file-changing operation:
+  // everything reachable from here is viewport state.
+  window.ovView = { view, applyTransform };
 })();
 
 </script>

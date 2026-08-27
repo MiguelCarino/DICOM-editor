@@ -475,11 +475,158 @@
     {
       ok('the Edit sidebar carries the image edit card', !!document.getElementById('imgEditCard'));
       for (const id of ['imgRotCW', 'imgRotCCW', 'imgRot180', 'imgFlipH', 'imgFlipV',
-                        'imgInvert', 'imgEditUndo', 'imgEditDownload', 'downloadOneBtn']) {
+                        'imgInvert', 'imgRedact', 'imgRedactUndo', 'imgEditUndo',
+                        'imgEditDownload', 'downloadOneBtn']) {
         ok(`the card carries #${id}`, !!document.getElementById(id));
       }
       ok('the card is inside the editor tab, not the overview',
          document.getElementById('editorTab')?.contains(document.getElementById('imgEditCard')) === true);
+
+      // The card used to pass every assertion above while being invisible: it
+      // was in the DOM, its own style.display was 'block', and a media query
+      // three ancestors up set display:none on the whole sidebar below 1000px.
+      // Nothing here can resize the window, so the rule itself is the subject —
+      // a narrow layout may move a sidebar, stack it or scroll it, but it may
+      // not delete it, on any of the three tabs that have one.
+      {
+        const HOMES = ['sidebar', 'create-sidebar', 'extractor-sidebar', 'val-sidebar'];
+        const offenders = [];
+        for (const sheet of Array.from(document.styleSheets)) {
+          let rules;
+          try { rules = Array.from(sheet.cssRules || []); } catch (_) { continue; }
+          for (const rule of rules) {
+            if (!(rule.media && rule.cssRules)) continue;
+            if (!/max-width/.test(rule.conditionText || rule.media.mediaText || '')) continue;
+            for (const inner of Array.from(rule.cssRules)) {
+              if (!inner.selectorText || !inner.style) continue;
+              const gone = inner.style.getPropertyValue('display').trim() === 'none';
+              if (!gone) continue;
+              for (const home of HOMES)
+                if (new RegExp(`\\.${home}(\\s|,|$)`).test(inner.selectorText + ' '))
+                  offenders.push(`${rule.conditionText || rule.media.mediaText} { ${inner.selectorText} }`);
+            }
+          }
+        }
+        ok('no media query hides a sidebar outright', offenders.length === 0,
+           offenders.join(' | ').slice(0, 200));
+      }
+
+      // Existing is not the same as winning. A media query adds nothing to
+      // specificity, so `@media { .left-panel { overflow: visible } }` written
+      // above `.left-panel { overflow: hidden }` is a tie that the later base
+      // rule takes — the narrow layout then goes to one column while keeping the
+      // two-column height constraints, which collapsed the tag table to 78px and
+      // painted the panel over the sidebar. The rule that undoes a property must
+      // come after every rule that sets it for the same selector.
+      {
+        const WATCH = {
+          '.left-panel': ['overflow', 'min-height'],
+          '.sidebar': ['overflow', 'min-height'],
+          '.create-left': ['overflow', 'min-height'],
+          '.extractor-left': ['overflow', 'min-height'],
+          '.table-wrap': ['flex', 'max-height'],
+          '.img-grid-wrap': ['flex', 'max-height'],
+          '.extractor-grid-wrap': ['flex', 'max-height'],
+          '.preview-box': ['max-width'],
+        };
+        // Flatten the sheet to (index, selector, style), descending into media
+        // rules so a nested rule keeps the position of its parent block.
+        const flat = [];
+        for (const sheet of Array.from(document.styleSheets)) {
+          let rules;
+          try { rules = Array.from(sheet.cssRules || []); } catch (_) { continue; }
+          rules.forEach((rule, i) => {
+            if (rule.selectorText && rule.style) flat.push({ i, sel: rule.selectorText, style: rule.style, media: false });
+            else if (rule.cssRules)
+              for (const inner of Array.from(rule.cssRules))
+                if (inner.selectorText && inner.style) flat.push({ i, sel: inner.selectorText, style: inner.style, media: true });
+          });
+        }
+        const hits = (sel, prop) => flat.filter(r =>
+          r.sel.split(',').some(s => s.trim() === sel) && r.style.getPropertyValue(prop) !== '');
+
+        const losers = [];
+        for (const [sel, props] of Object.entries(WATCH)) {
+          for (const prop of props) {
+            const all = hits(sel, prop);
+            const inMedia = all.filter(r => r.media);
+            if (!inMedia.length) continue;                 // not overridden here at all
+            const lastBase = Math.max(-1, ...all.filter(r => !r.media).map(r => r.i));
+            const lastMedia = Math.max(...inMedia.map(r => r.i));
+            if (lastMedia < lastBase) losers.push(`${sel} { ${prop} } @${lastMedia} < base @${lastBase}`);
+          }
+        }
+        ok('every narrow-layout override comes after the rule it undoes',
+           losers.length === 0, losers.join(' | ').slice(0, 240));
+      }
+
+      // And at whatever width the runner happens to use, the card is really on
+      // screen rather than merely present: offsetParent is null for an element
+      // inside a display:none ancestor, which style.display cannot see.
+      switchTab('editor');
+      ok('the card is laid out, not just present',
+         document.getElementById('imgEditCard').offsetParent !== null ||
+         document.getElementById('imgEditCard').style.display === 'none');
+
+      // ---- what the download buttons offer, and when ----------------------
+      // "Download All" is named for a batch, so it only belongs on screen when
+      // there is more than one file for "all" to mean. It used to be the button
+      // shown for a single file — while the per-file button, which described
+      // what would actually happen, was the one hidden.
+      {
+        const all = () => document.getElementById('downloadAllBtn');
+        const one = () => document.getElementById('downloadOneBtn');
+        const shown = (el) => !el.classList.contains('hidden');
+
+        await handleFiles([]);          // nothing loaded
+        files.length = 0; showDownload();
+        ok('no files: neither download button is offered', !shown(all()) && !shown(one()));
+
+        await install(geoBytes(), 'dl-one.dcm');
+        ok('one file: Download All is not offered', !shown(all()));
+        ok('one file: the per-file download is', shown(one()));
+        ok('and it carries the primary styling while it is the only one',
+           one().classList.contains('primary'));
+
+        await handleFiles(['a', 'b', 'c'].map((n, i) =>
+          new File([bytesOf(geoBytes())], `dl-${n}.dcm`, { type: 'application/dicom' })));
+        ok('several files: Download All is offered', shown(all()) && files.length > 1,
+           `${files.length} file(s)`);
+        ok('several files: the per-file download still is', shown(one()));
+        ok('and it gives the primary styling back to Download All',
+           !one().classList.contains('primary'));
+        // Not a behaviour change, just the reason the swap costs nothing:
+        // a range of one never builds an archive.
+        ok('a one-file range downloads the file rather than an archive of one',
+           /downloadOne\(/.test(String(downloadRange)));
+      }
+
+      // The controls sit above the picture they act on, and both sit above
+      // everything else in the column — they are the two things you had to
+      // scroll for. Order in the DOM, so it holds before anything is laid out.
+      {
+        const sb = document.querySelector('.sidebar');
+        const kids = [...sb.children];
+        const at = (sel) => kids.findIndex(e => e.matches(sel));
+        ok('the image tools come before the preview in the sidebar',
+           at('#imgEditCard') >= 0 && at('#imgEditCard') < at('#previewCard'),
+           `tools@${at('#imgEditCard')} preview@${at('#previewCard')}`);
+        ok('and both come before Load Files and the Log',
+           at('#previewCard') < at('.sidebar-rest'),
+           `preview@${at('#previewCard')} rest@${at('.sidebar-rest')}`);
+        ok('Load Files and the Log are the ones in the scrolling tail',
+           !!document.querySelector('.sidebar-rest #loadFilesCard') &&
+           !!document.querySelector('.sidebar-rest #logCard'));
+        // The card is a flex column at runtime, not the display:block the JS
+        // used to set — the picture cannot give up height inside a block.
+        const entry = files[currentFileIdx];
+        if (entry) {
+          ok('the preview card is a flex column when shown',
+             getComputedStyle(document.getElementById('previewCard')).flexDirection === 'column' &&
+             document.getElementById('previewCard').style.display !== 'block',
+             document.getElementById('previewCard').style.display);
+        }
+      }
       ok('every op the buttons name is an op the code has',
          ['rot90', 'rot270', 'rot180', 'flipH', 'flipV'].every(k => !!PIXEL_OPS[k] && !!PIXEL_OPS[k].inverse));
       ok('and every op names its own inverse correctly',

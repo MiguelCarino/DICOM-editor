@@ -51,6 +51,11 @@ is the first image of the first series, and the file browser's series tiles hold
 runs. The Overview counter names only the levels that have more than one member: a plain
 series reads `Image 3 / 40`, and a drop that turned out to hold two studies says so.
 
+The Overview shows a file and never rewrites one. Everything that changes the stored pixels
+— rotate, flip, invert, redact — lives in the Edit tab, and **▣ Edit image** on the Overview
+is the way across to it. The two tabs share glyphs (⟳ ⇋ ⇅ appear on both) and they mean
+different things, so the Overview's row is labelled **View** and its tooltips say so.
+
 In the Overview viewer:
 
 - **Wheel pages the stack** — the next frame inside a multi-frame file, otherwise the next
@@ -71,11 +76,13 @@ In the Overview viewer:
 ## Basic image edits
 
 The Overview viewer's ⟳ ⇋ ⇅ turn the picture on screen and change nothing in the file,
-which is what a PACS viewer does. **Image edits**, in the Edit tab's sidebar under the
-preview, are the other kind: they move the **stored pixels**, so what comes out of
-Download is a file every other reader — another viewer, a printer, an archive — opens the
-right way up. Rotate 90° either way, rotate 180°, flip horizontally or vertically, and
-**Invert**, which swaps `MONOCHROME1` ⇄ `MONOCHROME2`.
+which is what a PACS viewer does; they sit behind a **View** label for that reason.
+**Image edits**, in the Edit tab's sidebar under the preview, are the other kind: they move
+the **stored pixels**, so what comes out of Download is a file every other reader — another
+viewer, a printer, an archive — opens the right way up. Rotate 90° either way, rotate 180°,
+flip horizontally or vertically, **Invert**, which swaps `MONOCHROME1` ⇄ `MONOCHROME2`, and
+**Redact**, which covers burned-in text. That card is the complete set: no operation that
+writes pixel data lives anywhere else in the app.
 
 - **Nothing is resampled.** Every op is a permutation of whole samples: no value is ever
   computed from its neighbours, so a rotation is lossless whatever the depth, the sign or
@@ -186,10 +193,19 @@ feature.
 ### Burned-in pixel redaction
 
 Identity printed *into the image* — the banner an ultrasound or secondary-capture device
-burns across the top of every frame — is not reachable by any tag edit. **Redact**, on the
-Overview tab, overwrites those samples in the stored pixel data itself. Drag boxes over the
-text (they are kept in image coordinates, so zoom, pan, rotate and flip do not move them),
-then apply.
+burns across the top of every frame — is not reachable by any tag edit. **▣ Redact
+burned-in text**, in the Edit tab's Image edits card, overwrites those samples in the stored
+pixel data itself.
+
+It opens a full-screen workspace rather than working in the sidebar preview: the images that
+carry a burned-in banner are typically 256 square, and placing a box over two lines of text
+in a 280-pixel-tall preview is not something anyone can do accurately. The workspace scales
+the frame up, draws it unsmoothed so the samples under the box are visible, and puts the
+controls in a row beneath it. Drag boxes over the text, drag a box to move it, double-click
+to delete one, then apply. **Cancel** and **Esc** leave; a click on the backdrop does not,
+because in the workspace a click is a box that missed.
+
+Boxes are kept in image coordinates, so nothing about how the frame is displayed moves them.
 
 - **Every frame, always.** A cine whose first frame is clean and whose frames 2..N still
   carry the name is more dangerous than one that was never redacted, because the user
