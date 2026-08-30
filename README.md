@@ -289,6 +289,80 @@ nothing at runtime touches the network.
 - The action table is periodically revised by NEMA; regenerate it before relying on it for
   a production workflow.
 
+## Desktop application
+
+The same page, in a window. [`desktop/`](desktop/) wraps this repository's `index.html`
+in Electron and serves it from an internal `app://` origin, so the whole tool — dcmjs, the
+dictionary, the fonts, the four WASM codecs, the forge behind the sample buttons — sits
+inside the bundle and the app never asks the network for any part of itself. It is for
+someone who wants the editor on a workstation and has no reason to stand up
+[Carino DICOM](https://github.com/MiguelCarino/Carino-DICOM) around it: an installer, an
+icon in the dock, and the offline, no-upload, entirely client-side tool documented above,
+unchanged. Files still never leave the machine, and now neither does the page.
+
+Builds come from the **Releases** page of
+[MiguelCarino/Carino-DICOM-Editor](https://github.com/MiguelCarino/Carino-DICOM-Editor/releases),
+produced by [`.github/workflows/desktop-build.yml`](.github/workflows/desktop-build.yml) —
+macOS (`.dmg`, `.zip`), Windows (`.exe` installer) and Linux (`.AppImage`, `.deb`, `.rpm`),
+each on its own runner, because electron-builder cannot cross-compile.
+
+### The builds are unsigned
+
+They carry no Apple Developer signature and no Windows publisher certificate, and the
+operating systems say so:
+
+- **macOS** — Gatekeeper refuses the first launch outright ("cannot be opened because the
+  developer cannot be verified"). Right-click the app and choose **Open**, or allow it once
+  under **System Settings → Privacy & Security → Open Anyway**. Double-clicking will keep
+  failing until you do.
+- **Windows** — SmartScreen interrupts the installer with "Windows protected your PC";
+  **More info → Run anyway** is the way past it.
+- **Linux** — nothing to allow. Mark the AppImage executable, or install the `.deb`/`.rpm`.
+
+This is a fact about the build, not about the code, and it is worth knowing that the two
+warnings mean "nobody paid to be identified", not "this binary was inspected and found
+suspect". The workflow already carries the signing and notarization steps; they switch
+themselves on the moment the certificate secrets are present, and until then the honest
+thing is to say what you will see.
+
+### The update notice is opt-in
+
+There is no auto-updater in this app. Nothing is ever downloaded, installed or replaced
+behind you; the most that can happen is being told a newer version exists.
+
+- **It is off unless you ask for it.** A few seconds after the first launch the app asks
+  once, in one sentence, with two buttons. Dismissing the dialog counts as **Don't check** —
+  the default for anyone who never answers is off.
+- **What it does, when on:** at most once a day it reads
+  `api.github.com/repos/MiguelCarino/Carino-DICOM-Editor/releases/latest` and compares that
+  tag with the running version, field by field. If — and only if — it is strictly newer, a
+  small **Update available ↗** pill appears in the header and opens the release page in your
+  real browser. Installing it is then something you do yourself.
+- **What it sends:** an HTTPS GET, and a `User-Agent` naming the app and its version.
+  No identifier, no study, no filename, nothing about what is open, and no telemetry of any
+  kind — GitHub sees an anonymous request for a public JSON document, logged the way it logs
+  every other one. A failed check is silent: no retry, no dialog, no log line.
+- **Turning it off:** **Help → Check for updates automatically**, a checkbox that reflects
+  the current state. **Help → Check for updates now** is the manual one, which reports back
+  whatever it finds, including nothing. The answer is remembered in `updates.json` in the
+  app's user-data directory and nowhere else.
+
+### The Carino DICOM hand-off does not reach this build
+
+Opening a study straight from a running Carino DICOM — the `#load=` deep link — does not
+work in the standalone desktop app. The desktop page's origin is `app://carino`, and the
+PACS echoes CORS headers only for the http(s) editor URL an operator configured, so the
+manifest fetch is refused before it starts. There is no setting on either side that fixes
+it. Use the editor **bundled inside Carino DICOM**, which is served from the PACS's own
+origin and needs no CORS at all, or the web version at
+[dcm.carino.systems](https://dcm.carino.systems) with the PACS pointed at it. Everything
+else in the app — every tab, every sample, the self-test, the gallery — behaves identically
+in the desktop build.
+
+The shell adds no native file features in this version: there is no **Open** item in the
+File menu, and drag-and-drop and the in-page picker are the way in, working exactly as they
+do in the browser.
+
 ## Tests
 
 ```bash

@@ -1,0 +1,64 @@
+{
+  "name": "carino-dicom-editor-desktop",
+  "productName": "Carino DICOM Editor",
+  "version": "1.0.0",
+  "description": "Desktop window for the Carino DICOM Editor — open, inspect, edit and de-identify DICOM files on your own machine",
+  "author": { "name": "Miguel Carino", "email": "hello@carino.systems" },
+  "homepage": "https://github.com/MiguelCarino/Carino-DICOM-Editor",
+  "license": "AGPL-3.0-or-later",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "@electron/notarize": "^2.5.0",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "systems.carino.dicom.editor",
+    "productName": "Carino-DICOM-Editor",
+    "afterSign": "build/notarize.js",
+    "files": ["main.js", "preload.js", "i18n.js", "assets/**/*"],
+    "extraResources": [
+      { "from": "../index.html", "to": "web/index.html" },
+      { "from": "../i18n.js", "to": "web/i18n.js" },
+      { "from": "../carino-lang.js", "to": "web/carino-lang.js" },
+      { "from": "../carino-clock.js", "to": "web/carino-clock.js" },
+      { "from": "../carino-bridge.js", "to": "web/carino-bridge.js" },
+      { "from": "../deid-profile.js", "to": "web/deid-profile.js" },
+      { "from": "../dicom-dictionary.js", "to": "web/dicom-dictionary.js" },
+      { "from": "../fonts.css", "to": "web/fonts.css" },
+      { "from": "../logo.webp", "to": "web/logo.webp" },
+      { "from": "../LICENSE", "to": "web/LICENSE" },
+      { "from": "../fonts", "to": "web/fonts" },
+      { "from": "../vendor", "to": "web/vendor" },
+      { "from": "../tests/dicom-forge.js", "to": "web/tests/dicom-forge.js" },
+      { "from": "../tests/gallery.html", "to": "web/tests/gallery.html" },
+      { "from": "../tests/suites", "to": "web/tests/suites" }
+    ],
+    "mac": {
+      "category": "public.app-category.medical",
+      "target": ["dmg", "zip"],
+      "icon": "build/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": ["AppImage", "rpm", "deb"],
+      "category": "Graphics",
+      "maintainer": "Carino Systems <hello@carino.systems>",
+      "synopsis": "DICOM editor — open, inspect, edit and de-identify DICOM files locally",
+      "icon": "build/icons",
+      "executableName": "carino-dicom-editor",
+      "desktop": { "Name": "Carino DICOM Editor" }
+    }
+  }
+}
