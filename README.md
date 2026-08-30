@@ -1,8 +1,10 @@
-# DICOM-editor
+# Carino DICOM Editor
 
-A browser-based DICOM file metadata editor (single static `index.html`, uses
-[dcmjs](https://github.com/dcmjs-org/dcmjs)). View, edit, create, compare, validate and
-**de-identify** DICOM objects entirely client-side — no upload, no server.
+Carino DICOM Editor is a browser-based DICOM file metadata editor (single static
+`index.html`, uses [dcmjs](https://github.com/dcmjs-org/dcmjs)). View, edit, create,
+compare, validate and **de-identify** DICOM objects entirely client-side — no upload,
+no server. Only the product was renamed: the repository and its git remote are still
+`DICOM-editor`, so clone that name, not this one.
 
 ## Tag dictionary
 
@@ -40,7 +42,7 @@ suites use, so each one ships with the reference image it is supposed to decode 
 `tests/suites/samples.js` checks the app against it. Two deep links follow from that:
 `#sample=<id>` opens one of the five, and `#case=<id>` opens any case in the test corpus —
 which is what makes every card in the [reference gallery](https://dicom.carino.systems/tests/gallery.html)
-a one-click reproduction. Both refuse to run when a Carino PACS hand-off is in flight.
+a one-click reproduction. Both refuse to run when a Carino DICOM hand-off is in flight.
 
 ## Viewing a study
 

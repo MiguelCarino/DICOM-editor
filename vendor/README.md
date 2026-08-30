@@ -10,7 +10,7 @@ lockfile somewhere.
 resolve off-origin. Not a `<script src>`, not an `@import`, not a web font, not
 a worker URL, not a source map.
 
-The identical tree is bundled inside Carino PACS, which serves this editor from
+The identical tree is bundled inside Carino DICOM, which serves this editor from
 its dashboard; the two are kept byte-identical on purpose.
 
 ## What is here, and under what licence
@@ -104,9 +104,9 @@ devtools open. The maps we ship are named relatively or root-relatively, so they
 resolve against whatever origin is serving the page and 404 there rather than
 leaving the building; keep it that way.
 
-## The copy inside Carino PACS
+## The copy inside Carino DICOM
 
-Carino PACS bundles this editor and serves it from its dashboard, so this tree
+Carino DICOM bundles this editor and serves it from its dashboard, so this tree
 exists twice. Keep the two byte-identical: a divergence here is a divergence in
 what a hospital is running.
 
