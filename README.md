@@ -41,7 +41,7 @@ They are forged by [`tests/dicom-forge.js`](tests/dicom-forge.js), the same orac
 suites use, so each one ships with the reference image it is supposed to decode to and
 `tests/suites/samples.js` checks the app against it. Two deep links follow from that:
 `#sample=<id>` opens one of the five, and `#case=<id>` opens any case in the test corpus —
-which is what makes every card in the [reference gallery](https://dicom.carino.systems/tests/gallery.html)
+which is what makes every card in the [reference gallery](https://dcm.carino.systems/tests/gallery.html)
 a one-click reproduction. Both refuse to run when a Carino DICOM hand-off is in flight.
 
 ## Viewing a study
@@ -302,7 +302,7 @@ against the real functions — there is no build step and nothing is mocked. The
 separately, computes what each one is *supposed* to look like from the samples it was built
 from rather than from the bytes. A decoder that is self-consistently wrong still fails.
 
-[**tests/gallery.html**](https://dicom.carino.systems/tests/gallery.html) renders that
+[**tests/gallery.html**](https://dcm.carino.systems/tests/gallery.html) renders that
 oracle: every case in the corpus, its reference picture, what it is for, and a button to
 open it straight in the viewer. It is the picture to compare against when the app shows
 something suspicious — if the two disagree, the bug is in the app, not in the file.
@@ -314,7 +314,7 @@ sample buttons lazy-load it. Prune `tests/` and those buttons stop working.
 
 ### Running the suites in your own browser
 
-[**dicom.carino.systems/#selftest**](https://dicom.carino.systems/#selftest) runs the same
+[**dcm.carino.systems/#selftest**](https://dcm.carino.systems/#selftest) runs the same
 suites in the browser you are reading this in, and prints what came back:
 
 > Your browser decoded 18 of 18 DICOM encodings correctly.
