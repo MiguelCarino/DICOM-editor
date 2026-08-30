@@ -3,8 +3,8 @@
 Carino DICOM Editor is a browser-based DICOM file metadata editor (single static
 `index.html`, uses [dcmjs](https://github.com/dcmjs-org/dcmjs)). View, edit, create,
 compare, validate and **de-identify** DICOM objects entirely client-side — no upload,
-no server. Only the product was renamed: the repository and its git remote are still
-`DICOM-editor`, so clone that name, not this one.
+no server. The repository was `DICOM-editor` until the rename; GitHub redirects the
+old name, so an existing clone keeps working without being touched.
 
 ## Tag dictionary
 
