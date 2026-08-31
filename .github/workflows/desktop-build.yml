@@ -45,27 +45,32 @@ jobs:
       # failure this whole change is meant to make impossible, so it gets a check
       # of its own rather than a glob's benefit of the doubt.
       #
-      # The names are electron-builder's own defaults, and the asymmetry in them
-      # is real, not a typo: the x64 arch token is dropped where the pattern
-      # allows it, respelled per package format (x86_64 for AppImage and rpm,
-      # amd64 for deb, aarch64 for rpm's arm64), and Windows has a single entry
-      # because nsis given both arches emits ONE installer carrying both payloads.
+      # The names are NOT electron-builder's defaults. desktop/package.json sets an
+      # explicit artifactName for mac and linux, and an explicit pattern is
+      # "user forced": it suppresses the default's habit of dropping the arch
+      # token from the x64 build, so every asset here names its architecture and
+      # none of them has to be told apart by what it is missing. What the pattern
+      # does NOT suppress is the per-format respelling in builder-util's
+      # getArtifactArchName — x64 becomes x86_64 for AppImage and rpm but amd64
+      # for deb, and arm64 becomes aarch64 for rpm alone. Hence six Linux names
+      # in four spellings of two architectures. Windows has one entry because
+      # nsis given both arches emits ONE installer carrying both payloads.
       matrix:
         include:
           - os: ubuntu-latest
             expect: |
-              Carino-DICOM-Editor-1.0.0.AppImage
+              Carino-DICOM-Editor-1.0.0-x86_64.AppImage
               Carino-DICOM-Editor-1.0.0-arm64.AppImage
-              carino-dicom-editor-desktop-1.0.0.x86_64.rpm
-              carino-dicom-editor-desktop-1.0.0.aarch64.rpm
-              carino-dicom-editor-desktop_1.0.0_amd64.deb
-              carino-dicom-editor-desktop_1.0.0_arm64.deb
+              Carino-DICOM-Editor-1.0.0-x86_64.rpm
+              Carino-DICOM-Editor-1.0.0-aarch64.rpm
+              Carino-DICOM-Editor-1.0.0-amd64.deb
+              Carino-DICOM-Editor-1.0.0-arm64.deb
           - os: macos-latest
             expect: |
-              Carino-DICOM-Editor-1.0.0.dmg
+              Carino-DICOM-Editor-1.0.0-x64.dmg
               Carino-DICOM-Editor-1.0.0-arm64.dmg
-              Carino-DICOM-Editor-1.0.0-mac.zip
-              Carino-DICOM-Editor-1.0.0-arm64-mac.zip
+              Carino-DICOM-Editor-1.0.0-x64.zip
+              Carino-DICOM-Editor-1.0.0-arm64.zip
           - os: windows-latest
             expect: |
               Carino-DICOM-Editor-Setup-1.0.0.exe
@@ -138,6 +143,13 @@ jobs:
           done <<'__EXPECT__'
           ${{ matrix.expect }}
           __EXPECT__
+          # Listed to the log as well as the summary, and BEFORE the exit. A
+          # missing file has two very different causes — the build dropped an
+          # architecture, or this manifest transcribes a name wrongly — and
+          # "MISSING x" alone cannot tell them apart. What was actually written
+          # answers it immediately.
+          echo "--- desktop/dist ---"
+          ls -l desktop/dist || true
           {
             echo "### ${{ matrix.os }}"
             echo ""
