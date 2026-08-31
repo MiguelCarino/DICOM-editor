@@ -171,3 +171,53 @@ jobs:
             desktop/dist/*.dmg
             desktop/dist/*.zip
             desktop/dist/*.exe
+
+  # A tag assembles its own release. Doing it by hand is what left this repo with
+  # a v1.0.0 tag and no release at all — and the website's download card hides
+  # itself when /releases/latest is a 404, so until a release exists the offer to
+  # install the editor simply is not on the page. This closes that loop: tag, and
+  # the download appears on dcm.carino.systems by itself.
+  #
+  # Only for a v* tag. A workflow_dispatch build stops at the artifacts, which is
+  # what makes dispatch the safe way to try a matrix change without publishing.
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    # Explicit, because the default token is read-only in repositories configured
+    # that way and a release job silently 403ing is worse than one that never ran.
+    permissions:
+      contents: write
+    steps:
+      # merge-multiple flattens the three bundles into one directory. Safe here
+      # because every filename carries its architecture, so nothing collides.
+      - name: Collect every leg's installers
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ls -l dist
+          # A hyphen means a pre-release: v1.0.1-rc01 is one, v1.0.0 is not. The
+          # distinction is not cosmetic — index.html asks for /releases/latest,
+          # which skips pre-releases, so this flag decides whether a tag makes the
+          # download card appear at all.
+          case "$GITHUB_REF_NAME" in
+            *-*) flag="--prerelease" ;;
+            *)   flag="--latest" ;;
+          esac
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release exists — replacing its assets"
+            gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$GITHUB_REF_NAME" \
+              --notes "The DICOM editor as a desktop application, for every supported platform and architecture. See CHANGELOG.md for what it does." \
+              $flag
+          fi
