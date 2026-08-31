@@ -31,6 +31,7 @@
       { "from": "../dicom-dictionary.js", "to": "web/dicom-dictionary.js" },
       { "from": "../fonts.css", "to": "web/fonts.css" },
       { "from": "../logo.webp", "to": "web/logo.webp" },
+      { "from": "../logo.svg", "to": "web/logo.svg" },
       { "from": "../LICENSE", "to": "web/LICENSE" },
       { "from": "../fonts", "to": "web/fonts" },
       { "from": "../vendor", "to": "web/vendor" },
