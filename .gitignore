@@ -1,0 +1,16 @@
+# Byproducts, not sources.
+#
+# __pycache__ is here because desktop/assets/make_icon.py is run in place to
+# regenerate the mark, and Python writes its cache next to the script. Nothing
+# imports that module, so the cache has no reason to exist beyond the run that
+# made it — and being untracked and unignored, it was one `git add -A` away from
+# being committed.
+__pycache__/
+*.pyc
+
+# tests/run.sh copies index.html here to inject a suite, and removes it again in
+# its own exit trap. It survives an interrupted run, and it is a stale duplicate
+# of the page rather than anything anybody should edit.
+.testrun.html
+
+.DS_Store

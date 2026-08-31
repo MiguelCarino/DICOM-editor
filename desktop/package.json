@@ -41,6 +41,7 @@
     "mac": {
       "category": "public.app-category.medical",
       "target": ["dmg", "zip"],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
       "icon": "build/icon.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
@@ -49,6 +50,7 @@
     },
     "win": {
       "target": ["nsis"],
+      "artifactName": "${productName}-Setup-${version}.${ext}",
       "icon": "build/icon.ico"
     },
     "linux": {
@@ -59,6 +61,9 @@
       "icon": "build/icons",
       "executableName": "carino-dicom-editor",
       "desktop": { "Name": "Carino DICOM Editor" }
+    },
+    "appImage": {
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     }
   }
 }

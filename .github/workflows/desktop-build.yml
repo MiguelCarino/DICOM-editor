@@ -1,7 +1,13 @@
 name: Build desktop app
 
 # Builds the Carino DICOM Editor desktop app for Linux, macOS and Windows.
-# Each OS is built on its own runner — electron-builder cannot cross-compile.
+# One runner per OS, and each runner emits EVERY architecture for that OS: this
+# app is pure Electron — no runtime dependencies, no native modules — so building
+# for a second architecture is only electron-builder fetching the prebuilt
+# Electron for that target triple, never compiling against the runner's own
+# toolchain. This deliberately diverges from Carino DICOM, whose matrix does need
+# one runner per architecture because its PyInstaller-frozen engine runs the host
+# Python and cannot cross-compile; do not "unify" the two workflows on that basis.
 # There is no engine to freeze here: unlike Carino DICOM, this app ships no
 # Python, so the whole build is `npm install` and electron-builder. The web
 # payload it packages (index.html, vendor/, fonts/, tests/dicom-forge.js …) is
@@ -26,9 +32,43 @@ on:
 jobs:
   build:
     strategy:
+      # Stays false so a release run reports every broken platform at once instead
+      # of the first failure cancelling its siblings. Nothing partial can escape:
+      # this workflow only builds (--publish never), and any future publish job
+      # declaring `needs: build` is skipped when any leg fails, fail-fast or not.
       fail-fast: false
+      # `expect` is the exact manifest each leg must leave in desktop/dist. It
+      # exists because if-no-files-found on the upload step is a far weaker gate
+      # than it looks: it fires only when NOTHING matches any pattern, so a Linux
+      # leg that produced one x64 AppImage and dropped the other five files stays
+      # green and the release quietly ships half an architecture. That is the one
+      # failure this whole change is meant to make impossible, so it gets a check
+      # of its own rather than a glob's benefit of the doubt.
+      #
+      # The names are electron-builder's own defaults, and the asymmetry in them
+      # is real, not a typo: the x64 arch token is dropped where the pattern
+      # allows it, respelled per package format (x86_64 for AppImage and rpm,
+      # amd64 for deb, aarch64 for rpm's arm64), and Windows has a single entry
+      # because nsis given both arches emits ONE installer carrying both payloads.
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            expect: |
+              Carino-DICOM-Editor-1.0.0.AppImage
+              Carino-DICOM-Editor-1.0.0-arm64.AppImage
+              carino-dicom-editor-desktop-1.0.0.x86_64.rpm
+              carino-dicom-editor-desktop-1.0.0.aarch64.rpm
+              carino-dicom-editor-desktop_1.0.0_amd64.deb
+              carino-dicom-editor-desktop_1.0.0_arm64.deb
+          - os: macos-latest
+            expect: |
+              Carino-DICOM-Editor-1.0.0.dmg
+              Carino-DICOM-Editor-1.0.0-arm64.dmg
+              Carino-DICOM-Editor-1.0.0-mac.zip
+              Carino-DICOM-Editor-1.0.0-arm64-mac.zip
+          - os: windows-latest
+            expect: |
+              Carino-DICOM-Editor-Setup-1.0.0.exe
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -70,9 +110,42 @@ jobs:
             fi
           done
 
+      # The arch flags are load-bearing: with none, electron-builder builds only
+      # the runner's own architecture — that is why Carino DICOM's v1.1.0-rc02 went
+      # out with an arm64 dmg and no Intel one at all. No platform flag is needed;
+      # with none given electron-builder falls back to the current platform while
+      # still honouring --x64/--arm64. Windows resolves to a SINGLE combined NSIS
+      # installer that picks its payload at install time, which is also why the
+      # win artifactName in desktop/package.json omits ${arch} on purpose — that
+      # note cannot live next to the key itself, as electron-builder's config
+      # schema is additionalProperties:false and rejects any comment key.
       - name: Build installers (electron-builder)
         working-directory: desktop
-        run: npx --no-install electron-builder --publish never
+        run: npx --no-install electron-builder --publish never --x64 --arm64
+
+      - name: Verify this leg produced everything it promised
+        shell: bash
+        run: |
+          missing=0
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            if [ -f "desktop/dist/$f" ]; then
+              echo "ok      $f"
+            else
+              echo "MISSING $f"
+              missing=1
+            fi
+          done <<'__EXPECT__'
+          ${{ matrix.expect }}
+          __EXPECT__
+          {
+            echo "### ${{ matrix.os }}"
+            echo ""
+            echo '```'
+            ls -l desktop/dist
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $missing
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
