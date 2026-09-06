@@ -12,6 +12,16 @@
   <link href="fonts.css" rel="stylesheet">
   <style>
     :root {
+      /* Surplus height: how much taller this viewport is than the point where
+         the front door stops being short of room. Every size below it is
+         written as `base + --tall × rate`, which is zero under 900px and leaves
+         every short screen exactly as it was, and grows continuously above it.
+         A calc rather than a media query: any vh expression steep enough to be
+         worth having above 900px is already too steep below it, so a breakpoint
+         would jump the whole hero at one pixel of resize. From
+         dicom.carino.systems, which worked this out first. */
+      --tall: max(0px, 100vh - 900px);
+
       --surface: #0d0d0d;
       --surface-solid: #080808;
       --surface-hover: rgba(255,255,255,0.08);
@@ -170,16 +180,37 @@
     .ov-main::-webkit-scrollbar-thumb { background: #1c1c1c; border-radius: 6px; }
 
     /* Empty state */
-    .ov-empty { min-height: 100%; display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center; }
+    /* Anchored to the top, not centred. Centring left 230px more space between
+       the tab bar and the mark at 1260px tall than at 800 — the hero slid down
+       the page as the screen grew, and a front door that floats in the middle
+       of its own frame reads as one that has come loose from it. Surplus height
+       collects at the bottom now, where it is quiet, and the padding above sets
+       the gap. flex-start rather than a fixed height with centring, because
+       centring also clips the top of the content when it does not fit: this has
+       to degrade into an ordinary scrolling page on a short screen, at 200%
+       zoom, or in a locale that runs long. */
+    .ov-empty { min-height: 100%; display: flex; flex-direction: column; align-items: center;
+      justify-content: flex-start;
+      gap: min(30px, calc(14px + var(--tall) * 0.04));
+      /* Nothing on a short screen: .ov-main already insets this panel by 24px,
+         which is the gap on a laptop and was the gap before any of this. This
+         only spends the surplus a tall screen has, so 900px and below are
+         untouched. */
+      padding-top: min(48px, calc(var(--tall) * 0.09)); }
     .ov-drop {
-      width: min(560px, 90%); padding: 56px 32px; text-align: center; cursor: pointer;
+      width: min(640px, 90%);
+      padding: min(72px, calc(clamp(22px, 3.2vh, 44px) + var(--tall) * 0.075)) 32px;
+      text-align: center; cursor: pointer;
       border: 2px dashed var(--border); border-radius: 16px; background: linear-gradient(180deg,#0d0d0d,#080808);
       transition: .2s;
     }
     .ov-drop:hover, .ov-drop.drag { border-color: var(--accent); box-shadow: 0 0 32px var(--accent-glow); transform: translateY(-2px); }
-    .ov-drop-icon { font-size: 52px; line-height: 1; margin-bottom: 12px; }
-    .ov-drop h2 { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
-    .ov-drop p { color: var(--text-muted); font-size: 14px; }
+    .ov-drop-icon { line-height: 1; margin-bottom: 12px;
+      font-size: min(76px, calc(clamp(34px, 4.2vh, 48px) + var(--tall) * 0.075)); }
+    .ov-drop h2 { font-weight: 800; margin-bottom: 8px;
+      font-size: min(1.9rem, calc(1.2rem + var(--tall) * 0.013)); }
+    .ov-drop p { color: var(--text-muted);
+      font-size: min(1.12rem, calc(.85rem + var(--tall) * 0.007)); }
     .ov-drop code { font-family: var(--mono); color: var(--accent); }
     /* Both pickers live inside the box: a folder is a study, so opening one is
        the same act as opening a file and belongs in the same panel. */
@@ -218,15 +249,32 @@
        headline still sitting above someone's study while they work would be the
        wrong way round. It is deliberately short for the same reason — the drop
        zone has to stay reachable on a laptop without scrolling. */
-    .ov-hero { width: min(680px, 92%); text-align: center; }
-    .ov-hero-mark { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-bottom: 10px; }
-    .ov-hero-mark img { width: 64px; height: 64px; }
+    .ov-hero { width: min(1040px, 92%); text-align: center; }
+    .ov-hero-mark { display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: min(26px, calc(2px + var(--tall) * 0.045));
+      margin: 0 auto min(48px, calc(clamp(3px, .7vh, 10px) + var(--tall) * 0.09)); }
+    /* Sized off viewport HEIGHT, not width: height is the scarce dimension on a
+       one-screen page, so the mark shrinks with the thing it competes against.
+       `width: auto` keeps the square undistorted at every size. */
+    .ov-hero-mark img { width: auto; display: block;
+      height: min(136px, calc(clamp(19px, 3.5vh, 44px) + var(--tall) * 0.21)); }
     /* Same trace the loading overlay draws, at the size the mark wants. It reads
-       as the mark's underline, and it is the one piece of motion on the screen. */
-    .ov-hero-mark .ekg { width: 150px; height: 34px; }
-    .ov-hero h1 { margin: 0 0 12px; font-size: clamp(20px, 3.4vw, 30px); line-height: 1.25; font-weight: 700; letter-spacing: -.01em; }
+       as the mark's underline, and it is the one piece of motion on the screen.
+       `width: auto` + the viewBox's own ratio keeps it undistorted; overflow
+       stays visible so the pulse's glow is not clipped by the box. */
+    .ov-hero-mark .ekg { display: block; margin: 0; width: auto; aspect-ratio: 200 / 40;
+      height: min(72px, calc(clamp(16px, 3vh, 34px) + var(--tall) * 0.10)); }
+    .ov-hero h1 { line-height: 1.1; font-weight: 700; letter-spacing: -.01em;
+      /* 3rem, not dicom's 3.6: the cap is there to stop a headline outgrowing
+         its own copy, and this page's second sentence is six words longer than
+         that one's. At 3.6rem it broke to a third line carrying two words. */
+      font-size: min(3rem, calc(clamp(1.6rem, 3.6vw + .4vh, 2.7rem) + var(--tall) * 0.035));
+      margin: 0 0 min(56px, calc(clamp(8px, 1.5vh, 14px) + var(--tall) * 0.1)); }
     .ov-hero h1 .gold { color: var(--accent); }
-    .ov-hero-lede { margin: 0; font-size: 14.5px; line-height: 1.65; color: var(--text-dim); }
+    .ov-hero-lede { color: var(--text-dim); line-height: 1.55;
+      max-width: min(820px, calc(660px + var(--tall) * 0.35));
+      font-size: min(1.32rem, calc(clamp(.92rem, .55rem + .5vh, 1.05rem) + var(--tall) * 0.012));
+      margin: 0 auto; }
     /* Two sentences in two spans, because data-i18n overwrites textContent and
        would eat any markup nested inside a translated element. They need no rule
        of their own: the newline between them in the markup already collapses to
